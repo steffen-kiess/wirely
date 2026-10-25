@@ -173,8 +173,8 @@ class _Loader:
             enum_type = types.TypeEnum(type_name, {name: number for number, name in member_symbols.items()},
                                        is_open=kind == fmt.TypeKind.OpenEnum, underlying_type=underlying,
                                        member_count=record.member_count if kind == fmt.TypeKind.ClosedEnum else None,
-                                       native_name=self.optional_name(record.native_name), json_names=json_names)
-            enum_type.is_json_serializable = json_record is not None
+                                       native_name=self.optional_name(record.native_name), json_names=json_names,
+                                       is_json_serializable=json_record is not None)
             return enum_type
         if kind == fmt.TypeKind.Struct:
             type_name, member_symbols = self.type_member_symbols(index, types.uint32)

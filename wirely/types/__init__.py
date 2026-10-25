@@ -4,6 +4,7 @@ import abc
 import re
 
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, NoReturn, TypeAlias
 
@@ -26,7 +27,8 @@ InternalValue: TypeAlias = (
 ORDERED_OPAQUE_TYPES = frozenset({'Std.Duration', 'Schedule.TimeOfDay'})
 
 
-# A value type supporting runtime validation, equality, and text parsing.
+# A value type supporting runtime validation, equality, and text parsing. Types
+# are immutable; concrete types are frozen dataclasses.
 class Type(abc.ABC):
     is_ordered = False  # Whether less() defines a total order on values.
 
@@ -126,16 +128,12 @@ class Type(abc.ABC):
 
 # A parameterless primitive type, without fields or inner types
 class TypePrimitive(Type):
-    def __init__(self, *, name: str, python_type: Any, is_runtime_type: bool, is_json_serializable: bool,
-                     has_to_csv_value: bool) -> None:
-        self.name = name
-        self.python_type = python_type
-
-        self._has_runtime_representation = is_runtime_type
-
-        self.is_json_serializable = is_json_serializable
-
-        self.has_to_csv_value = has_to_csv_value
+    # Set by each primitive type, as class attributes or fields.
+    name: str
+    python_type: Any
+    _has_runtime_representation: bool
+    is_json_serializable: bool
+    has_to_csv_value: bool
 
     @property
     def has_runtime_representation(self) -> bool:
@@ -167,17 +165,9 @@ class TypePrimitive(Type):
         return self.verify_value(value1) < self.verify_value(value2)
 
 
+@dataclass(frozen=True, repr=False)
 class TypeOption(Type):
-    def __init__(self, inner_type: Type) -> None:
-        self.inner_type = inner_type
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, TypeOption):
-            return False
-        return self.inner_type == other.inner_type
-
-    def __hash__(self) -> int:
-        return hash(('Option', self.inner_type))
+    inner_type: Type
 
     @property
     def contains_parameters(self) -> bool:
@@ -249,6 +239,7 @@ class TypeOption(Type):
         return f'Some({self.inner_type.to_text(value.value, native_types=native_types)})'
 
 
+@dataclass(frozen=True, eq=False, repr=False, init=False)
 class TypeStruct(Type):
     """A nominal value type with fields kept in declaration order.
 
@@ -261,6 +252,16 @@ class TypeStruct(Type):
 
     is_json_serializable = False
     has_to_csv_value = False
+
+    name: str  # The declared name, else the native name.
+    type_name: str | None  # The declared name, or None.
+    native_name: str | None  # None for structs native code does not rely on.
+    is_opaque: bool
+    _fields: Mapping[str, Type] | None
+    field_names: tuple[str | None, ...] | None
+    field_types: tuple[Type, ...]
+    # JSON names of the fields, the JsonTypes entry of the struct, or None without one.
+    json_names: tuple[str, ...] | None
 
     def __init__(self, name: str | None, fields: Mapping[str, Type] | Sequence[Type], *,
                  native_name: str | None = None, is_opaque: bool = False, json_names: Sequence[str] | None = None,
@@ -275,22 +276,22 @@ class TypeStruct(Type):
             raise ValueError('Struct native_name must be a nonempty string or None')
         if is_opaque and native_name is None:
             raise ValueError('Opaque structs require a native_name')
-        self.name = name or native_name or 'struct'  # The declared name, else the native name.
-        self.type_name = name  # The declared name, or None.
-        self.native_name = native_name  # None for structs native code does not rely on.
-        self.is_opaque = is_opaque
-        self._fields: Mapping[str, Type] | None
+        object.__setattr__(self, 'name', name or native_name or 'struct')
+        object.__setattr__(self, 'type_name', name)
+        object.__setattr__(self, 'native_name', native_name)
+        object.__setattr__(self, 'is_opaque', is_opaque)
         if isinstance(fields, Mapping):
-            self._fields = MappingProxyType(dict(fields))
-            self.field_names: tuple[str | None, ...] | None = tuple(self._fields)
-            self.field_types: tuple[Type, ...] = tuple(self._fields.values())
+            named_fields = MappingProxyType(dict(fields))
+            object.__setattr__(self, '_fields', named_fields)
+            object.__setattr__(self, 'field_names', tuple(named_fields))
+            object.__setattr__(self, 'field_types', tuple(named_fields.values()))
         else:
-            self._fields = None
-            self.field_names = None
-            self.field_types = tuple(fields)
+            object.__setattr__(self, '_fields', None)
+            object.__setattr__(self, 'field_names', None)
+            object.__setattr__(self, 'field_types', tuple(fields))
         if not self.field_types:
-            self.field_names = ()
-            self._fields = MappingProxyType({})
+            object.__setattr__(self, 'field_names', ())
+            object.__setattr__(self, '_fields', MappingProxyType({}))
         if field_names is not None:
             if isinstance(fields, Mapping):
                 raise ValueError('Use either named fields or field_names')
@@ -299,14 +300,13 @@ class TypeStruct(Type):
             present = [name for name in field_names if name is not None]
             if any(not isinstance(name, str) for name in present) or len(set(present)) != len(present):
                 raise ValueError('Field names must be distinct strings or None')
-            self.field_names = tuple(field_names) if present or not self.field_types else None
-            self._fields = (None if self.field_names is None else MappingProxyType(
-                {name: ty for name, ty in zip(field_names, self.field_types) if name is not None}))
+            object.__setattr__(self, 'field_names', tuple(field_names) if present or not self.field_types else None)
+            object.__setattr__(self, '_fields', (None if self.field_names is None else MappingProxyType(
+                {name: ty for name, ty in zip(field_names, self.field_types) if name is not None})))
         if any(not isinstance(field_type, Type) or field_type.contains_parameters
                for field_type in self.field_types):
             raise ValueError('Struct fields require resolved value types')
-        # JSON names of the fields, the JsonTypes entry of the struct, or None without one.
-        self.json_names = (tuple(fields) if isinstance(fields, Mapping) else None) if json_names is None else tuple(json_names)
+        object.__setattr__(self, 'json_names', (tuple(fields) if isinstance(fields, Mapping) else None) if json_names is None else tuple(json_names))
         if self.json_names is not None and len(self.json_names) != len(self.field_types):
             raise ValueError(f'Struct `{self}` needs one JSON name per field')
 
@@ -424,17 +424,9 @@ class TypeStruct(Type):
         return f'{self} {{ {fields} }}'
 
 
+@dataclass(frozen=True, repr=False)
 class TypeList(Type):
-    def __init__(self, inner_type: Type) -> None:
-        self.inner_type = inner_type
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, TypeList):
-            return False
-        return self.inner_type == other.inner_type
-
-    def __hash__(self) -> int:
-        return hash(('List', self.inner_type))
+    inner_type: Type
 
     @property
     def contains_parameters(self) -> bool:
@@ -489,6 +481,7 @@ class TypeList(Type):
 
 
 
+@dataclass(frozen=True, eq=False, repr=False)
 class TypeResource(Type):
     """A handle to a native object, such as a KNX connection; a load-time type only.
 
@@ -497,9 +490,8 @@ class TypeResource(Type):
     object.
     """
 
-    def __init__(self, name: str, native_name: str) -> None:
-        self.name = name  # Qualified name for diagnostics.
-        self.native_name = native_name  # Name in native interfaces, such as 'KNX.Bus'.
+    name: str  # Qualified name for diagnostics.
+    native_name: str  # Name in native interfaces, such as 'KNX.Bus'.
 
     @property
     def contains_parameters(self) -> bool:
@@ -533,9 +525,13 @@ class TypeResource(Type):
 
 
 # TODO: Add to_csv_value?
+@dataclass(frozen=True, repr=False)
 class TypeUnit(TypePrimitive):
-    def __init__(self) -> None:
-        super().__init__(name='unit', python_type=Unit, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
+    name = 'unit'
+    python_type = Unit
+    _has_runtime_representation = True
+    is_json_serializable = False
+    has_to_csv_value = False
 
     def default_value(self) -> Any:
         return Unit()
@@ -550,7 +546,14 @@ class TypeUnit(TypePrimitive):
         return '()'
 
 
+@dataclass(frozen=True, repr=False)
 class TypeBoolean(TypePrimitive):
+    name = 'boolean'
+    python_type = bool
+    _has_runtime_representation = True
+    is_json_serializable = True
+    has_to_csv_value = True
+
     def bitwise(self, operation: str, left: Any, right: Any = None) -> Any:
         left = self.verify_value(left)
         if operation == 'not':
@@ -563,9 +566,6 @@ class TypeBoolean(TypePrimitive):
         if operation == 'xor':
             return left ^ right
         raise ValueError(f'Unknown bitwise operation {operation!r}')
-
-    def __init__(self) -> None:
-        super().__init__(name='boolean', python_type=bool, is_runtime_type=True, is_json_serializable=True, has_to_csv_value=True)
 
     def default_value(self) -> Any:
         return False
@@ -602,24 +602,32 @@ class TypeBoolean(TypePrimitive):
 
 
 # TODO: Work on value verification etc.
+@dataclass(frozen=True, repr=False, kw_only=True)
 class TypeInt(TypePrimitive):
     is_ordered = True
+    python_type = int
+    _has_runtime_representation = True
+    is_json_serializable = True
+    has_to_csv_value = True
 
-    def __init__(self, *, is_signed: bool, bits: int) -> None:
-        name = f'int{bits}'
-        if not is_signed:
+    is_signed: bool
+    bits: int
+    name: str = field(init=False, compare=False)
+    min_value: int = field(init=False, compare=False)
+    max_value: int = field(init=False, compare=False)
+
+    def __post_init__(self) -> None:
+        name = f'int{self.bits}'
+        if not self.is_signed:
             name = 'u' + name
-        super().__init__(name=name, python_type=int, is_runtime_type=True, is_json_serializable=True, has_to_csv_value=True)
-
-        self.is_signed = is_signed
-        self.bits = bits
+        object.__setattr__(self, 'name', name)
 
         if self.is_signed:
-            self.min_value = -2**(self.bits - 1)
-            self.max_value = 2**(self.bits - 1) - 1
+            object.__setattr__(self, 'min_value', -2**(self.bits - 1))
+            object.__setattr__(self, 'max_value', 2**(self.bits - 1) - 1)
         else:
-            self.min_value = 0
-            self.max_value = 2**self.bits - 1
+            object.__setattr__(self, 'min_value', 0)
+            object.__setattr__(self, 'max_value', 2**self.bits - 1)
 
     def default_value(self) -> Any:
         return 0
@@ -702,9 +710,13 @@ class TypeInt(TypePrimitive):
         return str(value), False
 
 
+@dataclass(frozen=True, repr=False)
 class TypeValueType(TypePrimitive):
-    def __init__(self) -> None:
-        super().__init__(name='type', python_type=Type, is_runtime_type=False, is_json_serializable=False, has_to_csv_value=False)
+    name = 'type'
+    python_type = Type
+    _has_runtime_representation = False
+    is_json_serializable = False
+    has_to_csv_value = False
 
     def verify_value(self, value: Any) -> Any:
         if not isinstance(value, Type):
@@ -724,9 +736,13 @@ class TypeValueType(TypePrimitive):
 
 # TODO: Remove json_encode because strings should not be used at runtime?
 # TODO: Add to_csv_value? Probably not because it should not be used at runtime
+@dataclass(frozen=True, repr=False)
 class TypeString(TypePrimitive):
-    def __init__(self) -> None:
-        super().__init__(name='string', python_type=str, is_runtime_type=False, is_json_serializable=True, has_to_csv_value=False)
+    name = 'string'
+    python_type = str
+    _has_runtime_representation = False
+    is_json_serializable = True
+    has_to_csv_value = False
 
     def default_value(self) -> Any:
         return ''
@@ -762,6 +778,7 @@ def closed_enum_underlying_type(member_count: int) -> TypeInt:
 
 
 # TODO: Add to_csv_value?
+@dataclass(frozen=True, eq=False, repr=False, init=False)
 class TypeEnum(TypePrimitive):
     """A nominal enum with either dense closed values or an open integer range.
 
@@ -770,12 +787,31 @@ class TypeEnum(TypePrimitive):
     of the named numbers of an open enum.
     """
 
+    python_type = int
+    _has_runtime_representation = True
+    has_to_csv_value = False
+
+    name: str  # The declared name, else the native name.
+    type_name: str | None  # The declared name, or None.
+    member_count: int | None  # Number of members of a closed enum; None for open enums.
+    is_open: bool
+    underlying_type: TypeInt
+    native_name: str | None  # None for enums native code does not rely on.
+    members: Mapping[str, int]
+    _names: Mapping[int, str]
+    # JSON names by number, the JsonTypes entry of the enum.
+    json_names: Mapping[int, str]
+    _json_numbers: Mapping[str, int]
+    is_json_serializable: bool
+
     def __init__(self, name: str | None, members: Mapping[str, int], *, is_open: bool, underlying_type: TypeInt,
                  native_name: str | None = None, member_count: int | None = None,
-                 json_names: Mapping[int, str] | None = None) -> None:
+                 json_names: Mapping[int, str] | None = None, is_json_serializable: bool = True) -> None:
         """Create an enum; an unnamed closed enum has no members and gives member_count.
 
         json_names maps numbers to their JSON names; by default, the member names.
+        is_json_serializable enables JSON conversion; the binary format records it
+        as the presence of a JsonTypes entry.
         """
         if type(is_open) is not bool:
             raise ValueError('Enum is_open must be a boolean')
@@ -805,18 +841,18 @@ class TypeEnum(TypePrimitive):
                 raise ValueError(f'Enum members `{names[number]}` and `{member}` have the same number {number}')
             names[number] = member
         # name is the declared name, else the native name.
-        super().__init__(name=name or native_name or 'enum', python_type=int, is_runtime_type=True,
-                         is_json_serializable=True, has_to_csv_value=False)
-        self.type_name = name  # The declared name, or None.
-        self.member_count = member_count  # Number of members of a closed enum; None for open enums.
-        self.is_open = is_open
-        self.underlying_type = underlying_type
-        self.native_name = native_name  # None for enums native code does not rely on.
-        self.members = MappingProxyType(dict(members))
-        self._names = names
-        # JSON names by number, the JsonTypes entry of the enum.
-        self.json_names = MappingProxyType(dict(names if json_names is None else json_names))
-        self._json_numbers = {json_name: number for number, json_name in self.json_names.items()}
+        object.__setattr__(self, 'name', name or native_name or 'enum')
+        object.__setattr__(self, 'type_name', name)
+        object.__setattr__(self, 'member_count', member_count)
+        object.__setattr__(self, 'is_open', is_open)
+        object.__setattr__(self, 'underlying_type', underlying_type)
+        object.__setattr__(self, 'native_name', native_name)
+        object.__setattr__(self, 'members', MappingProxyType(dict(members)))
+        object.__setattr__(self, '_names', MappingProxyType(names))
+        object.__setattr__(self, 'json_names', MappingProxyType(dict(names if json_names is None else json_names)))
+        object.__setattr__(self, '_json_numbers', MappingProxyType(
+            {json_name: number for number, json_name in self.json_names.items()}))
+        object.__setattr__(self, 'is_json_serializable', is_json_serializable)
         if len(self._json_numbers) != len(self.json_names):
             raise ValueError(f'Enum `{self}` has duplicate JSON names')
 

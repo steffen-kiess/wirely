@@ -707,6 +707,17 @@ def check_runtime_limits():
         assert not is_runtime_type(settings)
 
 
+def check_immutability():
+    # Types cannot change after construction; primitives compare by contents.
+    types = wirely.types
+    mode = types.TypeEnum('Mode', {'On': 0}, is_open=False, underlying_type=types.uint8)
+    for value_type in (types.uint8, types.TypeStruct('Point', {'x': types.int8}), mode, types.TypeOption(mode)):
+        with checks.assertRaises(AttributeError):
+            value_type.name = 'other'
+    unsigned = types.TypeInt(is_signed=False, bits=8)
+    assert unsigned == types.uint8 and hash(unsigned) == hash(types.uint8) and unsigned != types.int8
+
+
 check_parsing_and_conversions()
 check_enum_values()
 check_open_int_enums()
@@ -723,6 +734,7 @@ check_unnamed_types()
 check_default_values()
 
 check_runtime_limits()
+check_immutability()
 
 
 async def run_test():

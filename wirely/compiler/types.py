@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Callable, Iterator, Mapping
 from typing import TYPE_CHECKING, Any, NoReturn
 
@@ -15,14 +16,17 @@ from .. import types
 from . import model
 
 
+@dataclasses.dataclass(frozen=True, repr=False)
 class TypeParameter(Type):
-    def __init__(self, parameter: model.NodeParameter, *,
-                 ast_element: model.ast.SourceElement | None = None) -> None:
-        if not isinstance(parameter, model.NodeParameter):
+    parameter: model.NodeParameter
+    # Where the type is used, for diagnostics; defaults to the parameter's declaration.
+    ast_element: model.ast.SourceElement | None = dataclasses.field(default=None, compare=False, kw_only=True)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.parameter, model.NodeParameter):
             raise Exception("not isinstance(parameter, model.NodeParameter)")
 
-        self.parameter = parameter
-        self.ast_element = ast_element or parameter.declaration
+        object.__setattr__(self, 'ast_element', self.ast_element or self.parameter.declaration)
 
     @property
     def contains_parameters(self) -> bool:
@@ -61,14 +65,6 @@ class TypeParameter(Type):
 
     def __str__(self) -> str:
         return self.parameter.name.id_str
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, TypeParameter):
-            return False
-        return self.parameter == other.parameter
-
-    def __hash__(self) -> int:
-        return hash(('TypeParameter', self.parameter))
 
     def default_value(self) -> NoReturn:
         raise ValueError('Type parameters require resolution before producing a default value')
