@@ -223,9 +223,9 @@ class ProgramSymbols:
 
 @dataclass(frozen=True, slots=True, kw_only=True, eq=False)
 class Program:
-    """An executable program with immutable structure and optional debug data.
+    """An immutable executable program with optional debug data.
 
-    Referenced type descriptors, payload objects, and graph are not frozen.
+    Only the optional compiler graph is mutable.
     """
 
     state_variables: VariableTable  # Variables persisted between engine steps.

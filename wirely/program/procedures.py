@@ -4,8 +4,10 @@ import enum
 from dataclasses import dataclass
 
 from ..types import Type
+from ..util import immutable_enum
 
 
+@immutable_enum
 class Opcode(enum.Enum):
     COPY = enum.auto()
     SET_DEFAULT = enum.auto()
@@ -62,8 +64,19 @@ CONVERSION_OPCODES = {
 
 @dataclass(frozen=True, slots=True)
 class Constant:
+    """A typed constant value, verified and normalized to the internal representation when created."""
+
     value_type: Type
     value: object
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.value_type, Type):
+            raise ValueError(f'Expected a type, got {self.value_type!r}')
+        try:
+            value = self.value_type.verify_value(self.value)
+        except Exception as error:
+            raise ValueError(f'Invalid `{self.value_type}` value {self.value!r}: {error}') from error
+        object.__setattr__(self, 'value', value)
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,6 +91,7 @@ class Function:
         object.__setattr__(self, 'parameter_types', tuple(self.parameter_types))
 
 
+@immutable_enum
 class OperandKind(enum.Enum):
     INPUT = enum.auto()
     OUTPUT = enum.auto()

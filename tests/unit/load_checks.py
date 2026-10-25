@@ -220,7 +220,6 @@ def check_validation():
         (make_program((Instruction(Opcode.FAIL, (number, 1, value)),)), 'List[string]'),
         (make_program((fail_with(('only one',)),)), 'must contain 3 strings'),
         (make_program((fail_with(('', 'x', '')),)), 'Unsupported diagnostic format'),
-        (make_program((fail_with(('', 7, '')),)), 'Constant const.0'),
         (make_program((Instruction(Opcode.COPY, (Operand(OperandKind.LOCAL, 0), ConstOperand(format_constant))),
                        Instruction(Opcode.RETURN)), local_types=(types.uint8,)),
          'resolved runtime type'),
@@ -230,6 +229,10 @@ def check_validation():
     for malformed, message in invalid:
         with checks.assertRaisesRegex(ValueError, message.replace('[', r'\[').replace(']', r'\]')):
             validate_program(malformed)
+    # Constants verify their values when created, storing lists as tuples.
+    with checks.assertRaisesRegex(ValueError, r'Invalid `List\[string\]` value'):
+        fail_with(('', 7, ''))
+    assert Constant(types.TypeList(types.uint8), [1, 2]).value == (1, 2)
 
     procedure = program.procs[RunStage.LOAD][0]
     for stage in (RunStage.INPUT, RunStage.DEFAULT, RunStage.OUTPUT):

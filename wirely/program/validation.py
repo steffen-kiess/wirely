@@ -201,11 +201,6 @@ def validate_program(program: Program) -> None:
         try:
             if not isinstance(constant, Constant):
                 raise ValueError('Expected a Constant')
-            if not isinstance(constant.value_type, Type):
-                raise ValueError(f'Expected a type, got {constant.value_type!r}')
-            constant.value_type.verify_value(constant.value)
-            if is_runtime_type(constant.value_type):
-                constant.value_type.serialize(constant.value)
         except Exception as error:
             raise ValueError(f'Constant const.{index}: {error}') from error
     for index, function in enumerate(program.functions):

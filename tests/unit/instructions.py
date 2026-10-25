@@ -443,8 +443,10 @@ def check_validation():
     # Unreachable instructions are checked too.
     expect_invalid([ret, instruction(Opcode.COPY, local(0), const(types.String, '')), ret], 'runtime type',
                    local_types=(types.String,))
-    expect_invalid([ret, instruction(Opcode.COPY, local(0), const(types.uint8, 256)), ret], 'Constant const.0',
-                   local_types=(types.uint8,))
+    with checks.assertRaisesRegex(ValueError, 'Invalid `uint8` value 256'):
+        const(types.uint8, 256)
+    with checks.assertRaises(AttributeError):
+        Opcode.COPY.label = 'copy'
 
 
 def check_dump():
