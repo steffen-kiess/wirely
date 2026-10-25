@@ -29,6 +29,9 @@ Replace the port kind `resource T` with `fixed T`.
 
 Replace `wirely run-service` with `wirely run`.
 
+`wirely show-graph` and the `graphviz` extra are removed; use
+`wirely edit` or `wirely export-image` to view diagrams.
+
 ### Added
 
 - `wirely compile -o FILE` writes the compiled program in the binary

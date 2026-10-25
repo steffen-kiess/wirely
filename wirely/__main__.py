@@ -40,10 +40,6 @@ def main() -> None:
     compile_parser.set_defaults(module_name='wirely.cli.compile',
                                 create_program=True, create_engine=False)
 
-    show_graph_parser = subparsers.add_parser('show-graph')
-    show_graph_parser.add_argument('input_filename')
-    show_graph_parser.set_defaults(module_name='wirely.cli.graphviz')
-
     edit_parser = subparsers.add_parser('edit', help='edit programs as source and diagrams')
     edit_parser.add_argument('input_filename', nargs='+')
     edit_parser.set_defaults(module_name='wirely.cli.edit')

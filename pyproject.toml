@@ -28,10 +28,9 @@ Issues = "https://github.com/steffen-kiess/wirely/issues"
 knx = ["xknx>=3.4,<4"]
 mqtt = ["aiomqtt>=2.3,<3"]
 two-n = ["aiohttp>=3.12,<4", "cryptography>=38.0.0"]
-graphviz = ["graphviz>=0.20.1"]
 gpio = ["gpiod>=2.1,<3"]
 editor = ["PySide6-Essentials>=6.8"]
-all = ["wirely[knx,mqtt,two-n,graphviz,gpio]"]
+all = ["wirely[knx,mqtt,two-n,gpio]"]
 test = ["pyOpenSSL>=23.0.0", "mypy>=2.0"]
 pex = ["pex"]
 dev = ["wirely[test,pex]", "uv"]
@@ -52,11 +51,6 @@ check_untyped_defs = true
 disallow_untyped_defs = true
 
 [[tool.mypy.overrides]]
-# The graphviz output is not type checked.
-module = ["wirely.cli.graphviz"]
-ignore_errors = true
-
-[[tool.mypy.overrides]]
 # These packages have no type information, at least in the oldest supported versions.
-module = ["cbor2", "gpiod", "gpiod.*", "graphviz", "OpenSSL", "OpenSSL.*", "sdnotify"]
+module = ["cbor2", "gpiod", "gpiod.*", "OpenSSL", "OpenSSL.*", "sdnotify"]
 ignore_missing_imports = true

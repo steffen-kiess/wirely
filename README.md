@@ -47,7 +47,6 @@ Install optional integrations as needed:
 python3 -m pip install 'wirely[knx]'           # KNX
 python3 -m pip install 'wirely[mqtt]'          # MQTT
 python3 -m pip install 'wirely[two-n]'         # 2N devices
-python3 -m pip install 'wirely[graphviz]'      # show-graph
 python3 -m pip install 'wirely[gpio]'          # GPIO
 python3 -m pip install 'wirely[all]'           # all optional integrations
 python3 -m pip install 'wirely[editor]'        # graphical editor
