@@ -7,7 +7,7 @@ from typing import Any, Literal, TypeVar, overload
 from .. import types
 from ..runtime.extensions import NativeTypes, resolve_extensions
 from .const_data import ConstDataReader
-from ._binary import BinaryFile, ValueRef, at as _at, slice_range as _slice
+from ._binary import BinaryFile, ValueRef
 from .generated import format as fmt
 from .procedures import (
     ARITHMETIC_OPCODES, BranchTarget, Constant, ConstOperand, Function,
@@ -17,9 +17,9 @@ from .program import (
     InputSource, NativeProcedureEntry, OutputTarget, Procedure, Program,
     RunStage, Variable, VariableBank, VariableTable,
 )
-from .records import record_size, unpack_record
+from .records import unpack_record
 from .validation import validate_program
-from .verifier import _verified_file
+from .verifier import verified_file
 
 T = TypeVar('T')
 R = TypeVar('R', bound=tuple[Any, ...])
@@ -37,21 +37,16 @@ class _RawInstruction:
 
 
 class _Loader:
+    """Decode a file that passed verification, so references and layouts are valid."""
+
     def __init__(self, file: BinaryFile, native_types: NativeTypes, max_decoded_values: int) -> None:
         self.file = file
         self.native_types = native_types
         self.type_lists = self.table(fmt.SectionType.TypeLists, fmt.TypeEntry)
         self.json_names = self.table(fmt.SectionType.JsonNames, fmt.JsonName)
-        self.json_types: dict[int, fmt.JsonType] = {}
-        for json_record in self.table(fmt.SectionType.JsonTypes, fmt.JsonType):
-            if json_record.type.value in self.json_types:
-                raise ValueError('Duplicate JsonTypes entry')
-            self.json_types[json_record.type.value] = json_record
+        self.json_types = {record.type.value: record for record in self.table(fmt.SectionType.JsonTypes, fmt.JsonType)}
         self.types: list[types.Type] = []
         self.read_types()
-        for index in self.json_types:
-            if not isinstance(self.type_at(index), (types.TypeEnum, types.TypeStruct)):
-                raise ValueError('JsonTypes entry must name an enum or struct')
         reader = ConstDataReader(self.buffer(fmt.SectionType.ProgramData), self.type_at,
                                  max_values=max_decoded_values)
         self.constants = []
@@ -71,11 +66,6 @@ class _Loader:
             records = self.table(section, fmt.Variable)
             variables = [Variable(f'{name}.{index}', self.type_at(record.value_type.value))
                          for index, record in enumerate(records)]
-            end = 0
-            for variable, record in zip(variables, records):
-                if record.offset < end or record.offset % variable.var_type.alignment:
-                    raise ValueError(f'Section {section.name} has an invalid variable offset')
-                end = record.offset + variable.var_type.size
             self.variable_tables[section] = VariableTable(variables, name)
             self.variable_records[section] = records
             for bank in banks:
@@ -86,7 +76,7 @@ class _Loader:
         interface_names = self.table(fmt.SectionType.InterfaceNames, fmt.NameRef)
 
         def interfaces(interval: fmt.Range) -> tuple[str, ...]:
-            return tuple(self.string(record.name) for record in self.range(interface_names, interval, 'InterfaceNames'))
+            return tuple(self.string(record.name) for record in self.range(interface_names, interval))
 
         self.natives = [NativeProcedureEntry(self.string(record.name), interfaces(record.input_names),
                                              interfaces(record.output_names), record.initializer)
@@ -103,8 +93,8 @@ class _Loader:
         return self.file.table(section, record_class)
 
     @staticmethod
-    def range(items: Sequence[T], interval: fmt.Range, what: str) -> Sequence[T]:
-        return _slice(items, interval.first.value, interval.count_, what)
+    def range(items: Sequence[T], interval: fmt.Range) -> Sequence[T]:
+        return items[interval.first.value:interval.first.value + interval.count_]
 
     def string(self, ref: fmt.StringRef | fmt.OptionalStringRef,
                section: fmt.SectionType = fmt.SectionType.NativeNames) -> str:
@@ -114,15 +104,13 @@ class _Loader:
         return self.file.optional_name(ref)
 
     def type_at(self, index: int) -> types.Type:
-        return _at(self.types, index, 'ValueTypes')
+        return self.types[index]
 
     def type_list(self, interval: fmt.Range) -> list[types.Type]:
-        return [self.type_at(entry.value_type.value) for entry in self.range(self.type_lists, interval, 'TypeLists')]
+        return [self.type_at(entry.value_type.value) for entry in self.range(self.type_lists, interval)]
 
     def read_types(self) -> None:
         data = self.buffer(fmt.SectionType.ValueTypes)
-        if len(data) % 32:
-            raise ValueError('Section ValueTypes contains a truncated record')
         layouts = {
             fmt.TypeKind.Unit: fmt.SimpleType, fmt.TypeKind.Boolean: fmt.SimpleType,
             fmt.TypeKind.String: fmt.SimpleType, fmt.TypeKind.Type: fmt.SimpleType,
@@ -132,19 +120,9 @@ class _Loader:
             fmt.TypeKind.List: fmt.CompositeType,
         }
         for offset in range(0, len(data), 32):
-            index = offset // 32
-            try:
-                kind = fmt.TypeKind(data[offset])
-                if kind not in layouts:
-                    raise ValueError(f'Unknown type kind {kind}')
-                layout = layouts[kind]
-                record: Any = unpack_record(layout, data, offset)
-                if any(data[offset + record_size(layout):offset + 32]):
-                    raise ValueError('Type record padding must be zero')
-                value_type = self.make_type(index, kind, record)
-                self.types.append(value_type)
-            except ValueError as error:
-                raise ValueError(f'ValueTypes[{index}]: {error}') from error
+            kind = fmt.TypeKind(data[offset])
+            record: Any = unpack_record(layouts[kind], data, offset)
+            self.types.append(self.make_type(offset // 32, kind, record))
 
     def make_type(self, index: int, kind: fmt.TypeKind, record: Any) -> types.Type:
         primitives = {fmt.TypeKind.Unit: types.unit, fmt.TypeKind.Boolean: types.boolean,
@@ -152,32 +130,23 @@ class _Loader:
         if kind in primitives:
             return primitives[kind]
         if kind == fmt.TypeKind.Integer:
-            if record.bits not in (8, 16, 32, 64, 128):
-                raise ValueError('Invalid integer width')
             return getattr(types, f'{"int" if record.signed else "uint"}{record.bits}')
         json_record = self.json_types.get(index)
         names = None if json_record is None else tuple(
             self.string(item.name, fmt.SectionType.JsonData)
-            for item in _slice(self.json_names, json_record.names.value, json_record.count_, 'JsonNames'))
+            for item in self.range(self.json_names, fmt.Range(json_record.names, json_record.count_)))
         if kind in (fmt.TypeKind.ClosedEnum, fmt.TypeKind.OpenEnum):
             underlying = self.type_at(record.underlying_type.value)
-            if not isinstance(underlying, types.TypeInt):
-                raise ValueError('Enum underlying type must be an integer')
+            assert isinstance(underlying, types.TypeInt)
             json_names = {}
             if names is not None:
+                assert json_record is not None
                 if kind == fmt.TypeKind.OpenEnum:
-                    assert json_record is not None
-                    if json_record.numbers % underlying.alignment:
-                        raise ValueError('Open enum numbers are not aligned')
-                    numbers = bytes(_slice(self.buffer(fmt.SectionType.JsonData), json_record.numbers,
-                                           len(names) * underlying.size, 'JsonData numbers'))
-                    values = [underlying.deserialize(numbers[start:start + underlying.size])
-                              for start in range(0, len(numbers), underlying.size)]
-                    if values != sorted(set(values)):
-                        raise ValueError('Open enum numbers must be distinct and sorted')
+                    start = json_record.numbers
+                    numbers = bytes(self.buffer(fmt.SectionType.JsonData)[start:start + len(names) * underlying.size])
+                    values = [underlying.deserialize(numbers[offset:offset + underlying.size])
+                              for offset in range(0, len(numbers), underlying.size)]
                 else:
-                    if len(names) != record.member_count:
-                        raise ValueError('Closed enum needs one JSON name per member')
                     values = list(range(record.member_count))
                 json_names = dict(zip(values, names))
             enum_type = types.TypeEnum(None, {}, is_open=kind == fmt.TypeKind.OpenEnum, underlying_type=underlying,
@@ -204,13 +173,13 @@ class _Loader:
                     if operand.kind == fmt.OperandKind.Immediate:
                         operands.append(_Immediate(operand.index))
                     elif operand.kind == fmt.OperandKind.Const:
-                        operands.append(ConstOperand(_at(self.constants, operand.index, 'ConstValues')))
+                        operands.append(ConstOperand(self.constants[operand.index]))
                     else:
                         operands.append(Operand(OperandKind[(operand.kind.name or '').upper()], operand.index))
                 elif opcode == Opcode.CALL and position == 1:
-                    operands.append(_at(self.functions, operand, 'NativeFunctions'))
+                    operands.append(self.functions[operand])
                 elif opcode == Opcode.FAIL and position == 0:
-                    operands.append(_at(self.constants, operand, 'ConstValues'))
+                    operands.append(self.constants[operand])
                 elif opcode == Opcode.JUMP or (opcode in (Opcode.JUMP_IF_TRUE, Opcode.JUMP_IF_FALSE) and position == 1):
                     operands.append(BranchTarget(operand))
                 else:
@@ -219,63 +188,52 @@ class _Loader:
         return instructions
 
     def body(self, index: int, inputs: tuple[InputSource, ...], outputs: tuple[OutputTarget, ...]) -> ProcedureBody:
-        locals_ = tuple(self.type_list(_at(self.bytecode, index, 'BytecodeProcedures').locals))
+        locals_ = tuple(self.type_list(self.bytecode[index].locals))
         tables = {OperandKind.LOCAL: locals_, OperandKind.INPUT: tuple(source.value_type for source in inputs),
                   OperandKind.OUTPUT: tuple(target.variable.var_type for target in outputs)}
 
         def operand_type(operand: Any) -> types.Type:
             if isinstance(operand, Operand):
-                return _at(tables[operand.kind], operand.index, operand.kind.name)
-            if isinstance(operand, ConstOperand):
-                return operand.constant.value_type
-            raise ValueError('An immediate requires a typed counterpart')
+                return tables[operand.kind][operand.index]
+            assert isinstance(operand, ConstOperand)
+            return operand.constant.value_type
 
         instructions = []
         immediate_types = []
-        for instruction_index, raw in enumerate(_at(self.raw_bodies, index, 'BytecodeProcedures')):
+        for raw in self.raw_bodies[index]:
             operands = list(raw.operands)
             opcode = raw.opcode
-            try:
-                for position, operand in enumerate(raw.operands):
-                    if isinstance(operand, Operand):
-                        operand_type(operand)  # Check indices even when no immediate needs their types.
-                    if not isinstance(operand, _Immediate):
-                        continue
-                    value_type: types.Type
-                    if opcode in (Opcode.JUMP_IF_TRUE, Opcode.JUMP_IF_FALSE):
-                        value_type = types.boolean
-                    elif opcode in (Opcode.SHIFT_LEFT, Opcode.SHIFT_RIGHT) and position == 2:
-                        value_type = types.uint32
-                    elif opcode == Opcode.CALL:
-                        function = operands[1]
-                        value_type = _at(function.parameter_types, position - 3, 'Function parameter')
-                    elif opcode in (Opcode.EQUAL, Opcode.LESS):
-                        value_type = operand_type(raw.operands[3 - position])
-                    else:
-                        value_type = operand_type(raw.operands[0])
-                        if opcode == Opcode.SET_FIELD:
-                            if not isinstance(value_type, types.TypeStruct):
-                                raise ValueError('SET_FIELD requires a struct destination')
-                            value_type = _at(value_type.field_types, operands[2], 'Struct field')
-                        elif opcode == Opcode.MAKE_SOME or (opcode in ARITHMETIC_OPCODES and opcode.name.endswith('_CHECKED')):
-                            if not isinstance(value_type, types.TypeOption):
-                                raise ValueError('Instruction requires an option destination')
-                            value_type = value_type.inner_type
-                    representation = value_type.underlying_type if isinstance(value_type, types.TypeEnum) else value_type
-                    number = operand.number
-                    if isinstance(representation, types.TypeBoolean):
-                        if number > 1:
-                            raise ValueError('Boolean immediate must be zero or one')
-                        value: Any = bool(number)
-                    elif isinstance(representation, types.TypeInt):
-                        value = (number >> 1) ^ -(number & 1) if representation.is_signed else number
-                    else:
-                        raise ValueError('Immediate requires an integer, boolean, or enum type')
-                    operands[position] = ConstOperand(Constant(value_type, value_type.verify_value(value)))
-                    immediate_types.append(id(value_type))
-                instructions.append(Instruction(opcode, tuple(operands)))
-            except ValueError as error:
-                raise ValueError(f'BytecodeProcedures[{index}] instruction {instruction_index}: {error}') from error
+            for position, operand in enumerate(raw.operands):
+                if not isinstance(operand, _Immediate):
+                    continue
+                value_type: types.Type
+                if opcode in (Opcode.JUMP_IF_TRUE, Opcode.JUMP_IF_FALSE):
+                    value_type = types.boolean
+                elif opcode in (Opcode.SHIFT_LEFT, Opcode.SHIFT_RIGHT) and position == 2:
+                    value_type = types.uint32
+                elif opcode == Opcode.CALL:
+                    value_type = operands[1].parameter_types[position - 3]
+                elif opcode in (Opcode.EQUAL, Opcode.LESS):
+                    value_type = operand_type(raw.operands[3 - position])
+                else:
+                    value_type = operand_type(raw.operands[0])
+                    if opcode == Opcode.SET_FIELD:
+                        assert isinstance(value_type, types.TypeStruct)
+                        value_type = value_type.field_types[operands[2]]
+                    elif opcode == Opcode.MAKE_SOME or (opcode in ARITHMETIC_OPCODES and opcode.name.endswith('_CHECKED')):
+                        assert isinstance(value_type, types.TypeOption)
+                        value_type = value_type.inner_type
+                representation = value_type.underlying_type if isinstance(value_type, types.TypeEnum) else value_type
+                number = operand.number
+                value: Any
+                if isinstance(representation, types.TypeBoolean):
+                    value = bool(number)
+                else:
+                    assert isinstance(representation, types.TypeInt)
+                    value = (number >> 1) ^ -(number & 1) if representation.is_signed else number
+                operands[position] = ConstOperand(Constant(value_type, value))
+                immediate_types.append(id(value_type))
+            instructions.append(Instruction(opcode, tuple(operands)))
         key = index, tuple(immediate_types)
         if key not in self.resolved_bodies:
             self.resolved_bodies[key] = ProcedureBody(tuple(instructions), locals_)
@@ -288,14 +246,11 @@ class _Loader:
     def binding(self, record: fmt.VariableRef, *, output: Literal[True]) -> OutputTarget: ...
 
     def binding(self, record: fmt.VariableRef, *, output: bool = False) -> InputSource | OutputTarget:
-        if record.bank not in tuple(fmt.VariableBank):
-            raise ValueError(f'Unknown variable bank {record.bank}')
         bank = VariableBank['_'.join(part.upper() for part in self._bank_parts(record.bank))]
         if bank == VariableBank.CONST_VALUES:
-            if output:
-                raise ValueError('Output cannot refer to ConstValues')
-            return InputSource(bank, constant=_at(self.constants, record.variable.value, 'ConstValues'))
-        variable = _at(self.variables[bank], record.variable.value, bank.name)
+            assert not output
+            return InputSource(bank, constant=self.constants[record.variable.value])
+        variable = self.variables[bank][record.variable.value]
         return OutputTarget(bank, variable) if output else InputSource(bank, variable)
 
     @staticmethod
@@ -308,42 +263,22 @@ class _Loader:
         state_vars = self.variables[VariableBank.OLD_STATE]
         state_records = self.variable_records[fmt.SectionType.StateVariables]
         state_data = self.buffer(fmt.SectionType.InitialState)
-        end = 0
-        alignment = max((variable.var_type.alignment for variable in state_vars), default=1)
         initial = {}
         for variable, record in zip(state_vars, state_records):
-            if any(state_data[end:record.offset]):
-                raise ValueError('InitialState padding must be zero')
-            data = bytes(_slice(state_data, record.offset, variable.var_type.size, 'InitialState'))
-            if any(data[variable.var_type.data_size:]):
-                raise ValueError('InitialState slot padding must be zero')
-            initial[variable] = variable.var_type.deserialize(data[:variable.var_type.data_size])
-            end = record.offset + variable.var_type.size
-        expected = end + -end % alignment
-        if len(state_data) != expected or any(state_data[end:]):
-            raise ValueError('InitialState has an invalid size or padding')
+            data = bytes(state_data[record.offset:record.offset + variable.var_type.data_size])
+            initial[variable] = variable.var_type.deserialize(data)
         instances = self.table(fmt.SectionType.ProcedureInstances, fmt.ProcedureInstance)
         stages = self.table(fmt.SectionType.Stages, fmt.Stage)
-        if [stage.stage for stage in stages] != list(fmt.RunStage):
-            raise ValueError('Stages must contain Load, Input, Default, and Output in order')
         schedules = {}
-        used_instances = 0
         for stage, run_stage in zip(stages, RunStage):
             schedule = []
-            if stage.schedule.count_ and stage.schedule.first.value != used_instances:
-                raise ValueError('Stage schedules must partition ProcedureInstances in order')
-            for index, instance in enumerate(self.range(instances, stage.schedule, 'ProcedureInstances'), used_instances):
-                inputs = tuple(self.binding(binding) for binding in self.range(self.bindings, instance.inputs, 'Bindings'))
-                outputs = tuple(self.binding(binding, output=True) for binding in self.range(self.bindings, instance.outputs, 'Bindings'))
-                if (instance.native.value == 0xffffffff) == (instance.bytecode.value == 0xffffffff):
-                    raise ValueError('Procedure instance must select exactly one implementation')
-                native = None if instance.native.value == 0xffffffff else _at(self.natives, instance.native.value, 'NativeProcedures')
+            for index, instance in enumerate(self.range(instances, stage.schedule), stage.schedule.first.value):
+                inputs = tuple(self.binding(binding) for binding in self.range(self.bindings, instance.inputs))
+                outputs = tuple(self.binding(binding, output=True) for binding in self.range(self.bindings, instance.outputs))
+                native = None if instance.native.value == 0xffffffff else self.natives[instance.native.value]
                 body = None if native is not None else self.body(instance.bytecode.value, inputs, outputs)
                 schedule.append(Procedure(f'procedure{index}:run', inputs, outputs, native=native, body=body))
-            used_instances += stage.schedule.count_
             schedules[run_stage] = tuple(schedule)
-        if used_instances != len(instances):
-            raise ValueError('Unscheduled procedure instances')
         # Decoding is independent of native implementations. Linking and opaque
         # value checks happen when Engine is constructed with the same registry.
         for value_type in self.types:
@@ -367,7 +302,7 @@ def load_program(data: bytes | bytearray | memoryview, *, native_types: NativeTy
     """
     if max_decoded_values < 0:
         raise ValueError('max_decoded_values must be nonnegative')
-    file = _verified_file(data, max_verification_steps)
+    file = verified_file(data, max_verification_steps)
     if native_types is None:
         native_types = resolve_extensions().native_types
     try:

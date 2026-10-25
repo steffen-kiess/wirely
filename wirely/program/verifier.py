@@ -651,7 +651,7 @@ class _Verifier:
         self.instances()
 
 
-def _verified_file(data: bytes | bytearray | memoryview, max_steps: int) -> BinaryFile:
+def verified_file(data: bytes | bytearray | memoryview, max_steps: int) -> BinaryFile:
     if max_steps < 0:
         raise ValueError('max_steps must be nonnegative')
     try:
@@ -672,4 +672,4 @@ def verify_program(data: bytes | bytearray | memoryview, *, max_steps: int = 10_
     operands, value visits, and inspected string and padding bytes.
     Opaque-value semantics are checked during linking.
     """
-    _verified_file(data, max_steps)
+    verified_file(data, max_steps)

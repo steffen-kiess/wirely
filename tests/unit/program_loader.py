@@ -326,7 +326,7 @@ def check_malformed():
                                    pack_record(fmt.BytecodeProcedure(fmt.ByteRange(0, len(oversized)), fmt.Range(fmt.Ref(0), 1))))
     with checks.assertRaisesRegex(ValueError, 'instruction 0'):
         load_program(oversized_image)
-    # A type-valued constant's reference is checked by the reader's callback.
+    # The verifier checks a type-valued constant's reference.
     proc = Procedure('test:run', (InputSource(VariableBank.CONST_VALUES, constant=Constant(types.ValueType, types.uint8)),), (),
                      native=NativeProcedureEntry('Test:run', ('type',), ()))
     image = write_program(program(procs=((RunStage.LOAD, (proc,)),)))
