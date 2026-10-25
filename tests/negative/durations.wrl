@@ -5,7 +5,8 @@ constant Max: Std.Duration = "P213503982334601DT7H15.99999999999999999995S";
 constant Value: Std.Duration = Max + "PT0.00000000000000000005S"; // E: Duration overflow: result exceeds the maximum duration
 
 // TEST: negative subtraction
-constant Value: Std.Duration = "PT1S" - "PT2S"; // E: Negative duration
+constant Second: Std.Duration = "PT1S";
+constant Value: Std.Duration = Second - "PT2S"; // E: Negative duration
 
 // TEST: literal above the maximum
 constant Value: Std.Duration = "P213503982334601DT7H16S"; // E: Invalid `Std.Duration` value
@@ -21,7 +22,7 @@ constant Value: Std.Duration = -Second; // E: Integer arithmetic requires an int
 #[Allow(Unused)] binding result: value Std.Duration;
 procedure run writes result {
   let span: Std.Duration = "PT1S";
-  result = span + span; // E: Arithmetic operators are compile-time only; use `Std.Duration.SaturatingAdd` or `Std.Duration.CheckedAdd`
+  result = span + span; // E: Operator uses compile-time-only function `Std.Duration.Add`
 }
 
 // TEST: factor type

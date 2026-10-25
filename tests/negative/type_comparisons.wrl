@@ -85,26 +85,26 @@ procedure run writes result {
 }
 
 // TEST: ordering booleans
-assert false < true; // E: Ordering comparison requires an integer, Std.Duration, or Schedule.TimeOfDay value, got `boolean`
+assert false < true; // E: Type `boolean` has no binding for operator `<`
 
 // TEST: ordering strings
-assert "a" <= "b"; // E: got `string`
+assert "a" <= "b"; // E: Type `string` has no binding for operator `<`
 
 // TEST: ordering enums
 open enum type Mode: uint8 { Off = 0, On = 1, }
-assert Mode.Off < Mode.On; // E: got `Mode`
+assert Mode.Off < Mode.On; // E: Type `Mode` has no binding for operator `<`
 
 // TEST: ordering options
 constant Value: Option[uint8] = None;
-assert Value >= None; // E: got `Option[uint8]`
+assert Value >= None; // E: Type `Option[uint8]` has no binding for operator `<`
 
 // TEST: ordering monotonic times
 // LIBRARIES: std, timer
 constant Deadline: Option[Timer.MonotonicTime] = None;
-assert if let Some(time) = Deadline { time > time } else { false }; // E: got `Timer.MonotonicTime`
+assert if let Some(time) = Deadline { time > time } else { false }; // E: Type `Timer.MonotonicTime` has no binding for operator `<`
 
 // TEST: ordering types
-assert int8 < int16; // E: got `type`
+assert int8 < int16; // E: Type `type` has no binding for operator `<`
 
 // TEST: ordering mismatched integer types
 constant Small: int8 = 1;
@@ -117,5 +117,5 @@ assert 1 < 2 < 3; // E: Unexpected token
 // TEST: procedure ordering booleans
 #[Allow(Unused)] binding result: value boolean;
 procedure run writes result {
-  result = true > false; // E: got `boolean`
+  result = true > false; // E: Type `boolean` has no binding for operator `<`
 }

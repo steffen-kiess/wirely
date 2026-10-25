@@ -22,11 +22,6 @@ InternalValue: TypeAlias = (
     'bool | int | str | Unit | Type | Some[InternalValue] | tuple[InternalValue, ...] | None'
 )
 
-# Opaque structs whose values the compiler orders by their fields.
-# TODO: Let other opaque types declare an order.
-ORDERED_OPAQUE_TYPES = frozenset({'Std.Duration', 'Schedule.TimeOfDay'})
-
-
 # A value type supporting runtime validation, equality, and text parsing. Types
 # are immutable; concrete types are frozen dataclasses.
 class Type(abc.ABC):
@@ -321,15 +316,6 @@ class TypeStruct(Type):
         """Return a field's name, or its position without field names."""
         name = None if self.field_names is None else self.field_names[index]
         return str(index) if name is None else name
-
-    @property
-    def is_ordered(self) -> bool:  # type: ignore[override]
-        return self.is_opaque and self.native_name in ORDERED_OPAQUE_TYPES
-
-    def less(self, value1: Any, value2: Any) -> bool:
-        if not self.is_ordered:
-            raise ValueError(f'`{self}` values are not ordered')
-        return self.verify_value(value1) < self.verify_value(value2)
 
     def _opaque_class(self, native_types: NativeTypes | None) -> type | None:
         """Return the Python class implementing an opaque struct for text conversion, or None if there is none."""

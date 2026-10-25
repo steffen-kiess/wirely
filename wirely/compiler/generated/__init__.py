@@ -18,6 +18,8 @@ extension = CompilerNativeExtension(functions={
     'Path.Parent': NativeConstantFunction(Function((Builtin('string'),), Builtin('string')), _bindings.functions['Path.Parent']),
     'Path.SourceFile': NativeConstantFunction(Function((), Builtin('string')), _bindings.functions['Path.SourceFile']),
     'Schedule.IsValidDailyInterval': NativeConstantFunction(Function((Opaque('Schedule.TimeOfDay'), Opaque('Schedule.TimeOfDay')), Builtin('boolean')), _bindings.functions['Schedule.IsValidDailyInterval']),
+    'Std.Duration.Add': NativeConstantFunction(Function((Opaque('Std.Duration'), Opaque('Std.Duration')), Opaque('Std.Duration')), _bindings.functions['Std.Duration.Add']),
+    'Std.Duration.Sub': NativeConstantFunction(Function((Opaque('Std.Duration'), Opaque('Std.Duration')), Opaque('Std.Duration')), _bindings.functions['Std.Duration.Sub']),
     'Std.ParseFormat': NativeConstantFunction(Function((Builtin('string'), Builtin('type')), Struct('Std.FormatParts')), _bindings.functions['Std.ParseFormat']),
     'Test.ReplaceKNXPath': NativeConstantFunction(Function((Builtin('string'),), Builtin('string')), _bindings.functions['Test.ReplaceKNXPath']),
     'Test.ReplaceMQTTURI': NativeConstantFunction(Function((Builtin('string'),), Builtin('string')), _bindings.functions['Test.ReplaceMQTTURI']),

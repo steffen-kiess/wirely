@@ -15,3 +15,22 @@ namespace TestLibrary {
   // A monotonic time for test inputs that tests overwrite before reading.
   native constant function MonotonicTime(generation: uint64, ticks: uint128): Timer.MonotonicTime;
 }
+
+namespace TestLibrary {
+  native struct type OperatorValue {
+    Value: int16,
+  }
+  native open enum type OperatorOpen: uint8 {
+    Zero = 0,
+    One = 1,
+  }
+  native closed enum type OperatorClosed {
+    Zero,
+    One,
+  }
+
+  native function OperatorCombine(a: OperatorValue, b: int16): int16;
+  native function OperatorLess(a: OperatorValue, b: OperatorValue): boolean;
+  native function OperatorOpenLess(a: OperatorOpen, b: OperatorOpen): boolean;
+  native function OperatorClosedLess(a: OperatorClosed, b: OperatorClosed): boolean;
+}

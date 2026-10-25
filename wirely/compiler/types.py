@@ -88,6 +88,9 @@ def check_runtime_type(value_type: Type, source: model.ast.SourceElement | None)
 def resolve_type(value_type: Type, par_values: Mapping[model.NodeParameter, StaticValue]) -> Type:
     if not value_type.contains_parameters:
         return value_type
+    from .operators import OperatorType
+    if isinstance(value_type, OperatorType):
+        return value_type.resolve(par_values)
     if isinstance(value_type, TypeParameter):
         result = value_type.resolve_self(par_values)
         if not isinstance(result, Type):
@@ -229,7 +232,10 @@ def parse_value(value_type: Type, value: model.ast.Value, *, scope: model.Scope 
 
 def type_parameters(value_type: Type) -> Iterator[model.NodeParameter]:
     """Yield the parameters a parameter-dependent type refers to."""
-    if isinstance(value_type, TypeParameter):
+    from .operators import OperatorType
+    if isinstance(value_type, OperatorType):
+        yield from type_parameters(value_type.first_type)
+    elif isinstance(value_type, TypeParameter):
         yield value_type.parameter
     elif isinstance(value_type, (TypeOption, TypeList)):
         yield from type_parameters(value_type.inner_type)

@@ -44,10 +44,38 @@ def _load_functions_test_library__nothing() -> FunctionImplementation:
     return _Nothing.implementation(nothing)
 
 
+def _load_functions_test_library__operator_closed_less() -> FunctionImplementation:
+    from tests.infra.native_extension.generated.test_library import _OperatorClosedLess
+    from tests.infra.native_extension.functions.test_library import operator_closed_less
+    return _OperatorClosedLess.implementation(operator_closed_less)
+
+
+def _load_functions_test_library__operator_combine() -> FunctionImplementation:
+    from tests.infra.native_extension.generated.test_library import _OperatorCombine
+    from tests.infra.native_extension.functions.test_library import operator_combine
+    return _OperatorCombine.implementation(operator_combine)
+
+
+def _load_functions_test_library__operator_less() -> FunctionImplementation:
+    from tests.infra.native_extension.generated.test_library import _OperatorLess
+    from tests.infra.native_extension.functions.test_library import operator_less
+    return _OperatorLess.implementation(operator_less)
+
+
+def _load_functions_test_library__operator_open_less() -> FunctionImplementation:
+    from tests.infra.native_extension.generated.test_library import _OperatorOpenLess
+    from tests.infra.native_extension.functions.test_library import operator_open_less
+    return _OperatorOpenLess.implementation(operator_open_less)
+
+
 functions: dict[str, Callable[[], FunctionImplementation]] = {
     'TestLibrary.Clamp': _load_functions_test_library__clamp,
     'TestLibrary.Fail': _load_functions_test_library__fail,
     'TestLibrary.Nothing': _load_functions_test_library__nothing,
+    'TestLibrary.OperatorClosedLess': _load_functions_test_library__operator_closed_less,
+    'TestLibrary.OperatorCombine': _load_functions_test_library__operator_combine,
+    'TestLibrary.OperatorLess': _load_functions_test_library__operator_less,
+    'TestLibrary.OperatorOpenLess': _load_functions_test_library__operator_open_less,
 }
 
 

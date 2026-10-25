@@ -294,6 +294,7 @@ def validate_files(files: Sequence[tuple[str | os.PathLike, ParsedFile]], *,
         ast.DeclarationProcedure: 'procedure',
         ast.DeclarationInitializer: 'initializer',
         ast.DeclarationNativeFunction: 'function',
+        ast.DeclarationOperator: 'operator',
         ast.StructField: 'struct_field', ast.EnumMember: 'enum_member',
     }
     # The attributes of the namespace blocks so far, by namespace path.

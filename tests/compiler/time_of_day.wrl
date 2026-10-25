@@ -5,7 +5,8 @@ constant Midnight: Schedule.TimeOfDay = "00:00";
 // Parsing forms and 2^-64 s resolution.
 assert Morning == "08:00:00" && Morning == "08:00:00.000000000";
 constant Last: Schedule.TimeOfDay = "23:59:59.99999999999999999995";
-assert "00:00:00.00000000000000000005" > Midnight && Last < EndOfDay;
+constant Tiny: Schedule.TimeOfDay = "00:00:00.00000000000000000005";
+assert Tiny > Midnight && Last < EndOfDay;
 
 // Fractions round to the nearest unit; times before 24:00 stay before it.
 assert "08:00:00.00000000000000000002" == Morning;

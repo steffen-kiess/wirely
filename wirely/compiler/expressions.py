@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 from . import model
 from .ast import SourcePosition, SourceElement, SyntaxElement, ProgramError, Value as AstValue, check_struct_literal
 from .types import resolve_type, check_runtime_type
+from .operators import OperatorType, SYMBOLS, operator_function
 from .value import Value, ConstantValue, InputLengthValue, check_value_type
 from ..program import (
     ARITHMETIC_OPCODES, CONVERSION_OPCODES,
@@ -192,13 +193,6 @@ def multi_length_port(scope: model.Scope, receiver: AstValue, names: Collection[
         return None
     port = getattr(scope, 'input_ports', {}).get(name)
     return port if port is not None and port.is_list else None
-
-
-def is_duration(value_type: model.Type) -> bool:
-    """Whether a type is Std.Duration, whose + and - operators combine durations at compile time."""
-    # TODO: Let other opaque types provide compile-time operators.
-    return (isinstance(value_type, model.types.TypeStruct) and value_type.is_opaque
-            and value_type.native_name == 'Std.Duration')
 
 
 # Member functions of integer types, mapped to their operation and overflow mode.
@@ -603,6 +597,9 @@ class TypedExpression:
             payload=(self.payload.resolve_self(parameters)
                      if self.operation == 'constant' else self.payload),
         )
+        if resolved.operation == 'deferred_operator' and not resolved.arguments[0].value_type.contains_parameters:
+            scope, operation = resolved.payload
+            resolved = bind_operator(resolved, scope, operation)
         resolved.check_types()
         return resolved
 
@@ -610,7 +607,13 @@ class TypedExpression:
         if self.expected_type is not None and not self.diverges:
             check_value_type(self.value_type, self.expected_type, self.source)
         boolean = model.types.boolean
-        if self.operation == 'list_length':
+        if self.operation == 'operator_call':
+            function = self.payload[0]
+            for argument, expected in zip(self.arguments, function.parameter_types):
+                check_value_type(argument.value_type, expected, argument.source)
+            if self.runtime and function.is_constant:
+                raise ProgramError(self.source, f'Operator uses compile-time-only function `{function.function_name}`')
+        elif self.operation == 'list_length':
             receiver_type = self.arguments[0].value_type
             if not receiver_type.contains_parameters and not isinstance(receiver_type, model.types.TypeList):
                 raise ProgramError(self.source, f'Value of type `{receiver_type}` has no property `Length`')
@@ -634,9 +637,8 @@ class TypedExpression:
             left, right = self.arguments
             check_value_type(right.value_type, left.value_type, right.source)
             if (self.operation not in ('eq', 'ne') and not left.value_type.contains_parameters
-                    and not left.value_type.is_ordered):
-                raise ProgramError(self.source, 'Ordering comparison requires an integer, Std.Duration, '
-                                   f'or Schedule.TimeOfDay value, got `{left.value_type}`')
+                    and not isinstance(left.value_type, model.types.TypeInt)):
+                raise ProgramError(self.source, f'Ordering comparison requires an integer or an operator binding, got `{left.value_type}`')
         elif self.operation == 'if':
             condition, then, otherwise = self.arguments
             check_value_type(condition.value_type, boolean, condition.source)
@@ -666,10 +668,7 @@ class TypedExpression:
             for argument in self.arguments[1:]:
                 check_value_type(argument.value_type, self.arguments[0].value_type, argument.source)
             integer_type = self.arguments[0].value_type
-            # The + and - operators also combine durations.
-            duration_operator = (self.operation == 'arith' and self.payload in (('add', None), ('sub', None))
-                                 and is_duration(integer_type))
-            if (not integer_type.contains_parameters and not duration_operator
+            if (not integer_type.contains_parameters
                     and not isinstance(integer_type, model.types.TypeInt)):
                 raise ProgramError(self.source, f'Integer arithmetic requires an integer value, got `{integer_type}`')
         elif self.operation == 'convert':
@@ -718,10 +717,14 @@ class TypedExpression:
             return model.types.unit.default_value()
         if self.operation == 'constant':
             return self.payload.evaluate()
-        if self.operation == 'call':
-            function, sources, call = self.payload
-            return function.invoke([argument.evaluate(inputs, locals) for argument in self.arguments],
-                                   sources, call)
+        if self.operation in ('call', 'operator_call'):
+            function, sources, call, *operator = self.payload
+            values = [argument.evaluate(inputs, locals) for argument in self.arguments]
+            if operator and operator[0] in ('le', 'gt'):
+                values.reverse()
+                sources = tuple(reversed(sources))
+            result = function.invoke(values, sources, call)
+            return not result if operator and operator[0] in ('le', 'ge') else result
         if self.operation == 'struct':
             return self.value_type.make_value({name: argument.evaluate(inputs, locals)
                                                for name, argument in zip(self.payload, self.arguments)})
@@ -808,14 +811,6 @@ class TypedExpression:
             operation, overflow = self.payload
         if overflow is not None:
             return integer_type.arithmetic(operation, overflow, *operands)
-        if is_duration(integer_type):
-            left, right = (ticks for ticks, in operands)
-            result = left + right if operation == 'add' else left - right
-            if result < 0:
-                raise ProgramError(self.source, 'Negative duration')
-            if result > model.types.uint128.max_value:
-                raise ProgramError(self.source, 'Duration overflow: result exceeds the maximum duration')
-            return (result,)
         # Operators fail compilation instead of overflowing.
         if operation in ('div', 'rem') and operands[1] == 0:
             raise ProgramError(self.source, 'Division by zero')
@@ -823,6 +818,22 @@ class TypedExpression:
         if result is None:
             raise ProgramError(self.source, f'Arithmetic overflow: result does not fit `{integer_type}`')
         return result.value
+
+
+def bind_operator(expression: TypedExpression, scope: model.Scope, operation: str) -> TypedExpression:
+    """Lower a specialized operator, retaining source order for derived comparisons."""
+    first_type = expression.arguments[0].value_type
+    if isinstance(first_type, model.types.TypeInt):
+        if operation in ('add', 'sub'):
+            if expression.runtime:
+                raise ProgramError(expression.source, 'Arithmetic operators are compile-time only; '
+                                   'use integer arithmetic members')
+            return replace(expression, value_type=first_type, operation='arith', payload=(operation, None))
+        return replace(expression, value_type=model.types.boolean, operation=operation, payload=None)
+    function = operator_function(scope, first_type, operation, expression.source)
+    return replace(expression, value_type=function.return_type, operation='operator_call',
+                   payload=(function, tuple(argument.source for argument in expression.arguments),
+                            expression.source, operation))
 
 
 class ExpressionValue(Value):
@@ -946,13 +957,17 @@ class InstructionCompiler:
             return destination
         if destination is None:
             destination = self.allocate(expression.value_type)
-        if operation == 'call':
+        if operation in ('call', 'operator_call'):
             arguments = [self.snapshot(argument) for argument in expression.arguments]
+            if operation == 'operator_call' and expression.payload[3] in ('le', 'gt'):
+                arguments.reverse()
             declaration = expression.payload[0]
             function = Function(declaration.native_name,
                                 declaration.parameter_types, declaration.return_type)
             self.emit(Opcode.CALL, destination, self.intern_function(function),
                       len(arguments), *arguments)
+            if operation == 'operator_call' and expression.payload[3] in ('le', 'ge'):
+                self.emit(Opcode.NOT, destination, destination)
             return destination
         if operation == 'struct':
             # Field values are computed before being stored; bodies never read the destination.
@@ -1030,14 +1045,7 @@ class InstructionCompiler:
             # a <= b is !(b < a), and a >= b is !(a < b).
             if operation in ('le', 'gt'):
                 left, right = right, left
-            value_type = expression.arguments[0].value_type
-            if isinstance(value_type, model.types.TypeInt):
-                self.emit(Opcode.LESS, destination, left, right)
-            else:
-                assert value_type.is_ordered
-                function = Function(f'{value_type}.Less', (value_type, value_type),
-                                    model.types.boolean)
-                self.emit(Opcode.CALL, destination, self.intern_function(function), 2, left, right)
+            self.emit(Opcode.LESS, destination, left, right)
             if operation in ('le', 'ge'):
                 self.emit(Opcode.NOT, destination, destination)
         else:
@@ -1541,15 +1549,13 @@ class ExpressionCompiler:
             left = self.compile(expression.left, operand_type)
             right = self.compile(expression.right, left.value_type)
             return TypedExpression(left.value_type, expression.operator, (left, right))
+        if isinstance(expression, BinaryExpression) and expression.operator in SYMBOLS:
+            return self.binary_operator(expression, expected)
         if isinstance(expression, BinaryExpression) and expression.operator in ARITHMETIC_OPERATORS:
             if self.is_runtime(expression):
                 name = expression.operator.capitalize()
-                operand_type = self.context_type(expression.left) or self.context_type(expression.right)
-                if operand_type is not None and is_duration(operand_type) and name in ('Add', 'Sub'):
-                    alternatives = f'`Std.Duration.Saturating{name}` or `Std.Duration.Checked{name}`'
-                else:
-                    alternatives = ('`T.CheckedDiv`' if name == 'Div' else '`T.CheckedRem`' if name == 'Rem'
-                                    else f'`T.Wrapping{name}`, `T.Saturating{name}`, or `T.Checked{name}`')
+                alternatives = ('`T.CheckedDiv`' if name == 'Div' else '`T.CheckedRem`' if name == 'Rem'
+                                else f'`T.Wrapping{name}`, `T.Saturating{name}`, or `T.Checked{name}`')
                 raise ProgramError(expression, f'Arithmetic operators are compile-time only; use {alternatives}')
             operand_type = expected or self.context_type(expression.left) or self.context_type(expression.right)
             left = self.compile(expression.left, operand_type)
@@ -1675,6 +1681,48 @@ class ExpressionCompiler:
                 check_value_type(actual_type, value_type, expression)
         value = self.scope.get_const_value(expression, value_type, par_values=self.parameters)
         return TypedExpression(value_type, 'constant', payload=value)
+
+    def binary_operator(self, expression: BinaryExpression, expected: model.Type | None) -> TypedExpression:
+        operation = expression.operator
+        first_type = self.context_type(expression.left)
+        context = self.context_type(expression.right) or expected
+        if operation in ('add', 'sub') and isinstance(expected, model.types.TypeInt):
+            context = expected
+        if first_type is None and isinstance(expression.left, (model.IntNumber, model.StringConstant)):
+            if isinstance(context, (model.types.TypeStruct, model.types.TypeEnum)):
+                raise ProgramError(expression.left, 'User-defined operators require a typed first operand')
+        # Only built-in integers infer the first operand's type from surrounding context.
+        integer_context: model.Type | None = None
+        if (first_type is None and isinstance(context, model.types.TypeInt)
+                and isinstance(expression.left, (model.IntNumber, BinaryExpression, UnaryExpression))):
+            integer_context = context
+        if (first_type is None and isinstance(expression.left, model.IntNumber)
+                and context is not None and context.contains_parameters):
+            integer_context = OperatorType(context, operation, self.scope, expression.left,
+                                           argument=True, integer_only=True)
+        if isinstance(first_type, model.types.TypeInt) and isinstance(expected, model.types.TypeInt):
+            integer_context = expected
+        left = self.compile(expression.left, integer_context)
+        first_type = left.value_type
+        right_type: model.Type
+        result_type: model.Type
+        if first_type.contains_parameters:
+            right_type = OperatorType(first_type, operation, self.scope, expression, argument=True)
+            result_type = OperatorType(first_type, operation, self.scope, expression)
+        elif isinstance(first_type, model.types.TypeInt):
+            right_type = first_type
+            result_type = first_type if operation in ('add', 'sub') else model.types.boolean
+            if operation in ('add', 'sub') and self.is_runtime(expression):
+                name = operation.capitalize()
+                raise ProgramError(expression, 'Arithmetic operators are compile-time only; use '
+                                   f'`T.Wrapping{name}`, `T.Saturating{name}`, or `T.Checked{name}`')
+        else:
+            function = operator_function(self.scope, first_type, operation, expression)
+            right_type, result_type = function.parameter_types[1], function.return_type
+        right = self.compile(expression.right, right_type)
+        result = TypedExpression(result_type, 'deferred_operator', (left, right),
+                                 (self.scope, operation), source=expression)
+        return result if first_type.contains_parameters else bind_operator(result, self.scope, operation)
 
     def member_call(self, call: model.FunctionCall, value_type: model.Type, member: tuple[str, str]) -> TypedExpression:
         operation, overflow = member
@@ -1836,6 +1884,14 @@ class ExpressionCompiler:
             if isinstance(tail, (LocalBinding, LoadCheckStatement)) or tail.terminated:
                 return model.types.unit
             return self.context_type(tail.expression) if len(expression.statements) == 1 else None
+        if isinstance(expression, BinaryExpression) and expression.operator in SYMBOLS:
+            first_type = self.context_type(expression.left)
+            if first_type is not None and not isinstance(first_type, model.types.TypeInt):
+                if first_type.contains_parameters:
+                    return OperatorType(first_type, expression.operator, self.scope, expression)
+                return operator_function(self.scope, first_type, expression.operator, expression).return_type
+            if first_type is None and not isinstance(expression.left, model.IntNumber):
+                return None
         if isinstance(expression, BinaryExpression) and expression.operator in SHIFT_OPERATORS:
             return self.context_type(expression.left)
         if isinstance(expression, BinaryExpression) and expression.operator in (*ARITHMETIC_OPERATORS, *BITWISE_OPERATORS):
@@ -1902,6 +1958,12 @@ class ExpressionCompiler:
             return model.types.String
         if isinstance(expression, model.UnitLiteral):
             return model.types.unit
+        if isinstance(expression, BinaryExpression) and expression.operator in SYMBOLS:
+            first_type = self.context_type(expression.left)
+            if first_type is None and not isinstance(expression.left, model.IntNumber):
+                return None
+            if first_type is not None and not isinstance(first_type, model.types.TypeInt):
+                return self.context_type(expression)
         if isinstance(expression, BinaryExpression) and expression.operator in SHIFT_OPERATORS:
             return self.known_type(expression.left)
         if isinstance(expression, BinaryExpression) and expression.operator in (*ARITHMETIC_OPERATORS, *BITWISE_OPERATORS):

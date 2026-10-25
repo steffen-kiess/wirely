@@ -1,0 +1,119 @@
+namespace Custom {
+  native struct type Value as "TestLibrary.OperatorValue" {
+    Value: int16,
+  }
+}
+namespace TestLibrary {
+  native open enum type OperatorOpen: uint8 {
+    Zero = 0,
+    One = 1,
+  }
+  native closed enum type OperatorClosed {
+    Zero,
+    One,
+  }
+}
+
+// Bindings can precede their functions and live in reopened namespaces.
+namespace Custom.Value {
+  operator + is Combine;
+  operator < is TestLibrary.Compare;
+}
+namespace TestLibrary {
+  native function Compare as "TestLibrary.OperatorLess"(
+    a: Custom.Value, b: Custom.Value): boolean;
+}
+namespace Custom.Value {
+  native function Combine as "TestLibrary.OperatorCombine"(
+    a: Custom.Value, b: int16): int16;
+}
+namespace TestLibrary.OperatorOpen {
+  native function Compare as "TestLibrary.OperatorOpenLess"(
+    a: TestLibrary.OperatorOpen, b: TestLibrary.OperatorOpen): boolean;
+  operator < is Compare;
+}
+namespace TestLibrary.OperatorClosed {
+  native function Compare as "TestLibrary.OperatorClosedLess"(
+    a: TestLibrary.OperatorClosed, b: TestLibrary.OperatorClosed): boolean;
+  operator < is Compare;
+}
+
+constant First: Custom.Value = Custom.Value { Value: 1 };
+constant Second: Custom.Value = Custom.Value { Value: 2 };
+assert First + 3 == 4 && First + 3 + 2 == 6;
+assert First < Second && First <= Second && Second > First && Second >= First;
+assert First <= First && First >= First && !(First < First);
+assert TestLibrary.OperatorOpen.Zero < TestLibrary.OperatorOpen.One;
+assert TestLibrary.OperatorClosed.Zero < TestLibrary.OperatorClosed.One;
+
+// Ordinary structs and enums use the same binding and signature rules.
+struct type Record {
+  Value: int16,
+}
+open enum type Open: uint8 { Zero = 0, One = 1, }
+closed enum type Closed { Zero, One, }
+namespace Record {
+  native constant function Combine(a: Record, b: int16): int16;
+  operator + is Combine;
+}
+namespace Open {
+  native constant function Compare(a: Open, b: Open): boolean;
+  operator < is Compare;
+}
+namespace Closed {
+  native constant function Compare(a: Closed, b: Closed): boolean;
+  operator < is Compare;
+}
+// These interfaces need no implementation in branches that are not evaluated.
+assert true || Record { Value: 1 } + 2 == 3;
+assert true || Open.Zero < Open.One;
+assert true || Closed.Zero < Closed.One;
+
+node type Generic {
+  parameter Type: type;
+  parameter Value: Type;
+  parameter Other: Type;
+  assert Value < Other;
+  constant Result: int16 = Value + 3;
+  assert Result == 4;
+  constant Chained: int16 = Value + 3 + 2;
+  assert Chained == 6;
+}
+node generic: Generic {
+  Type: Custom.Value,
+  Value: First,
+  Other: Second,
+}
+node type GenericArithmetic {
+  parameter Type: type;
+  parameter Value: Type;
+  constant Result: Type = Value + Value - Value;
+  assert Result == Value;
+}
+node integer: GenericArithmetic { Type: int16, Value: 3 }
+node duration: GenericArithmetic { Type: Std.Duration, Value: "PT1S" }
+
+// The binding follows the type, not names shadowed at the expression site.
+procedure compile_only {
+  let Custom = false;
+  let result = First + 3;
+  assert result == 4;
+  let operator = result;
+  let is = operator;
+  assert is == 4 && Custom == false;
+}
+
+node type GenericIntegerContext {
+  parameter Type: type;
+  parameter Value: Type;
+  constant Result: Type = 3 + Value;
+  constant Two: Type = 1 + 1;
+  assert Result == 7 && Two == 2;
+  assert 3 < Value;
+}
+node integer_context: GenericIntegerContext { Type: int16, Value: 4 }
+
+assert { let value = First; value } + 3 == 4;
+
+constant BlockResult: int16 = { let value = First; value } + 3;
+assert BlockResult == 4;

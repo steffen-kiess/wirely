@@ -727,8 +727,9 @@ compare generation and timestamp. `!=` is the complement of `==`.
 Put a struct literal in parentheses when it appears directly in an `if`
 condition.
 
-`<`, `<=`, `>`, and `>=` order integers, `Std.Duration`, and
-`Schedule.TimeOfDay` values of the same type. Times of day compare within one
+`<`, `<=`, `>`, and `>=` order integers and types with a `<` binding,
+including `Std.Duration` and `Schedule.TimeOfDay`. Both operands have
+the same type. Times of day compare within one
 day, so `"23:00"` is after `"01:00"`. Comparisons do not chain: write
 `a < b && b < c`.
 
@@ -754,7 +755,34 @@ only; each operation must produce a value of its type, so
 also combine two durations; see [Duration](value-types.md#duration) for
 runtime arithmetic functions.
 
-Runtime arithmetic uses members of integer types instead.
+User-defined structs and enums can bind binary `+`, binary `-`, and `<`
+to declared functions in their companion namespace:
+
+```wirely
+native struct type Offset {
+  Amount: int32,
+}
+namespace Offset {
+  native function Add(a: Offset, b: int32): Offset;
+  operator + is Add;
+}
+```
+
+A binding selects an existing function; its name is arbitrary. The first
+parameter must have the companion type. For `+` and `-`, the second
+parameter and result can have different types. `<` requires two parameters
+of the companion type and a `boolean` result. It promises a total order
+consistent with equality; `>`, `<=`, and `>=` derive from it. Operands
+are evaluated once, in source order.
+
+Lookup uses the first operand's declared type. Give that operand an
+explicit type when it is a literal; the second operand accepts the bound
+function's parameter type as context. The function determines whether the
+operator requires compile-time arguments and how it handles failure.
+Bindings can appear in reopened namespaces in any file, with one binding
+per type and operator.
+
+Runtime integer arithmetic uses type members.
 Write a type, a dot, and the member name, as in `uint8.WrappingAdd(a, b)`
 or `Type.CheckedDiv(a, b)` for a `type` parameter. Both arguments have
 that type:

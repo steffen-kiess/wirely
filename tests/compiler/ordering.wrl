@@ -8,11 +8,15 @@ constant Max: uint64 = 18446744073709551615;
 assert Max > 0 && 18446744073709551614 < Max;
 
 constant At: Schedule.TimeOfDay = "08:00";
-assert "07:59" < At && At < "08:01" && At <= "08:00" && "23:59" >= At;
-assert !(At > "08:00") && !("00:00" > At);
+constant Before: Schedule.TimeOfDay = "07:59";
+constant LateTime: Schedule.TimeOfDay = "23:59";
+constant Midnight: Schedule.TimeOfDay = "00:00";
+assert Before < At && At < "08:01" && At <= "08:00" && LateTime >= At;
+assert !(At > "08:00") && !(Midnight > At);
 
 constant Span: Std.Duration = "PT1M";
-assert Span > "PT59S" && "PT61S" > Span && Span >= "PT60S" && !(Span < "PT1M");
+constant Longer: Std.Duration = "PT61S";
+assert Span > "PT59S" && Longer > Span && Span >= "PT60S" && !(Span < "PT1M");
 
 constant Late: boolean = if At >= "08:00" { true } else { false };
 assert Late;

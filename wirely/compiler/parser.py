@@ -60,6 +60,7 @@ ast_classes: list[Any] = [  # Grammar dispatch includes constructors and factori
     model.DeclarationPort,
     model.DeclarationParameter,
     model.DeclarationConstant,
+    model.DeclarationOperator,
     model.DeclarationAssertion,
     model.ast.DeclarationLoadAssertion,
     model.DeclarationNodeType,

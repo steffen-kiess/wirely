@@ -501,6 +501,66 @@ def check_builtin_ordering():
             machine.assert_is_idle()
 
 
+def check_user_operators():
+    from pathlib import Path
+
+    # The type and its companion bindings can come from different source files.
+    declarations = Path('tests/compiler/operators.wrl').read_text()
+    source = declarations + """
+node type CustomOperators {
+  parameter Type: type;
+  parameter First: Type;
+  parameter Second: Type;
+  state left: Type = First;
+  state right: Type = Second;
+  output Sum: value int16;
+  output Less: value boolean;
+  output LessEqual: value boolean;
+  output Greater: value boolean;
+  output GreaterEqual: value boolean;
+  procedure run reads left.old as a, right.old as b
+    writes left, right, Sum, Less, LessEqual, Greater, GreaterEqual
+  {
+    left = a;
+    right = b;
+    let mut value = a;
+    let combined = value + 3;
+    Sum = combined;
+    Less = value < { value = b; b };
+    value = a;
+    LessEqual = value <= { value = b; b };
+    value = a;
+    Greater = value > { value = b; b };
+    value = a;
+    GreaterEqual = value >= { value = b; b };
+  }
+}
+node custom: CustomOperators {
+  Type: Custom.Value,
+  First: First,
+  Second: Second,
+}
+"""
+    # Reopen the namespace in another file and change the native function's Wirely name.
+    declarations, source = source.split('namespace Custom.Value {', 1)
+    source = 'namespace Custom.Value {' + source
+    from tests.infra.native_extension.generated import extension as fixture
+    graph = wirely.compiler.compile_strs([('<operator-types>', declarations), ('<operator-bindings>', source)],
+                                        add_std=True, extensions=[fixture])
+    assert graph is not None
+    program = program_compiler.compile(graph)
+    assert program is not None
+    compare_calls, compare_extension = counted_function('TestLibrary.OperatorLess')
+    add_calls, add_extension = counted_function('TestLibrary.OperatorCombine')
+    machine = test_engine(program, override_extensions=[compare_extension, add_extension])
+    machine.step()
+    assert len(compare_calls) == 4 and len(add_calls) == 1
+    for name, expected in [('Sum', 4), ('Less', True), ('LessEqual', True),
+                           ('Greater', False), ('GreaterEqual', False)]:
+        machine.assert_value_is(f'custom.{name}', expected)
+    machine.assert_is_idle()
+
+
 def check_arithmetic():
     some = wirely.Some
     cases = {  # input: Wrapped, Saturated, Checked, Quotient, Fallback
@@ -710,6 +770,7 @@ check_root_state()
 check_option_presence()
 check_ordering()
 check_builtin_ordering()
+check_user_operators()
 check_arithmetic()
 check_struct_fields()
 check_conversions()

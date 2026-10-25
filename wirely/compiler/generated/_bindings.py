@@ -66,6 +66,18 @@ def _load_schedule_is_valid_daily_interval() -> ConstantFunctionImplementation:
     return _IsValidDailyInterval.implementation(is_valid_daily_interval)
 
 
+def _load_std_duration_add() -> ConstantFunctionImplementation:
+    from wirely.compiler.generated._contracts.std_duration import _Add
+    from wirely.compiler.function_implementations.std_duration import add
+    return _Add.implementation(add)
+
+
+def _load_std_duration_sub() -> ConstantFunctionImplementation:
+    from wirely.compiler.generated._contracts.std_duration import _Sub
+    from wirely.compiler.function_implementations.std_duration import sub
+    return _Sub.implementation(sub)
+
+
 def _load_std_parse_format() -> ConstantFunctionImplementation:
     from wirely.compiler.generated._contracts.std import _ParseFormat
     from wirely.compiler.function_implementations.std import parse_format
@@ -131,6 +143,8 @@ functions: dict[str, Callable[[], ConstantFunctionImplementation]] = {
     'Path.Parent': _load_path_parent,
     'Path.SourceFile': _load_path_source_file,
     'Schedule.IsValidDailyInterval': _load_schedule_is_valid_daily_interval,
+    'Std.Duration.Add': _load_std_duration_add,
+    'Std.Duration.Sub': _load_std_duration_sub,
     'Std.ParseFormat': _load_std_parse_format,
     'Test.ReplaceKNXPath': _load_test_replace_knx_path,
     'Test.ReplaceMQTTURI': _load_test_replace_mqtturi,

@@ -96,6 +96,7 @@ from .functions import (
     DeclarationNativeFunction,
     CompiledFunction,
 )
+from .operators import DeclarationOperator
 from .library import (
     DeclarationLibrary,
     Namespace,

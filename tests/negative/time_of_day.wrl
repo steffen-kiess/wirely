@@ -16,7 +16,8 @@ constant Value: Schedule.TimeOfDay = "08:60"; // E: Invalid `Schedule.TimeOfDay`
 constant Value: Schedule.TimeOfDay = Schedule.TimeOfDay.AddWrap("08:00", "01:00"); // E: Type `Schedule.TimeOfDay` has no member `AddWrap`
 
 // TEST: adding times
-constant Value: Schedule.TimeOfDay = "08:00" + "01:00"; // E: Integer arithmetic requires an integer value, got `Schedule.TimeOfDay`
+constant Morning: Schedule.TimeOfDay = "08:00";
+constant Value: Schedule.TimeOfDay = Morning + "01:00"; // E: Type `Schedule.TimeOfDay` has no binding for operator `+`
 
 // TEST: duration argument
 constant Value: Schedule.TimeOfDay = Schedule.TimeOfDay.WrappingAdd("08:00", "01:00"); // E: Invalid `Std.Duration` value '01:00'

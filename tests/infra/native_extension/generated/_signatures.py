@@ -25,4 +25,8 @@ native_functions: dict[str, Function] = {
     'TestLibrary.Clamp': Function((Int(16, True), Int(16, True), Int(16, True)), Int(16, True)),
     'TestLibrary.Fail': Function((), Builtin('boolean')),
     'TestLibrary.Nothing': Function((), Builtin('unit')),
+    'TestLibrary.OperatorClosedLess': Function((Enum('TestLibrary.OperatorClosed'), Enum('TestLibrary.OperatorClosed')), Builtin('boolean')),
+    'TestLibrary.OperatorCombine': Function((Struct('TestLibrary.OperatorValue'), Int(16, True)), Int(16, True)),
+    'TestLibrary.OperatorLess': Function((Struct('TestLibrary.OperatorValue'), Struct('TestLibrary.OperatorValue')), Builtin('boolean')),
+    'TestLibrary.OperatorOpenLess': Function((Enum('TestLibrary.OperatorOpen'), Enum('TestLibrary.OperatorOpen')), Builtin('boolean')),
 }

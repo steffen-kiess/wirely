@@ -28,7 +28,7 @@ constant Large: int16 = 2;
 constant Value: int16 = Small + Large; // E: Expected value of type `int16`, got `int8`
 
 // TEST: boolean operands
-constant Value: boolean = true + false; // E: Integer arithmetic requires an integer value, got `boolean`
+constant Value: boolean = true + false; // E: Type `boolean` has no binding for operator `+`
 
 // TEST: duration operands
 constant Span: Std.Duration = "PT1S";
@@ -36,7 +36,7 @@ constant Value: Std.Duration = Span * Span; // E: got `Std.Duration`
 
 // TEST: enum operands
 open enum type Mode: uint8 { Off = 0, }
-constant Value: Mode = Mode.Off + Mode.Off; // E: got `Mode`
+constant Value: Mode = Mode.Off + Mode.Off; // E: Type `Mode` has no binding for operator `+`
 
 // TEST: member of a non-integer type
 constant Value: boolean = boolean.WrappingAdd(true, false); // E: Type `boolean` has no member `WrappingAdd`

@@ -28,6 +28,7 @@ bare_declaration: "namespace" identifier ("." identifier)* "{" declaration_list 
     // Native functions
     | "native" "function" _signature ";" -> declaration_native_function
     | "native" "constant" "function" _signature ";" -> declaration_native_function__create_constant
+    | "operator" operator_symbol "is" reference ";" -> declaration_operator
     // Compile-time values
     | "constant" identifier ":" type "=" expression ";" -> declaration_constant__make
     | [optional_specifier] "parameter" identifier ":" type ";" -> declaration_parameter
@@ -46,6 +47,9 @@ bare_declaration: "namespace" identifier ("." identifier)* "{" declaration_list 
     | native_specifier "procedure" identifier ["as" string_constant] stage_declaration native_reads_declaration writes_declaration ";" -> declaration_procedure
     | "procedure" identifier stage_declaration reads_declaration writes_declaration expression_block -> declaration_procedure__create_body
     | "native" "initializer" identifier ["as" string_constant] native_reads_declaration writes_declaration ";" -> declaration_initializer
+
+!operator_symbol: ("+" | "-" | "*" | "/" | "%" | "<" | "<=" | ">" | ">="
+    | "==" | "!=" | "!" | "&&" | "||" | "&" | "|" | "^" | "<<" | ">>") -> identifier__from_token
 
 native_specifier: "native"
 optional_specifier: "optional"
@@ -242,6 +246,8 @@ reference: identifier ("." identifier)* -> reference__from_list
 !identifier: (CNAME
     | RAW_IDENTIFIER
     // Weak keywords are also accepted as identifiers.
+    | "operator"
+    | "is"
     | "open"
     | "opaque"
     | "closed"

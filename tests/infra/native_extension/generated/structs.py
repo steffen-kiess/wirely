@@ -5,14 +5,23 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
+from wirely.runtime.signatures import Int
+from wirely.types.integers import Int16
 from wirely.types.value_types import NativeOpaque, NativeStruct
 
 __all__ = [
+    'TestLibraryOperatorValue',
 ]
+
+
+# TestLibrary.OperatorValue in tests/infra/native_extension/library.wrl
+class TestLibraryOperatorValue(NamedTuple):
+    value: Int16
 
 
 # Expected native structs by native name.
 _native_struct_types: dict[str, NativeStruct] = {
+    'TestLibrary.OperatorValue': NativeStruct(TestLibraryOperatorValue, (Int(16, True),)),
 }
 
 

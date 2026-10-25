@@ -5,6 +5,14 @@ namespace Std {
     Ticks: uint128,
   }
   namespace Duration {
+    operator + is Add;
+    operator - is Sub;
+    operator < is Less;
+
+    #[Internal]
+    native constant function Add(a: Duration, b: Duration): Duration;
+    #[Internal]
+    native constant function Sub(a: Duration, b: Duration): Duration;
     #[Internal]
     native function Less(a: Duration, b: Duration): boolean;
     native function SaturatingAdd(a: Duration, b: Duration): Duration;

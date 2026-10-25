@@ -5,6 +5,8 @@ namespace Schedule {
     Ticks: uint128,
   }
   namespace TimeOfDay {
+    operator < is Less;
+
     #[Internal]
     native function Less(a: TimeOfDay, b: TimeOfDay): boolean;
     native function WrappingAdd(time: TimeOfDay, duration: Std.Duration): TimeOfDay;

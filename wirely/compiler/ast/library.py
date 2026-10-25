@@ -49,7 +49,7 @@ class DeclarationLibrary(Declaration):
             with namespace.coordinator.contain(decl), decl.context:
                 # TODO: What is allowed here?
                 if not isinstance(decl, (model.DeclarationNodeType, DeclarationLibrary, DeclarationResourceType, DeclarationEnumType, DeclarationStructType, DeclarationNativeFunction,
-                                         DeclarationConstant)):
+                                         DeclarationConstant, model.DeclarationOperator)):
                     hints = [
                         CompilerHint(self, 'In this namespace'),
                     ]
@@ -63,6 +63,7 @@ class Namespace(Scope):
 
     def __init__(self, block: DeclarationLibrary, parent_graph: Scope) -> None:
         super().__init__()
+        self.operator_bindings: dict[str, model.DeclarationOperator] = {}
         self.constants: dict[str, model.NamespaceConstant] = {}
         self.blocks = [block]
         self.parent_graph = parent_graph

@@ -1,0 +1,152 @@
+// TEST: root binding
+operator + is Add; // E: Operator bindings require a type companion namespace
+
+// TEST: namespace without a value type
+namespace Example {
+  operator + is Add; // E: Operator bindings require a user-defined value type companion namespace
+}
+
+// TEST: resource companion
+resource type Handle;
+namespace Handle {
+  operator + is Add; // E: Operator bindings require a user-defined value type companion namespace
+}
+
+// TEST: builtin companion
+namespace int16 {
+  operator + is Add; // E: Operator bindings require a user-defined value type companion namespace
+}
+
+// TEST: node body
+node type Example {
+  operator + is Add; // E: Operator bindings require a type companion namespace
+}
+
+// TEST: duplicate across reopened namespaces
+// SE: Duplicate binding for operator `+`
+// SH: Previous binding was here
+struct type Value { Number: int16, }
+namespace Value {
+  native function Combine(a: Value, b: int16): int16;
+  operator + is Combine; // H: Previous binding was here
+}
+namespace Value {
+  operator + is Combine; // E: Duplicate binding for operator `+`
+}
+
+// TEST: missing target
+struct type Value { Number: int16, }
+namespace Value {
+  operator + is Missing; // E: Cannot find function `Missing`
+}
+
+// TEST: wrong first parameter
+struct type Value { Number: int16, }
+namespace Value {
+  native function Combine(a: int16, b: Value): int16;
+  operator + is Combine; // E: first of type `Value`
+}
+
+// TEST: unary binding
+struct type Value { Number: int16, }
+namespace Value {
+  native function Negate(a: Value): Value;
+  operator - is Negate; // E: requires a function with two parameters
+}
+
+// TEST: comparison second parameter
+struct type Value { Number: int16, }
+namespace Value {
+  native function Compare(a: Value, b: int16): boolean;
+  operator < is Compare; // E: requires signature `(Value, Value): boolean`
+}
+
+// TEST: comparison result
+struct type Value { Number: int16, }
+namespace Value {
+  native function Compare(a: Value, b: Value): int16;
+  operator < is Compare; // E: requires signature `(Value, Value): boolean`
+}
+
+// TEST: multiplication binding
+struct type Value { Number: int16, }
+namespace Value {
+  operator * is Multiply; // E: Operator `*` cannot be bound
+}
+
+// TEST: derived comparison binding
+struct type Value { Number: int16, }
+namespace Value {
+  operator <= is Compare; // E: Operator `<=` cannot be bound
+}
+
+// TEST: equality binding
+struct type Value { Number: int16, }
+namespace Value {
+  operator == is Equal; // E: Operator `==` cannot be bound
+}
+
+// TEST: missing operator
+struct type Value { Number: int16, }
+assert Value { Number: 1 } + 2 == 3; // E: Type `Value` has no binding for operator `+`
+
+// TEST: untyped left operand from expected type
+// LIBRARIES: std
+constant Value: Std.Duration = "PT1S" + "PT2S"; // E: User-defined operators require a typed first operand
+
+// TEST: untyped left operand from right operand
+// LIBRARIES: std
+constant Value: Std.Duration = "PT1S";
+assert "PT1S" < Value; // E: User-defined operators require a typed first operand
+
+// TEST: no lookup in right operand namespace
+// LIBRARIES: std
+constant Value: Std.Duration = "PT1S";
+assert 1 + Value == Value; // E: User-defined operators require a typed first operand
+
+// TEST: constant-only arithmetic at runtime
+// LIBRARIES: std
+#[Allow(Unused)] binding result: value Std.Duration;
+procedure run writes result {
+  let value: Std.Duration = "PT1S";
+  result = value + value; // E: Operator uses compile-time-only function `Std.Duration.Add`
+}
+
+// TEST: generic missing operator
+node type Generic {
+  parameter Type: type;
+  parameter Value: Type;
+  constant Result: Type = Value + Value; // E: Type `boolean` has no binding for operator `+`
+}
+node generic: Generic { Type: boolean, Value: true } // H: While instantiating `generic`
+
+// TEST: generic right operand mismatch
+// LIBRARIES: std
+node type Generic {
+  parameter Type: type;
+  parameter Value: Type;
+  constant Result: Type = Value + false; // E: Invalid `Std.Duration` value
+}
+node generic: Generic { Type: Std.Duration, Value: "PT1S" } // H: While instantiating `generic`
+
+// TEST: generic untyped left operand
+// LIBRARIES: std
+node type Generic {
+  parameter Type: type;
+  parameter Value: Type;
+  constant Result: Type = 1 + Value; // E: User-defined operators require a typed first operand
+}
+node generic: Generic { Type: Std.Duration, Value: "PT1S" } // H: While instantiating `generic`
+
+// TEST: constant-only ordering at runtime
+struct type Value { Number: int16, }
+namespace Value {
+  native constant function Compare(a: Value, b: Value): boolean;
+  operator < is Compare;
+}
+#[Allow(Unused)] binding result: value boolean;
+procedure run reads input: value Value writes result {
+  result = input < input; // E: Operator uses compile-time-only function `Value.Compare`
+}
+constant Source: Value = Value { Number: 1 };
+connect Source -> run.input;

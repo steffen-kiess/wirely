@@ -23,7 +23,8 @@ assert Std.Duration.CheckedDiv(Max, 4294967295) == Some("P49710DT6H28M17.0000000
 // Compile-time operators.
 constant Total: Std.Duration = Second + "PT2S" - "PT0.5S";
 assert Total == "PT2.5S" && Max - Max == "PT0S";
-assert Second + Second > Second && "PT1M" - Second == "PT59S";
+constant Minute: Std.Duration = "PT1M";
+assert Second + Second > Second && Minute - Second == "PT59S";
 
 // Conversions from integer counts round to the nearest unit and never
 // overflow; extraction rounds down and inverts them.

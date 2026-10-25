@@ -6,6 +6,8 @@ from __future__ import annotations
 import abc
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from tests.infra.native_extension.generated.enums import TestLibraryOperatorClosed, TestLibraryOperatorOpen
+from tests.infra.native_extension.generated.structs import TestLibraryOperatorValue
 from typing import cast
 
 from wirely.runtime.native_api import (
@@ -106,3 +108,67 @@ def _call__nothing(
 # Native function TestLibrary.Nothing.
 _Nothing: FunctionContract[Callable[[], Unit]] = FunctionContract(
     'TestLibrary.Nothing', _call__nothing)
+
+
+def _call__operator_closed_less(
+    implementation: Callable[[TestLibraryOperatorClosed, TestLibraryOperatorClosed], bool],
+    binding: FunctionBinding,
+    arguments: Sequence[InternalValue],
+) -> InternalValue:
+    return binding.result(implementation(
+        cast('TestLibraryOperatorClosed', binding.argument(arguments, 0)),
+        cast('TestLibraryOperatorClosed', binding.argument(arguments, 1)),
+    ))
+
+
+# Native function TestLibrary.OperatorClosedLess.
+_OperatorClosedLess: FunctionContract[Callable[[TestLibraryOperatorClosed, TestLibraryOperatorClosed], bool]] = FunctionContract(
+    'TestLibrary.OperatorClosedLess', _call__operator_closed_less)
+
+
+def _call__operator_combine(
+    implementation: Callable[[TestLibraryOperatorValue, Int16], Int16],
+    binding: FunctionBinding,
+    arguments: Sequence[InternalValue],
+) -> InternalValue:
+    return binding.result(implementation(
+        cast('TestLibraryOperatorValue', binding.argument(arguments, 0)),
+        cast('Int16', binding.argument(arguments, 1)),
+    ))
+
+
+# Native function TestLibrary.OperatorCombine.
+_OperatorCombine: FunctionContract[Callable[[TestLibraryOperatorValue, Int16], Int16]] = FunctionContract(
+    'TestLibrary.OperatorCombine', _call__operator_combine)
+
+
+def _call__operator_less(
+    implementation: Callable[[TestLibraryOperatorValue, TestLibraryOperatorValue], bool],
+    binding: FunctionBinding,
+    arguments: Sequence[InternalValue],
+) -> InternalValue:
+    return binding.result(implementation(
+        cast('TestLibraryOperatorValue', binding.argument(arguments, 0)),
+        cast('TestLibraryOperatorValue', binding.argument(arguments, 1)),
+    ))
+
+
+# Native function TestLibrary.OperatorLess.
+_OperatorLess: FunctionContract[Callable[[TestLibraryOperatorValue, TestLibraryOperatorValue], bool]] = FunctionContract(
+    'TestLibrary.OperatorLess', _call__operator_less)
+
+
+def _call__operator_open_less(
+    implementation: Callable[[TestLibraryOperatorOpen, TestLibraryOperatorOpen], bool],
+    binding: FunctionBinding,
+    arguments: Sequence[InternalValue],
+) -> InternalValue:
+    return binding.result(implementation(
+        cast('TestLibraryOperatorOpen', binding.argument(arguments, 0)),
+        cast('TestLibraryOperatorOpen', binding.argument(arguments, 1)),
+    ))
+
+
+# Native function TestLibrary.OperatorOpenLess.
+_OperatorOpenLess: FunctionContract[Callable[[TestLibraryOperatorOpen, TestLibraryOperatorOpen], bool]] = FunctionContract(
+    'TestLibrary.OperatorOpenLess', _call__operator_open_less)

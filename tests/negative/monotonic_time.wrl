@@ -47,7 +47,7 @@ node type Probe {
   procedure run reads default input as input writes default output as output {
     output = false;
     if let Some(time) = input {
-      output = time < time; // E: got `Timer.MonotonicTime`
+      output = time < time; // E: Type `Timer.MonotonicTime` has no binding for operator `<`
     }
   }
 }
