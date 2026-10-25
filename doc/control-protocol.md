@@ -533,14 +533,17 @@ the commands of debug source nodes by name, with values in the
 with each node's type and, for debug sources, its value type and commands.
 It does not contact the runtime.
 
-Without a command, `wirely client` reads commands with the same syntax,
-one per line, until `quit` or end of input. On a terminal, it offers line
-editing, history, and completion; otherwise it stops at the first failing
-command.
+Without a command, `wirely client` reads commands with the same syntax
+from standard input, one per line, until `quit` or end of input. With
+`-i`, it continues after failing commands and, on a terminal, offers line
+editing, history, and completion. With `--batch`, it stops at the first
+failing command and exits with its status. Without either, it uses `-i` on
+a terminal and `--batch` otherwise.
 
-`wirely run -i FILES` runs the program and reads these commands from the
-terminal itself, with names from the source files. `quit` stops the
-service. It creates the sockets only with `--state-directory`.
+`wirely run -i FILES` and `wirely run --batch FILES` run the program and
+read these commands from standard input, with names from the source files.
+`quit` stops the service. It creates the sockets only with
+`--state-directory`.
 
 Use `--tls` for TLS connections, with `--tls-ca` and `--tls-server-name`
 to verify the certificate.

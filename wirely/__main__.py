@@ -11,8 +11,13 @@ def main() -> None:
     run_parser = subparsers.add_parser('run')
     run_parser.add_argument('--verbose', action='store_true')
     run_parser.add_argument('--debug', action='store_true')
-    run_parser.add_argument('-i', '--interactive', action='store_true',
-                            help='read control commands from the terminal; quit stops the service')
+    commands_group = run_parser.add_mutually_exclusive_group()
+    commands_group.add_argument('-i', '--interactive', dest='commands', action='store_const', const='interactive',
+                                help='read control commands from stdin, continuing after failing commands; '
+                                     'quit stops the program')
+    commands_group.add_argument('--batch', dest='commands', action='store_const', const='batch',
+                                help='read control commands from stdin, stopping at the first failing command; '
+                                     'quit stops the program')
     run_parser.add_argument('--state-directory',
                             help='directory for the control sockets')
     run_parser.add_argument('--control-tls-cert',

@@ -31,8 +31,13 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
                         help='retransmission timeout in seconds for the serial protocol')
     parser.add_argument('--program', action='append', metavar='FILE',
                         help='.wrl file of the running program, for names; repeat for several files')
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('-i', '--interactive', dest='mode', action='store_const', const='interactive',
+                      help='without a command: continue after failing commands, with line editing on a terminal')
+    mode.add_argument('--batch', dest='mode', action='store_const', const='batch',
+                      help='without a command: stop at the first failing command')
     commands = parser.add_subparsers(title='commands', dest='client_command',
-                                     description='without a command, read commands interactively')
+                                     description='without a command, read commands from stdin')
     _add_commands(commands)
     # Only on the command line: it runs until interrupted.
     watch_parser = commands.add_parser('watch', help='print the run state and program whenever they change')
@@ -97,6 +102,9 @@ async def async_run(args: argparse.Namespace) -> int:
     if args.tls and args.protocol != 'stream':
         print('Error: --tls requires --protocol stream', file=sys.stderr)
         return 2
+    if args.mode is not None and args.client_command is not None:
+        print('Error: --interactive and --batch read commands from stdin; omit the command', file=sys.stderr)
+        return 2
     ssl_context = None
     if args.tls:
         ssl_context = ssl.create_default_context(cafile=args.tls_ca)
@@ -123,7 +131,8 @@ async def async_run(args: argparse.Namespace) -> int:
         return 1
     try:
         if args.client_command is None:
-            return await _interactive(client, args)
+            mode = args.mode or ('interactive' if sys.stdin.isatty() else 'batch')
+            return await _read_commands(client, args, mode)
         return await _commands[args.client_command](client, args)
     except (OSError, ControlError, TimeoutError) as error:
         print(f'Error: {error}', file=sys.stderr)
@@ -171,16 +180,17 @@ def _print_help(choices: Mapping[str, argparse.ArgumentParser]) -> None:
     print('Enter COMMAND -h for the options of a command.')
 
 
-async def interactive(client: ControlClient, program: 'Program | None') -> int:
+async def read_commands(client: ControlClient, program: 'Program | None', mode: str) -> int:
     """Run commands from stdin on a connected client, as without a command; program provides names."""
-    return await _interactive(client, argparse.Namespace(compiled_program=program))
+    return await _read_commands(client, argparse.Namespace(compiled_program=program), mode)
 
 
-async def _interactive(client: ControlClient, args: argparse.Namespace) -> int:
+async def _read_commands(client: ControlClient, args: argparse.Namespace, mode: str) -> int:
     """Run commands from stdin until EOF or quit.
 
-    On a terminal, commands are read with line editing, and failing commands
-    do not end the session. Other input stops at the first failing command.
+    In 'interactive' mode, failing commands do not end the session, and a
+    terminal offers line editing. In 'batch' mode, the first failing command
+    ends it with its status.
     """
     parser, choices = _interactive_parser()
 
@@ -219,12 +229,12 @@ async def _interactive(client: ControlClient, args: argparse.Namespace) -> int:
             traceback.print_exc()
             return 1
 
-    if not sys.stdin.isatty():
+    if mode == 'batch' or not sys.stdin.isatty():
         while line := await asyncio.to_thread(sys.stdin.readline):
             status = await run_line(line)
             if status is None:
                 break
-            if status != 0:
+            if status != 0 and mode == 'batch':
                 return status
         return 0
 

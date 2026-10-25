@@ -38,12 +38,12 @@ def _is_binary_program(filename: str) -> bool:
 
 
 async def run_engine(engine: Engine, controller: RuntimeController | None = None, state_directory: str | None = None,
-                     tls_context: ssl.SSLContext | None = None, *, interactive: bool = False,
+                     tls_context: ssl.SSLContext | None = None, *, commands: str | None = None,
                      program: Program | None = None) -> int | None:
     """Run an engine; with a state directory, serve the control protocol on its sockets.
 
-    With interactive, read client commands from stdin over an internal session, with names from
-    program, and return their exit status when they end.
+    With commands, 'interactive' or 'batch', read client commands from stdin over an internal
+    session, with names from program, and return their exit status when they end.
     """
     status = None
     try:
@@ -60,7 +60,7 @@ async def run_engine(engine: Engine, controller: RuntimeController | None = None
             print('{}: Started'.format(now.isoformat()), flush=True)
             sdnotify.SystemdNotifier().notify('READY=1')
 
-            if not interactive:
+            if commands is None:
                 await wirely.misc.service.should_never_return(wirely.misc.service.loop_until_sigint_and_throw())
             assert controller is not None
             tg.create_task(wirely.misc.service.loop_until_sigint_and_throw(announce=False))
@@ -69,7 +69,7 @@ async def run_engine(engine: Engine, controller: RuntimeController | None = None
             client = ControlClient(client_end)
             try:
                 await client.hello()
-                status = await wirely.cli.client.interactive(client, program)
+                status = await wirely.cli.client.read_commands(client, program, commands)
             finally:
                 await client.close()
             raise wirely.misc.service.TerminateProgram()
@@ -134,7 +134,7 @@ async def async_run(args: argparse.Namespace) -> int | None:
                     return 1
                 prog = compiled
                 names = compiled
-                if args.state_directory is not None or args.interactive:
+                if args.state_directory is not None or args.commands is not None:
                     build_id = program_build_id(prog)
             eng = Engine(prog)
         except (OSError, ValueError, LoadFailure) as error:
@@ -148,5 +148,5 @@ async def async_run(args: argparse.Namespace) -> int | None:
         print('{}: Start'.format(now.isoformat()), flush=True)
 
         controller = None if build_id is None else RuntimeController(eng, build_id)
-        return await run_engine(eng, controller, args.state_directory, tls_context, interactive=args.interactive,
+        return await run_engine(eng, controller, args.state_directory, tls_context, commands=args.commands,
                                 program=names)

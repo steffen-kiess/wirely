@@ -368,7 +368,7 @@ async def check_service():
         source.write_text('', encoding='utf-8')
         args = argparse.Namespace(input_filename=[str(path)], verbose=False, debug=False,
                                   state_directory=None, control_tls_cert=None, control_tls_key=None,
-                                  interactive=False)
+                                  commands=None)
         with patch.object(run_command.wirely.compiler, 'compile_files', side_effect=AssertionError('must not compile')):
             with patch.object(run_command, 'run_engine', new_callable=AsyncMock, return_value=None) as run:
                 assert await run_command.async_run(args) is None

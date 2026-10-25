@@ -253,7 +253,7 @@ async def check_service_interactive():
           unittest.mock.patch('sys.stdin', io.StringIO('pause\nset value 5\nget value\nquit\nresume\n')),
           unittest.mock.patch.object(wirely.misc.service, 'loop_until_sigint_and_throw', wait_forever)):
         controller = RuntimeController(runtime, program_build_id(program))
-        assert await asyncio.wait_for(run_command.run_engine(runtime, controller, interactive=True, program=program),
+        assert await asyncio.wait_for(run_command.run_engine(runtime, controller, commands='batch', program=program),
                                       5) == 0
     lines = output.getvalue().splitlines()
     assert lines[1].startswith('paused, ') and lines[2] == '5' and 'running' not in output.getvalue(), lines
@@ -575,9 +575,15 @@ async def check_cli(server):
     # Without a command, commands are read from stdin.
     output = await run_client_command(*serial, stdin='pause\nstep --count 2\nresume\n')
     assert 'paused' in output and '2 steps' in output and 'running' in output
-    # Input that is not a terminal stops at the first failing command.
-    output = await run_client_command(*serial, stdin='step\nstatus\n', status=1)
-    assert output == 'Error: WRONG_STATE: Runtime is not paused\n'
+    # Input that is not a terminal stops at the first failing command, as with --batch.
+    for mode in ([], ['--batch']):
+        output = await run_client_command(*serial, *mode, stdin='step\nstatus\n', status=1)
+        assert output == 'Error: WRONG_STATE: Runtime is not paused\n'
+    # With -i, reading continues after failing commands.
+    output = await run_client_command(*serial, '-i', stdin='step\nstatus\n')
+    assert output.startswith('Error: WRONG_STATE: Runtime is not paused\nrunning, '), output
+    output = await run_client_command(*serial, '--batch', 'status', status=2)
+    assert output == 'Error: --interactive and --batch read commands from stdin; omit the command\n'
 
 
 async def run_test():
