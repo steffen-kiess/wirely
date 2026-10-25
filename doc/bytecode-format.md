@@ -1,6 +1,6 @@
 # Wirely program binary format
 
-This proposal represents `Program` definitions as indexed binary tables
+This format represents `Program` definitions as indexed binary tables
 for desktop and embedded runtimes. The current format version is 0.0, an
 unstable development format.
 
@@ -21,7 +21,7 @@ inspection does not establish full parsing or execution support. Execution
 requires support for the file's major and minor version; runtimes reject
 newer, unsupported minor versions.
 
-The rest of this proposal describes version 0.0.
+The rest of this document describes version 0.0.
 
 ## Header and sections
 
@@ -1268,7 +1268,7 @@ procedures and aliases. A writer derives the remaining tables:
 ## Verification
 
 A runtime verifies a file before using it. A file is valid when it
-follows all rules of this proposal except the producer requirements
+follows all rules of this document except the producer requirements
 below, so validity depends only on the file's bytes. Native code is not
 involved; matching names to native implementations is part of
 [linking](#linking). Transition files also follow the rules in

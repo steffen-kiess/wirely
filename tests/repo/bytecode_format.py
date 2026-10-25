@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 
 
-# The Wirely blocks of the binary format proposal, joined by blank lines, are the declarations of
+# The Wirely blocks of the binary format specification, joined by blank lines, are the declarations of
 # wirely/program/format.wrl after its leading file comment.
 root = Path(__file__).resolve().parents[2]
 document = (root / 'doc/bytecode-format.md').read_text(encoding='utf-8')

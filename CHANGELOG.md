@@ -25,6 +25,12 @@ Replace `native node type` with `node type`, and name initializers, as in
 
 Replace the port kind `resource T` with `fixed T`.
 
+### Added
+
+- `wirely compile -o FILE` writes the compiled program in the binary
+  program format, an unstable development format. `wirely run-service`
+  runs such a file.
+
 ## 0.1.4 - 2026-10-24
 
 ### Breaking changes and migration
