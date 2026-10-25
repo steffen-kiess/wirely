@@ -28,6 +28,8 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument('--tls-server-name', help='expected name in the runtime certificate')
     parser.add_argument('--timeout', type=float, default=1.0,
                         help='retransmission timeout in seconds for the serial protocol')
+    parser.add_argument('--program', action='append', metavar='FILE',
+                        help='.wrl file of the running program, for names; repeat for several files')
     commands = parser.add_subparsers(title='commands', dest='client_command',
                                      description='without a command, read commands interactively')
     _add_commands(commands)
@@ -48,15 +50,20 @@ def _add_commands(commands: Any) -> None:
     step_parser.add_argument('--count', type=int, default=1)
     dump_parser = add('dump', 'print the state and temporaries')
     dump_parser.add_argument('--bank', choices=['state', 'temporaries', 'all'], default='all')
-    dump_parser.add_argument('--program', nargs='+', metavar='FILE',
-                             help='.wrl files of the running program, for printing values by name')
     call_parser = add('call', 'send a command to the native state of an initializer')
     call_parser.add_argument('instance', type=int, help='index of the initializer instance')
     call_parser.add_argument('command', type=int, help='command number, as documented by the library')
     call_parser.add_argument('argument', nargs='?', type=_diagnostic_value,
                              help="argument in CBOR diagnostic notation, such as h'0700'")
-    call_parser.add_argument('--program', nargs='+', metavar='FILE',
-                             help='.wrl files of the program the instance index refers to')
+    # Typed commands of node types, which need --program.
+    get_parser = add('get', 'print the value of a debug source, or its queued event')
+    get_parser.add_argument('node')
+    set_parser = add('set', 'set the value of a debug value source')
+    set_parser.add_argument('node')
+    set_parser.add_argument('value', help='value in the value text format')
+    send_parser = add('send', 'send an event from a debug event source')
+    send_parser.add_argument('node')
+    send_parser.add_argument('value', help='payload in the value text format')
 
 
 def _diagnostic_value(text: str) -> Any:
@@ -78,6 +85,15 @@ async def async_run(args: argparse.Namespace) -> int:
         ssl_context = ssl.create_default_context(cafile=args.tls_ca)
         if args.tls_server_name is None:
             ssl_context.check_hostname = False
+    args.compiled_program = None
+    if args.program is not None:
+        from ..compiler import compile_files
+        from ..compiler import program as program_compiler
+
+        global_node_type = compile_files(args.program)
+        args.compiled_program = None if global_node_type is None else program_compiler.compile(global_node_type)
+        if args.compiled_program is None:
+            return 1
     try:
         client = await ControlClient.connect_unix(
             args.unix_path, args.protocol, ssl=ssl_context,
@@ -188,9 +204,14 @@ async def _interactive(client: ControlClient, args: argparse.Namespace) -> int:
     from prompt_toolkit.patch_stdout import patch_stdout
     from prompt_toolkit.shortcuts import CompleteStyle
 
+    completions: dict[str, Any] = dict.fromkeys(choices)
+    if args.compiled_program is not None:
+        from ..control.node_commands import command_targets
+        # Typed commands complete the names of the nodes that support them.
+        completions.update(command_targets(args.compiled_program))
     session: PromptSession[str] = PromptSession(
         history=InMemoryHistory(),
-        completer=NestedCompleter.from_nested_dict(dict.fromkeys(choices)),
+        completer=NestedCompleter.from_nested_dict(completions),
         complete_style=CompleteStyle.READLINE_LIKE,
     )
     # Print output of other tasks above the prompt.
@@ -242,22 +263,13 @@ async def _step(client: ControlClient, args: argparse.Namespace) -> int:
     return 0
 
 
-async def _bind(client: ControlClient, program_files: list[str] | None) -> 'Program | bool':
-    """Bind to the program compiled from program_files, or to the active program without them.
-
-    Return the compiled program or True on success, and False after reporting an error.
-    """
-    if program_files is None:
+async def _bind(client: ControlClient, program: 'Program | None') -> bool:
+    """Bind to the program, or without one to the active program; report a mismatch and return False."""
+    if program is None:
         await client.request(Op.BIND_PROGRAM)
         return True
-    from ..compiler import compile_files
-    from ..compiler import program as program_compiler
     from ..program.writer import program_build_id
 
-    global_node_type = compile_files(program_files)
-    program = None if global_node_type is None else program_compiler.compile(global_node_type)
-    if program is None:
-        return False
     try:
         await client.request(Op.BIND_PROGRAM, {1: program_build_id(program)[:BUILD_ID_PREFIX_LENGTH]})
     except ControlError as error:
@@ -265,11 +277,11 @@ async def _bind(client: ControlClient, program_files: list[str] | None) -> 'Prog
             raise
         print('Error: The running program does not match the program files', file=sys.stderr)
         return False
-    return program
+    return True
 
 
 async def _call(client: ControlClient, args: argparse.Namespace) -> int:
-    if not await _bind(client, args.program):
+    if not await _bind(client, args.compiled_program):
         return 1
     request = {1: args.instance, 2: args.command}
     if args.argument is not None:
@@ -281,12 +293,37 @@ async def _call(client: ControlClient, args: argparse.Namespace) -> int:
     return 0
 
 
+async def _typed_command(client: ControlClient, args: argparse.Namespace) -> int:
+    """Run get, set, or send for a node, using its node type's native commands."""
+    from ..control.node_commands import NodeCommandError, resolve
+
+    name = args.client_command
+    program = args.compiled_program
+    if program is None:
+        print(f'Error: `{name}` requires --program', file=sys.stderr)
+        return 1
+    try:
+        target = resolve(program, args.node)
+        command = target.command(name)
+        argument = target.encode(args.value) if command.takes_value else {}
+    except NodeCommandError as error:
+        print(f'Error: {error}', file=sys.stderr)
+        return 1
+    if not await _bind(client, program):
+        return 1
+    body = await client.request(Op.NATIVE_COMMAND, {1: target.instance, 2: command.number, 3: argument})
+    if not command.takes_value:
+        value = target.decode(body.get(1))
+        print('none' if value is None else value)
+    return 0
+
+
 async def _dump(client: ControlClient, args: argparse.Namespace) -> int:
-    program = await _bind(client, args.program)
-    if not program:
+    program = args.compiled_program
+    if not await _bind(client, program):
         return 1
     variable_tables = None
-    if not isinstance(program, bool):
+    if program is not None:
         variable_tables = {Bank.STATE: program.state_variables, Bank.TEMPORARIES: program.temporaries}
 
     banks = list(Bank) if args.bank == 'all' else [Bank[args.bank.upper()]]
@@ -329,5 +366,8 @@ _commands = {
     'step': _step,
     'dump': _dump,
     'call': _call,
+    'get': _typed_command,
+    'set': _typed_command,
+    'send': _typed_command,
     'watch': _watch,
 }

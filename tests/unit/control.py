@@ -15,6 +15,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
 
 import wirely.cli.client
+from wirely.control import node_commands
 from wirely.control.client import ControlClient
 from wirely.control.framing import SerialFraming, cobs_decode, cobs_encode
 from wirely.control.messages import ControlError, ErrorCode, Kind, Op, decode, encode
@@ -268,6 +269,29 @@ async def check_native_commands(server):
         await client.close()
 
 
+def check_node_commands():
+    """Typed commands find nodes by name and encode values with their node type's types."""
+    target = node_commands.resolve(engine.program, 'value')
+    assert (target.instance, target.node_type) == (instance_index('value:create'), 'Std.DebugValueSource')
+    assert target.encode('9') == {1: b'\x09\x00'} and target.decode({1: b'\x09\x00'}) == '9'
+    events = node_commands.resolve(engine.program, 'events')
+    assert str(events.value_type) == 'uint8' and events.decode({}) is None
+    assert node_commands.command_targets(engine.program) == {
+        'get': {'value', 'events'}, 'set': {'value'}, 'send': {'events'}}
+    for action, message in [
+        (lambda: events.command('set'), '`events` (`Std.DebugEventSource`) has no command `set`; it has `get`, `send`'),
+        (lambda: node_commands.resolve(engine.program, 'c'), '`c` has no typed commands'),
+        (lambda: node_commands.resolve(engine.program, 'missing'), 'Cannot find node `missing`'),
+        (lambda: target.encode('x'), "Invalid `uint16` value 'x'"),
+    ]:
+        try:
+            action()
+        except node_commands.NodeCommandError as error:
+            assert str(error).startswith(message), error
+        else:
+            raise AssertionError(f'Expected {message}')
+
+
 async def check_stream(server):
     client = await ControlClient.connect_unix(server.stream_path)
     try:
@@ -400,7 +424,7 @@ async def check_cli(server):
     serial = ['--unix-path', server.serial_path, '--protocol', 'serial']
     assert 'paused' in await run_client_command(*serial, 'pause')
     assert '2 steps' in await run_client_command(*serial, 'step', '--count', '2')
-    output = await run_client_command('--unix-path', server.stream_path, 'dump', '--program', program_path)
+    output = await run_client_command('--unix-path', server.stream_path, '--program', program_path, 'dump')
     assert '  d: 42\n' in output
     assert '  c:run.output: 42\n' in output
     output = await run_client_command(*serial, 'dump', '--bank', 'state')
@@ -410,7 +434,7 @@ async def check_cli(server):
         other_path = os.path.join(directory, 'other.wrl')
         with open(program_path, encoding='utf-8') as source, open(other_path, 'w', encoding='utf-8') as other:
             other.write(source.read().replace('Value: 42', 'Value: 43'))
-        output = await run_client_command('--unix-path', server.stream_path, 'dump', '--program', other_path,
+        output = await run_client_command('--unix-path', server.stream_path, '--program', other_path, 'dump',
                                           status=1)
         assert output == 'Error: The running program does not match the program files\n'
     assert 'running' in await run_client_command(*serial, 'resume')
@@ -419,13 +443,21 @@ async def check_cli(server):
     value = str(instance_index('value:create'))
     events = str(instance_index('events:create'))
     assert await run_client_command(*serial, 'call', value, '1', "{1: h'0900'}") == '{}\n'
-    assert await run_client_command(*serial, 'call', value, '0', '--program', program_path) == "{1: h'0900'}\n"
+    assert await run_client_command(*serial, '--program', program_path, 'call', value, '0') == "{1: h'0900'}\n"
     # While paused, the first event stays queued.
     await run_client_command(*serial, 'pause')
     assert await run_client_command(*serial, 'call', events, '1', "{1: h'05'}") == '{}\n'
     output = await run_client_command(*serial, 'call', events, '1', "{1: h'06'}", status=1)
     assert output == 'Error: COMMAND_FAILED: An event is already queued (reason 1)\n'
     await run_client_command(*serial, 'resume')
+
+    # Typed commands use node names and the value text format. One script compiles the program once.
+    script = 'set value 11\nget value\npause\nget events\nsend events 6\nget events\nsend events 7\n'
+    output = await run_client_command(*serial, '--program', program_path, stdin=script, status=1)
+    lines = output.splitlines()
+    assert (lines[0], lines[2:]) == ('11', ['none', '6', 'Error: COMMAND_FAILED: An event is already queued (reason 1)'])
+    await run_client_command(*serial, 'resume')
+    assert await run_client_command(*serial, 'get', 'value', status=1) == 'Error: `get` requires --program\n'
 
     # Without a command, commands are read from stdin.
     output = await run_client_command(*serial, stdin='pause\nstep --count 2\nresume\n')
@@ -437,6 +469,7 @@ async def check_cli(server):
 
 async def run_test():
     check_cobs()
+    check_node_commands()
     await check_client_ignores_notifications()
     run_task = asyncio.create_task(engine.run())
     try:

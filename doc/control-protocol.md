@@ -484,9 +484,13 @@ snapshot operations, and `NativeCommand`.
 `wirely client` sends requests to these sockets, for example:
 
 ```sh
-wirely client --unix-path DIR/control dump --program program.wrl
+wirely client --unix-path DIR/control --program program.wrl dump
 wirely client --unix-path DIR/control-serial --protocol serial pause
 ```
+
+`--program` names the `.wrl` files of the running program; repeat it for
+several files. The client compiles them once and binds to that program,
+so commands can refer to names.
 
 `wirely client --unix-path DIR/control watch` prints the run state and
 program whenever they change, until it is interrupted.
@@ -495,6 +499,12 @@ program whenever they change, until it is interrupted.
 result use CBOR diagnostic notation: integers, `h'…'` byte strings, text
 strings, `true`, `false`, `null`, arrays, and maps. Quote arguments for the
 shell and in interactive mode, as in `call 0 1 "{1: h'0700'}"`.
+
+With `--program`, `get NODE`, `set NODE VALUE`, and `send NODE VALUE` use
+the commands of debug source nodes by name, with values in the
+[text format](value-types.md#text-format): `set` and `get` for a
+`Std.DebugValueSource`, and `send` and `get`, for the queued event, for a
+`Std.DebugEventSource`.
 
 Without a command, `wirely client` reads commands with the same syntax,
 one per line, until `quit` or end of input. On a terminal, it offers line
