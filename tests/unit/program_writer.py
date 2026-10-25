@@ -54,7 +54,7 @@ def program(*, procs=(), state=(), temporaries=(), fixed=(), initial=None, alias
 
 
 def body_program(instructions, local_types=(), stage=RunStage.DEFAULT):
-    proc = Procedure('test.run', (), (), body=ProcedureBody(instructions, local_types))
+    proc = Procedure((), (), name='test.run', body=ProcedureBody(instructions, local_types))
     return program(procs=((stage, (proc,)),))
 
 
@@ -123,7 +123,7 @@ def check_types_and_constants():
                  Constant(closed, 1), Constant(opened, -3), Constant(typed, (resource, option)),
                  Constant(types.String, 'héllo'), Constant(types.String, 'héllo')]
     inputs = tuple(InputSource(VariableBank.CONST_VALUES, constant=item) for item in constants)
-    proc = Procedure('test.run', inputs, (), native=NativeProcedureEntry('Test:run', tuple('abcdefg'), ()))
+    proc = Procedure(inputs, (), name='test.run', native=NativeProcedureEntry('Test:run', tuple('abcdefg'), ()))
     data = sections(program(procs=((RunStage.LOAD, (proc,)),)))
     type_data = data[fmt.SectionType.ValueTypes]
     kinds = list(type_data[::32])
@@ -167,29 +167,29 @@ def check_types_and_constants():
 
 
 def check_variables_and_procedures():
-    small = Variable('small', types.uint8)
-    wide = Variable('wide', types.uint64)
-    empty = Variable('empty', types.unit)
-    temporary = Variable('temporary', types.uint8)
-    fixed = Variable('fixed', types.uint8)
-    resource = Variable('resource', types.TypeResource('Resource', 'Test.Resource'))
-    init = Procedure('z.create', (), (OutputTarget(VariableBank.FIXED_VALUES, resource),),
+    small = Variable(types.uint8, name='small')
+    wide = Variable(types.uint64, name='wide')
+    empty = Variable(types.unit, name='empty')
+    temporary = Variable(types.uint8, name='temporary')
+    fixed = Variable(types.uint8, name='fixed')
+    resource = Variable(types.TypeResource('Resource', 'Test.Resource'), name='resource')
+    init = Procedure((), (OutputTarget(VariableBank.FIXED_VALUES, resource),), name='z.create',
                      native=NativeProcedureEntry('Z:create', (), ('resource',), initializer=True))
-    setup = Procedure('a.load', (), (OutputTarget(VariableBank.FIXED_VALUES, fixed),),
+    setup = Procedure((), (OutputTarget(VariableBank.FIXED_VALUES, fixed),), name='a.load',
                       native=NativeProcedureEntry('A:load', (), ('fixed',)))
     sources = (InputSource(VariableBank.CONST_VALUES, constant=Constant(types.uint8, 7)),
                InputSource(VariableBank.FIXED_VALUES, fixed), InputSource(VariableBank.FIXED_VALUES, resource),
                InputSource(VariableBank.OLD_STATE, wide))
     outputs = (OutputTarget(VariableBank.TEMPORARIES, temporary), OutputTarget(VariableBank.NEW_STATE, small),
                OutputTarget(VariableBank.NEW_STATE, wide), OutputTarget(VariableBank.NEW_STATE, empty))
-    native = Procedure('b.run', sources, outputs,
+    native = Procedure(sources, outputs, name='b.run',
                        native=NativeProcedureEntry('B:run', ('a', 'b', 'c', 'd'), ('a', 'b', 'c', 'd')))
     shared = ProcedureBody((instruction(Opcode.RETURN),))
-    first = Procedure('first.run', (), (), body=shared)
-    second = Procedure('second.run', (), (), body=shared)
-    distinct = Procedure('third.run', (), (), body=ProcedureBody(shared.instructions))
-    last = Procedure('last.run', (InputSource(VariableBank.TEMPORARIES, temporary),
-                                  InputSource(VariableBank.NEW_STATE, small)), (),
+    first = Procedure((), (), name='first.run', body=shared)
+    second = Procedure((), (), name='second.run', body=shared)
+    distinct = Procedure((), (), name='third.run', body=ProcedureBody(shared.instructions))
+    last = Procedure((InputSource(VariableBank.TEMPORARIES, temporary),
+                                  InputSource(VariableBank.NEW_STATE, small)), (), name='last.run',
                      native=NativeProcedureEntry('C:run', ('a', 'b'), ()))
     prog = program(procs=((RunStage.LOAD, (init, setup)),
                           (RunStage.DEFAULT, (native, first, second, distinct, last))),
@@ -233,7 +233,7 @@ def check_nested_type_values():
     unnamed = types.TypeStruct(None, (types.boolean,))
     constants = [Constant(wrapper, (types.Some((types.TypeOption(first), types.TypeOption(second))),)),
                  Constant(opaque, (7,)), Constant(unnamed, (True,)), Constant(types.String, '')]
-    proc = Procedure('test.load', tuple(InputSource(VariableBank.CONST_VALUES, constant=item) for item in constants), (),
+    proc = Procedure(tuple(InputSource(VariableBank.CONST_VALUES, constant=item) for item in constants), (), name='test.load',
                      native=NativeProcedureEntry('Test:load', ('a', 'b', 'c', 'd'), ()))
     data = sections(program(procs=((RunStage.LOAD, (proc,)),)))
     type_data = data[fmt.SectionType.ValueTypes]
@@ -345,14 +345,14 @@ def check_aliases():
     unused_type = types.TypeEnum('Unused', {'Zero': 0}, is_open=False, underlying_type=types.uint16)
     alias = Constant(unused_type, 0)
     immediate = Constant(types.int32, 7)
-    proc = Procedure('test.run', (), (), body=ProcedureBody((
+    proc = Procedure((), (), name='test.run', body=ProcedureBody((
         instruction(Opcode.COPY, local(0), ConstOperand(immediate)), instruction(Opcode.RETURN)), (types.int32,)))
     data = sections(program(procs=((RunStage.DEFAULT, (proc,)),), aliases={
         'alias': InputSource(VariableBank.CONST_VALUES, constant=alias),
         'immediate': InputSource(VariableBank.CONST_VALUES, constant=immediate)}))
     assert not data[fmt.SectionType.ConstValues]
     assert len(data[fmt.SectionType.ValueTypes]) == 32
-    bound = Procedure('bound.run', (InputSource(VariableBank.CONST_VALUES, constant=immediate),), (),
+    bound = Procedure((InputSource(VariableBank.CONST_VALUES, constant=immediate),), (), name='bound.run',
                       native=NativeProcedureEntry('Bound:run', ('input',), ()))
     data = sections(program(procs=((RunStage.DEFAULT, (proc, bound)),)))
     assert len(records(data[fmt.SectionType.ConstValues], fmt.Variable)) == 1
@@ -391,19 +391,19 @@ def check_constant_order():
 def check_stage_order():
     format_constant = Constant(types.TypeList(types.String), ('value: ', '', ''))
     fail_value = Constant(types.uint16, 3)
-    load = Procedure('load.run', (), (), body=ProcedureBody((
+    load = Procedure((), (), name='load.run', body=ProcedureBody((
         instruction(Opcode.FAIL, format_constant, 1, ConstOperand(fail_value)),)))
     bound = Constant(types.uint64, 4)
     converted = Constant(types.uint64, 5)
     body = ProcedureBody((instruction(Opcode.CONVERT_WRAPPING, local(0), ConstOperand(converted)),
                           instruction(Opcode.RETURN)), (types.uint64,))
-    first = Procedure('first.run', (InputSource(VariableBank.CONST_VALUES, constant=bound),), (), body=body)
+    first = Procedure((InputSource(VariableBank.CONST_VALUES, constant=bound),), (), name='first.run', body=body)
     following = Constant(types.uint64, 6)
-    second = Procedure('second.run', (InputSource(VariableBank.CONST_VALUES, constant=following),), (),
+    second = Procedure((InputSource(VariableBank.CONST_VALUES, constant=following),), (), name='second.run',
                        native=NativeProcedureEntry('Test:run', ('input',), ()))
     nested = types.TypeOption(types.int8)
     type_constant = Constant(types.ValueType, nested)
-    output = Procedure('output.run', (InputSource(VariableBank.CONST_VALUES, constant=type_constant),), (),
+    output = Procedure((InputSource(VariableBank.CONST_VALUES, constant=type_constant),), (), name='output.run',
                        native=second.native)
     stages = ((RunStage.LOAD, (load,)), (RunStage.INPUT, (first,)),
               (RunStage.DEFAULT, (second,)), (RunStage.OUTPUT, (output,)))

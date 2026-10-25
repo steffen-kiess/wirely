@@ -165,7 +165,7 @@ class RuntimeController:
         argument = body.get(3)
         instances = procedure_instances(self.engine.program)
         # Only initializers have native states.
-        state = self.engine.native_states.get(instances[index].name) if index < len(instances) else None
+        state = self.engine.native_states.get(instances[index]) if index < len(instances) else None
         if state is None:
             raise ControlError(ErrorCode.NOT_FOUND, f'Procedure instance {index} has no native state')
         command = type(state).control_commands.get(number)

@@ -11,9 +11,9 @@ from tests.infra.support import test_engine
 
 def make_program():
     pair = types.TypeStruct('Pair', {'flag': types.boolean, 'number': types.uint8})
-    variable = Variable('source.Value', pair)
+    variable = Variable(pair, name='source.Value')
     value = Constant(pair, (True, 7))
-    procedure = Procedure('source.run', (), (OutputTarget(VariableBank.TEMPORARIES, variable),), body=ProcedureBody((
+    procedure = Procedure((), (OutputTarget(VariableBank.TEMPORARIES, variable),), name='source.run', body=ProcedureBody((
         Instruction(Opcode.COPY, (Operand(OperandKind.OUTPUT, 0), ConstOperand(value))),
         Instruction(Opcode.RETURN, ()),
     )))

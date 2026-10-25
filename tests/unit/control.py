@@ -29,7 +29,8 @@ from wirely.control.messages import ControlError, ErrorCode, Kind, Op, decode, e
 from wirely.control.server import ControlServer, serve_session
 from wirely.misc.state_directory import StateDirectoryLocked, lock_state_directory
 from wirely.program.program import procedure_instances
-from wirely.program.writer import program_build_id
+from wirely.program.writer import program_build_id, write_program
+from wirely.program.loader import load_program
 from wirely.runtime.engine import Engine
 
 program_path = os.path.join(os.path.dirname(__file__), 'control.wrl')
@@ -305,6 +306,36 @@ async def check_native_commands(server):
         await client.request(Op.RESUME)
     finally:
         await client.close()
+
+
+async def check_unnamed_native_commands():
+    program = load_program(write_program(engine.program))
+    runtime = Engine(program)
+    controller = RuntimeController(runtime, program_build_id(program))
+    value = instance_index('value.create')
+    assert controller.handle(Op.NATIVE_COMMAND, {1: value, 2: 1, 3: {1: b'\x09\x00'}}, bound=True) == {1: {}}
+    assert controller.handle(Op.NATIVE_COMMAND, {1: value, 2: 0}, bound=True) == {1: {1: b'\x09\x00'}}
+    runtime.step()
+    with unittest.TestCase().assertRaises(ControlError) as caught:
+        controller.handle(Op.NATIVE_COMMAND, {1: instance_index('c.run'), 2: 0}, bound=True)
+    assert caught.exception.code == ErrorCode.NOT_FOUND
+
+    async def request(op, body=None):
+        if op == Op.BIND_PROGRAM:
+            return controller.bind(body or {})[0]
+        return controller.handle(op, body or {}, bound=True)
+
+    async def requests(items):
+        return [await request(op, body) for op, body in items]
+
+    client = unittest.mock.Mock()
+    client.framing.max_message_size = 4096
+    client.request = request
+    client.requests = requests
+    output = io.StringIO()
+    with contextlib.redirect_stdout(output):
+        assert await wirely.cli.client._dump(client, argparse.Namespace(compiled_program=program, bank='all')) == 0
+    assert 'temporary[0]' in output.getvalue() and 'None:' not in output.getvalue(), output.getvalue()
 
 
 def check_node_commands():
@@ -607,6 +638,7 @@ async def run_test():
     check_cobs()
     check_node_commands()
     check_node_tree()
+    await check_unnamed_native_commands()
     await check_client_ignores_notifications()
     await check_memory_framing()
     await check_service_interactive()

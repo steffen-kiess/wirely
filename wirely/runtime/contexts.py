@@ -31,7 +31,7 @@ class VariableTableInstance:
         if variable not in self.variable_table.variable_set:
             raise Exception(f'Variable {variable!r} not in VariableTable {self.variable_table.name}')
         if variable in self._initialized:
-            raise Exception(f'Variable {variable} already set')
+            raise Exception(f'Variable {self.variable_table.label(variable)} already set')
         encoded = variable.var_type.serialize(value)
         offset = self.variable_table.offsets[variable]
         self.data[offset:offset + variable.var_type.size] = (
@@ -44,7 +44,7 @@ class VariableTableInstance:
         if variable not in self.variable_table.variable_set:
             raise Exception(f'Variable {variable!r} not in VariableTable {self.variable_table.name}')
         if variable not in self._initialized:
-            raise Exception(f'Variable {variable} not yet set')
+            raise Exception(f'Variable {self.variable_table.label(variable)} not yet set')
         offset = self.variable_table.offsets[variable]
         end = offset + variable.var_type.data_size
         if any(self.data[end:offset + variable.var_type.size]) or any(self.data[self._padding_start:]):

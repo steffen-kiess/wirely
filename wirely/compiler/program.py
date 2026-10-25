@@ -144,7 +144,7 @@ def lower_program(global_node_type: model.NodeType) -> Program:
         name = model.InstanceNode.path_name(path)
         # Port storage is named after its procedure: <path>.<procedure>.<port>.
         variable_name = member_name(name, var.name)
-        v = Variable(variable_name, var_type)
+        v = Variable(var_type, name=variable_name)
         fixed = isinstance(var_type, model.ResourceType) or model.connection_kind(var) == model.ConnectionKind.Fixed
         input_source = InputSource(VariableBank.FIXED_VALUES if fixed else VariableBank.TEMPORARIES, v)
         (fixed_variables if fixed else all_variables).append(v)

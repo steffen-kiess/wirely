@@ -65,8 +65,8 @@ class _Loader:
                 (fmt.SectionType.Temporaries, (VariableBank.TEMPORARIES,), 'temporary'),
                 (fmt.SectionType.StateVariables, (VariableBank.OLD_STATE, VariableBank.NEW_STATE), 'state')):
             records = self.table(section, fmt.Variable)
-            variables = [Variable(f'{name}.{index}', self.type_at(record.value_type.value))
-                         for index, record in enumerate(records)]
+            variables = [Variable(self.type_at(record.value_type.value))
+                         for record in records]
             self.variable_tables[section] = VariableTable(variables, name)
             self.variable_records[section] = records
             for bank in banks:
@@ -273,12 +273,12 @@ class _Loader:
         schedules = {}
         for stage, run_stage in zip(stages, RunStage):
             schedule = []
-            for index, instance in enumerate(self.range(instances, stage.schedule), stage.schedule.first.value):
+            for instance in self.range(instances, stage.schedule):
                 inputs = tuple(self.binding(binding) for binding in self.range(self.bindings, instance.inputs))
                 outputs = tuple(self.binding(binding, output=True) for binding in self.range(self.bindings, instance.outputs))
                 native = None if instance.native.value == 0xffffffff else self.natives[instance.native.value]
                 body = None if native is not None else self.body(instance.bytecode.value, inputs, outputs)
-                schedule.append(Procedure(f'procedure{index}.run', inputs, outputs, native=native, body=body))
+                schedule.append(Procedure(inputs, outputs, native=native, body=body))
             schedules[run_stage] = tuple(schedule)
         # Decoding is independent of native implementations. Linking and opaque
         # value checks happen when Engine is constructed with the same registry.

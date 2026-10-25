@@ -194,7 +194,7 @@ def roundtrip_program(original: Program, native_types: NativeTypes) -> Program:
             new.name = old.name
 
     variables = {new: replace(new, name=old.name) for old, new in match.variables.items()}
-    tables = [VariableTable([variables[match.variables[var]] for var in old_table.offsets], old_table.name)
+    tables = [VariableTable([variables[match.variables[var]] for var in old_table.variables], old_table.name)
               for old_table in (original.state_variables, original.temporaries, original.fixed_values)]
     schedules = {}
     for stage in RunStage:

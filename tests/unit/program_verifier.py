@@ -44,7 +44,7 @@ def code_image(code, *, local_types=(types.boolean,)):
 
 
 def bound_constants(*constants):
-    proc = Procedure('test.read', tuple(InputSource(VariableBank.CONST_VALUES, constant=value) for value in constants), (),
+    proc = Procedure(tuple(InputSource(VariableBank.CONST_VALUES, constant=value) for value in constants), (), name='test.read',
                      native=NativeProcedureEntry('Test:read', tuple(f'value{index:08}' for index in range(len(constants))), ()))
     return write_program(program(procs=((RunStage.LOAD, (proc,)),)))
 
@@ -159,7 +159,7 @@ def check_values():
         data = bound_constants(Constant(nested, value))
         verify_program(data)
         assert write_program(load_program(data)) == data
-    variable = Variable('state', types.TypeOption(types.uint64))
+    variable = Variable(types.TypeOption(types.uint64), name='state')
     data = write_program(state_program((variable,), {variable: types.Some(9)}))
     reject(change_section(data, f.SectionType.InitialState,
                           lambda section: replace(section, data=section.data[:-1] + b'\x01')), 'Padding')
@@ -204,14 +204,14 @@ def check_names_and_json():
 
 
 def check_assignment():
-    value = Variable('value', types.boolean)
+    value = Variable(types.boolean, name='value')
     reject(write_program(program(temporaries=(value,))), 'no output assignment')
     reject(write_program(program(state=(value,), initial={value: False})), 'no output assignment')
     native = NativeProcedureEntry('Test:write', (), ('value',))
-    write = Procedure('write.run', (), (OutputTarget(VariableBank.TEMPORARIES, value),), native=native)
-    data = write_program(program(temporaries=(value,), procs=((RunStage.DEFAULT, (write, write)),)))
+    write = Procedure((), (OutputTarget(VariableBank.TEMPORARIES, value),), name='write.run', native=native)
+    data = write_program(program(temporaries=(value,), procs=((RunStage.DEFAULT, (write, replace(write))),)))
     reject(data, 'more than once')
-    read = Procedure('read.run', (InputSource(VariableBank.TEMPORARIES, value),), (),
+    read = Procedure((InputSource(VariableBank.TEMPORARIES, value),), (), name='read.run',
                      native=NativeProcedureEntry('Test:read', ('value',), ()))
     reject(write_program(program(temporaries=(value,), procs=((RunStage.DEFAULT, (read, write)),))), 'before assignment')
     verify_program(write_program(program(temporaries=(value,), procs=((RunStage.DEFAULT, (write, read)),))))
@@ -322,7 +322,7 @@ def check_limits_and_independence():
     procedures = []
     for index in range(50):
         enum = types.TypeEnum(f'E{index}', {'Zero': 0}, is_open=False, underlying_type=types.uint8)
-        procedures.append(Procedure(f'p{index}:run', (InputSource(VariableBank.CONST_VALUES, constant=Constant(enum, 0)),), (), body=body))
+        procedures.append(Procedure((InputSource(VariableBank.CONST_VALUES, constant=Constant(enum, 0)),), (), name=f'p{index}:run', body=body))
     contexts = write_program(program(procs=((RunStage.DEFAULT, tuple(procedures)),)))
     verify_program(contexts)
     with checks.assertRaises(VerificationLimitError):
@@ -359,7 +359,7 @@ def check_ignored_bytes():
                          if section.section_type == f.SectionType.JsonNames), f.JsonName)
     verify_program(replace_data(image, f.SectionType.JsonNames, pack_record(names[0]) * 2))
     # Variable offsets need not follow the producer's decreasing-alignment order.
-    flag, number = Variable('flag', types.boolean), Variable('number', types.uint64)
+    flag, number = Variable(types.boolean, name='flag'), Variable(types.uint64, name='number')
     image = write_program(state_program((flag, number), {flag: True, number: 7}))
     state = records(next(section.data for section in SectionList.from_bytes(image).sections
                          if section.section_type == f.SectionType.StateVariables), f.Variable)

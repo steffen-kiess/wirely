@@ -10,6 +10,8 @@ from wirely.program import (
     BranchTarget, Constant, ConstOperand, InputSource, Instruction, Opcode, Operand, OperandKind,
     Procedure, ProcedureBody, Program, RunStage, VariableBank, VariableTable, validate_program,
 )
+from wirely.program.loader import load_program
+from wirely.program.writer import write_program
 from wirely.runtime import LoadFailure
 from wirely.runtime.engine import Engine
 from tests.infra.support import test_contracts, test_extension
@@ -125,6 +127,14 @@ def check_instances():
             Engine(program)
         assert caught.exception.node == owner
         assert 'example.source:case.wrl' in caught.exception.procedure
+        loaded = load_program(write_program(program))
+        with checks.assertRaises(LoadFailure) as caught:
+            Engine(loaded)
+        failure = caught.exception
+        assert failure.procedure is None and failure.node is None
+        assert failure.procedure_index == 0
+        assert failure.procedure_instance is loaded.procs[RunStage.LOAD][0]
+        assert 'procedure[0]' in str(failure) and 'None' not in str(failure)
 
 
 def check_loading_stops():

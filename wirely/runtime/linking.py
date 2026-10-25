@@ -36,7 +36,7 @@ class LinkedProcedure(NamedTuple):
 def link_native_resource_types(program: Program, extension: RuntimeNativeExtension) -> dict[str, ResourceType]:
     """Resolve the Python type of every resource type in the program's native interfaces."""
     names: set[str] = set()
-    names.update(variable.var_type.native_name for variable in program.fixed_values.variables.values()
+    names.update(variable.var_type.native_name for variable in program.fixed_values.variables
                  if isinstance(variable.var_type, TypeResource))
     result = {}
     for name in sorted(names):
@@ -198,7 +198,8 @@ def link_native_signatures(program: Program, extension: RuntimeNativeExtension) 
             if procedure_signature_entry is None:
                 raise ValueError(f'Cannot find the signature of native {"initializer" if procedure.initializer else "procedure"} `{native_name}`')
             procedure_signature = procedure_signature_entry.signature
-            where = f'Native procedure `{native_name}` of `{procedure.node}`'
+            owner = procedure.node if procedure.node is not None else program.procedure_label(procedure)
+            where = f'Native procedure `{native_name}` of `{owner}`'
             expected_stage = getattr(procedure_signature, 'stage', 'load')
             if stage.name.lower() != expected_stage:
                 raise ValueError(f'{where}: runs in stage {stage.name.lower()}, expected {expected_stage}')

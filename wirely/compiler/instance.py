@@ -172,7 +172,7 @@ class InstanceNode(model.GraphElement):
             source = (self.node_type.value_nodes[state_var.name]
                       if self.is_root else self.instantiation)
             check_runtime_type(var_type, source)
-            v = Variable(member_name(path_prefix, state_var.name), var_type)
+            v = Variable(var_type, name=member_name(path_prefix, state_var.name))
             state_map[path, state_var] = v
             variable_map[path, state_var.var_identifier] = InputSource(VariableBank.OLD_STATE, v)
             state_variables.append(v)

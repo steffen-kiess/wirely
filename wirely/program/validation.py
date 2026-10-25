@@ -219,9 +219,9 @@ def validate_program(program: Program) -> None:
             raise ValueError(f'Function func.{index}: {error}') from error
 
     for table in (program.state_variables, program.temporaries):
-        for variable in table.variables.values():
+        for variable in table.variables:
             if variable.is_resource:
-                raise ValueError(f'Variable `{variable}`: only fixed values can hold resources')
+                raise ValueError(f'Variable `{program.variable_label(variable)}`: only fixed values can hold resources')
     fixed = program.fixed_values.variable_set
     bank_tables = {
         VariableBank.FIXED_VALUES: fixed,
@@ -251,6 +251,7 @@ def validate_program(program: Program) -> None:
         if source.variable is not None and source.variable not in bank_tables[source.bank]:
             raise ValueError('Source variable is not in its declared bank')
 
+    seen_procedures: set[Procedure] = set()
     for stage in RunStage:
         for procedure in program.procs.get(stage, ()):
             try:
@@ -282,8 +283,11 @@ def validate_program(program: Program) -> None:
                         raise ValueError('Unknown output variable')
                 if procedure.body is not None:
                     _validate_body(procedure, stage)
+                if procedure in seen_procedures:
+                    raise ValueError('Procedure instance is scheduled more than once')
+                seen_procedures.add(procedure)
             except ValueError as error:
-                raise ValueError(f'Procedure `{procedure.name}`: {error}') from error
+                raise ValueError(f'Procedure `{program.procedure_label(procedure)}`: {error}') from error
     if assigned != fixed:
         raise ValueError('Every fixed value must be assigned once')
     for name, input_source in program.symbols.variable_aliases.items():

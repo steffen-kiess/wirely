@@ -53,13 +53,16 @@ def roundtrip(prog):
     assert loaded.graph is None and not loaded.symbols.node_aliases and not loaded.symbols.variable_aliases
     assert write_program(loaded) == data
     match_programs(prog, loaded)
+    assert all(var.name is None for table in (loaded.state_variables, loaded.temporaries, loaded.fixed_values)
+               for var in table.variables)
+    assert all(proc.name is None for schedule in loaded.procs.values() for proc in schedule)
     return loaded
 
 
 def state_program(variables, initial):
     outputs = tuple(OutputTarget(VariableBank.NEW_STATE, variable) for variable in variables)
     names = tuple(f'value{index:08}' for index in range(len(outputs)))
-    proc = Procedure('test.state', (), outputs, native=NativeProcedureEntry('Test:state', (), names))
+    proc = Procedure((), outputs, name='test.state', native=NativeProcedureEntry('Test:state', (), names))
     return program(state=variables, initial=initial, procs=((RunStage.DEFAULT, (proc,)),))
 
 
@@ -89,22 +92,22 @@ def check_constants_and_bindings():
     value = Constant(wrapper, (types.Some((option, types.TypeOption(other_mode), option)),))
     opaque = types.TypeStruct('Native', {'ticks': types.uint64}, native_name='Test.Native', is_opaque=True)
     constants = (value, Constant(opaque, (7,)), Constant(types.String, 'héllo'), Constant(types.String, ''))
-    fixed = Variable('fixed', types.uint8)
-    resource = Variable('resource', types.TypeResource('Resource', 'Test.Resource'))
-    state = Variable('state', types.uint8)
-    temporary = Variable('temporary', types.uint8)
-    init = Procedure('init', (), (OutputTarget(VariableBank.FIXED_VALUES, resource),),
+    fixed = Variable(types.uint8, name='fixed')
+    resource = Variable(types.TypeResource('Resource', 'Test.Resource'), name='resource')
+    state = Variable(types.uint8, name='state')
+    temporary = Variable(types.uint8, name='temporary')
+    init = Procedure((), (OutputTarget(VariableBank.FIXED_VALUES, resource),), name='init',
                      native=NativeProcedureEntry('Test:init', (), ('resource',), initializer=True))
-    setup = Procedure('setup', (), (OutputTarget(VariableBank.FIXED_VALUES, fixed),),
+    setup = Procedure((), (OutputTarget(VariableBank.FIXED_VALUES, fixed),), name='setup',
                       native=NativeProcedureEntry('Test:setup', (), ('fixed',)))
     inputs = (InputSource(VariableBank.FIXED_VALUES, resource), InputSource(VariableBank.FIXED_VALUES, fixed),
               InputSource(VariableBank.OLD_STATE, state))
-    run = Procedure('run', inputs, (OutputTarget(VariableBank.NEW_STATE, state),
-                                    OutputTarget(VariableBank.TEMPORARIES, temporary)),
+    run = Procedure(inputs, (OutputTarget(VariableBank.NEW_STATE, state),
+                                    OutputTarget(VariableBank.TEMPORARIES, temporary)), name='run',
                     native=NativeProcedureEntry('Test:run', ('resource', 'fixed', 'old'), ('state', 'temporary')))
-    consume = Procedure('consume', (InputSource(VariableBank.NEW_STATE, state),
+    consume = Procedure((InputSource(VariableBank.NEW_STATE, state),
                                     InputSource(VariableBank.TEMPORARIES, temporary)) + tuple(
-                                        InputSource(VariableBank.CONST_VALUES, constant=item) for item in constants), (),
+                                        InputSource(VariableBank.CONST_VALUES, constant=item) for item in constants), (), name='consume',
                         native=NativeProcedureEntry('Test:consume', ('new', 'temporary', 'types', 'opaque', 'text', 'empty'), ()))
     loaded = roundtrip(program(state=(state,), initial={state: 9}, fixed=(fixed, resource), temporaries=(temporary,),
                                procs=((RunStage.LOAD, (init, setup)), (RunStage.INPUT, (run,)),
@@ -203,8 +206,8 @@ def check_stripped_types_and_state():
     signed = types.TypeEnum('Signed', {'Negative': -3}, is_open=True, underlying_type=types.int16)
     pair = types.TypeStruct('Pair', {'flag': types.boolean, 'mode': mode})
     other = types.TypeStruct('Pair', {'flag': types.boolean, 'mode': mode})
-    variables = (Variable('pair', pair), Variable('other', other), Variable('signed', signed),
-                 Variable('empty', types.TypeStruct('Empty', {})))
+    variables = (Variable(pair, name='pair'), Variable(other, name='other'), Variable(signed, name='signed'),
+                 Variable(types.TypeStruct('Empty', {}), name='empty'))
     original = state_program(variables, dict(zip(variables, ((True, 1), (False, 0), -3, ()))))
     loaded = roundtrip(original)
     state = list(loaded.state_variables.offsets)
@@ -224,7 +227,7 @@ def check_stripped_types_and_state():
 
 def check_json_presence():
     opened = types.TypeEnum('Numbers', {}, is_open=True, underlying_type=types.uint8)
-    variable = Variable('value', opened)
+    variable = Variable(opened, name='value')
     image = write_program(state_program((variable,), {variable: 7}))
     present = load_program(image)
     assert next(iter(present.state_variables.offsets)).var_type.is_json_serializable
@@ -239,10 +242,10 @@ def check_json_presence():
 
 
 def check_shared_bodies():
-    flag, number = Variable('flag', types.boolean), Variable('number', types.int8)
-    first = Procedure('first.run', (), (OutputTarget(VariableBank.TEMPORARIES, flag),), body=ProcedureBody((
+    flag, number = Variable(types.boolean, name='flag'), Variable(types.int8, name='number')
+    first = Procedure((), (OutputTarget(VariableBank.TEMPORARIES, flag),), name='first.run', body=ProcedureBody((
         instruction(Opcode.COPY, Operand(OperandKind.OUTPUT, 0), const(types.boolean, True)), instruction(Opcode.RETURN))))
-    second = Procedure('second.run', (), (OutputTarget(VariableBank.TEMPORARIES, number),), body=ProcedureBody((
+    second = Procedure((), (OutputTarget(VariableBank.TEMPORARIES, number),), name='second.run', body=ProcedureBody((
         instruction(Opcode.COPY, Operand(OperandKind.OUTPUT, 0), const(types.int8, -1)), instruction(Opcode.RETURN))))
     data = write_program(program(temporaries=(flag, number), procs=((RunStage.DEFAULT, (first, second)),)))
 
@@ -279,7 +282,7 @@ def check_budgets():
     with checks.assertRaisesRegex(ValueError, 'budget'):
         reader.read(offset, value_type)
     constant = Constant(value_type, (types.Unit(),) * 3)
-    proc = Procedure('test.run', (InputSource(VariableBank.CONST_VALUES, constant=constant),), (),
+    proc = Procedure((InputSource(VariableBank.CONST_VALUES, constant=constant),), (), name='test.run',
                      native=NativeProcedureEntry('Test:run', ('value',), ()))
     data = write_program(program(procs=((RunStage.LOAD, (proc,)),)))
     assert load_program(data, max_decoded_values=4)
@@ -329,7 +332,7 @@ def check_malformed():
     with checks.assertRaisesRegex(ValueError, 'instruction 0'):
         load_program(oversized_image)
     # The verifier checks a type-valued constant's reference.
-    proc = Procedure('test.run', (InputSource(VariableBank.CONST_VALUES, constant=Constant(types.ValueType, types.uint8)),), (),
+    proc = Procedure((InputSource(VariableBank.CONST_VALUES, constant=Constant(types.ValueType, types.uint8)),), (), name='test.run',
                      native=NativeProcedureEntry('Test:run', ('type',), ()))
     image = write_program(program(procs=((RunStage.LOAD, (proc,)),)))
     with checks.assertRaisesRegex(ValueError, 'ValueTypes index'):
@@ -345,7 +348,7 @@ def check_malformed():
 
 def check_native_registry():
     opaque = types.TypeStruct('Native', {'value': types.uint8}, native_name='Custom.Native', is_opaque=True)
-    variable = Variable('value', opaque)
+    variable = Variable(opaque, name='value')
     image = write_program(state_program((variable,), {variable: (7,)}))
     factory = Mock(side_effect=AssertionError('Decoding must not load native implementations'))
     registry = NativeTypes(opaque_types={'Custom.Native': NativeOpaque((Int(8, False),), factory)})
@@ -377,7 +380,7 @@ async def check_service():
                                        ([str(path), str(path)], 2)):
                 with contextlib.redirect_stderr(io.StringIO()):
                     assert await run_command.async_run(argparse.Namespace(**{**vars(args), 'input_filename': filenames})) == status
-            for error in (ValueError('link failure'), LoadFailure(Procedure('test.load', (), ()), 0, 'load failure', ())):
+            for error in (ValueError('link failure'), LoadFailure(Procedure((), (), name='test.load'), 0, 'load failure', ())):
                 with patch.object(run_command, 'Engine', side_effect=error), patch.object(run_command, 'run_engine', new_callable=AsyncMock, return_value=None) as run:
                     output = io.StringIO()
                     with contextlib.redirect_stderr(output):

@@ -421,7 +421,7 @@ ReceiverState = ReceiverCreate  # Used as a resource type.
 
 `self.services` is the `StateServices` object that `initialize()` also
 receives. It lasts for the node's lifetime and has read-only `name`, the
-dotted instance name or, for a singleton, the qualified type name, and
+owner path when symbols are available, or a numeric procedure label, and
 `is_shutting_down`, whether cleanup follows completed startup, and
 `shutdown_time`, the wall time when that cleanup started. `shutdown_time`
 is `None` outside shutdown or when wall time is unknown; use

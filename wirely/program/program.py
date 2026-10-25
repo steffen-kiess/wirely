@@ -28,16 +28,15 @@ class RunStage(enum.Enum):
 class Variable:
     """A fixed, state, or temporary variable, identified by object identity."""
 
-    name: str  # Qualified variable name for lookup and diagnostics.
     # Resolved value type used for validation and comparison: a runtime type, or a resource for fixed values.
     var_type: Type
+    name: str | None = field(default=None, kw_only=True)  # Optional qualified name for diagnostics.
 
     def __post_init__(self) -> None:
-        if not isinstance(self.name, str):
-            raise Exception('name parameter is not a str')
+        if self.name is not None and not isinstance(self.name, str):
+            raise TypeError('name parameter must be a str or None')
         if not self.is_resource and not self.var_type.is_runtime_type:
             raise ValueError(f'Type `{self.var_type}` is not a runtime type: {self.var_type.runtime_type_error()}')
-        object.__setattr__(self, 'name', str(self.name))
 
     @property
     def is_resource(self) -> bool:
@@ -48,7 +47,7 @@ class Variable:
         return f'Variable[{self}]'
 
     def __str__(self) -> str:
-        return self.name
+        return self.name if self.name is not None else '<unnamed variable>'
 
 
 @dataclass(frozen=True, slots=True, init=False, eq=False)
@@ -56,35 +55,44 @@ class VariableTable:
     """An immutable collection of variable definitions, without live values."""
 
     name: str  # Collection name for diagnostics.
-    variables: Mapping[str, Variable]  # Variables indexed by qualified name.
+    variables: tuple[Variable, ...]  # Variables in supplied order, independent of their names.
     variable_set: frozenset[Variable]  # Variables allowed in a runtime instance.
     offsets: MappingProxyType[Variable, int]  # Byte offsets, ordered by decreasing alignment.
     size: int  # Buffer size in bytes, including final alignment padding.
     alignment: int  # Required alignment of the table's starting byte offset.
 
     def __init__(self, variables: Iterable[Variable], name: str) -> None:
-        """Build a shared compact layout while preserving name lookup order."""
-        by_name = {}
+        """Build a shared compact layout while preserving supplied order."""
+        variables = tuple(variables)
+        seen = set()
         for var in variables:
             if not isinstance(var, Variable):
                 raise Exception('var parameter contains object that is not a Variable')
-            if var.name in by_name:
-                raise Exception(f'Duplicate variable name {var.name!r}')
-            by_name[var.name] = var
+            if var in seen:
+                raise ValueError('Variable occurs more than once in a table')
+            seen.add(var)
         offsets = {}
         size = 0
         alignment = 1
-        for var in sorted(by_name.values(), key=lambda var: -var.var_type.alignment):
+        for var in sorted(variables, key=lambda var: -var.var_type.alignment):
             alignment = max(alignment, var.var_type.alignment)
             offsets[var] = size
             size += var.var_type.size
         size = (size + alignment - 1) & ~(alignment - 1)
         object.__setattr__(self, 'name', name)
-        object.__setattr__(self, 'variables', MappingProxyType(by_name))
-        object.__setattr__(self, 'variable_set', frozenset(by_name.values()))
+        object.__setattr__(self, 'variables', variables)
+        object.__setattr__(self, 'variable_set', frozenset(variables))
         object.__setattr__(self, 'offsets', MappingProxyType(offsets))
         object.__setattr__(self, 'size', size)
         object.__setattr__(self, 'alignment', alignment)
+
+    def label(self, variable: Variable) -> str:
+        """Return a name or a table-local numeric label for display."""
+        if variable not in self.variable_set:
+            raise ValueError('Variable is not in this table')
+        if variable.name is not None:
+            return variable.name
+        return f'{self.name}[{tuple(self.offsets).index(variable)}]'
 
 
 @immutable_enum
@@ -162,24 +170,26 @@ class NativeProcedureEntry:
         object.__setattr__(self, 'output_names', _sorted_names(self.output_names))
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, eq=False)
 class Procedure:
     """A scheduled instance of a native or bytecode procedure with its bindings."""
 
-    name: str  # Owning node path and procedure name, such as 'a.b.run'.
     inputs: tuple[InputSource, ...]  # Native: one per input name; bytecode: operands input.N.
     outputs: tuple[OutputTarget, ...]  # Native: one per output name; bytecode: operands output.N.
-    native: NativeProcedureEntry | None = None  # None for a bytecode procedure.
-    body: ProcedureBody | None = None  # Compiled .wrl body; None for a native procedure.
+    name: str | None = field(default=None, kw_only=True)  # Optional instance name, such as 'a.b.run'.
+    native: NativeProcedureEntry | None = field(default=None, kw_only=True)  # None for a bytecode procedure.
+    body: ProcedureBody | None = field(default=None, kw_only=True)  # Compiled .wrl body; None for a native procedure.
 
     def __post_init__(self) -> None:
+        if self.name is not None and not isinstance(self.name, str):
+            raise TypeError('name parameter must be a str or None')
         object.__setattr__(self, 'inputs', tuple(self.inputs))
         object.__setattr__(self, 'outputs', tuple(self.outputs))
 
     @property
-    def node(self) -> str:
+    def node(self) -> str | None:
         """The path of the owning node."""
-        return member_owner(self.name)
+        return None if self.name is None else member_owner(self.name)
 
     @property
     def initializer(self) -> bool:
@@ -238,6 +248,21 @@ class Program:
         object.__setattr__(self, 'functions', _collect_functions(self))
         object.__setattr__(self, 'native_procedures', _collect_native_procedures(self))
 
+    def variable_label(self, variable: Variable) -> str:
+        """Return a variable name or its bank-local numeric label."""
+        for bank, table in (('state', self.state_variables), ('temporary', self.temporaries),
+                            ('fixed', self.fixed_values)):
+            if variable in table.variable_set:
+                if variable.name is not None:
+                    return variable.name
+                return f'{bank}[{tuple(table.offsets).index(variable)}]'
+        raise ValueError('Variable is not in this program')
+
+    def procedure_label(self, procedure: Procedure) -> str:
+        """Return an instance name or its program-local numeric label."""
+        index = procedure_instances(self).index(procedure)
+        return procedure.name if procedure.name is not None else f'procedure[{index}]'
+
     def dump(self, file: TextIO | None = None) -> None:
         """Write the runtime program to a text stream (stdout by default)."""
         if file is None:
@@ -272,11 +297,12 @@ class Program:
             if input_source.constant is not None:
                 return f'const.{constant_indices[id(input_source.constant)]}'
             assert input_source.variable is not None
+            label = self.variable_label(input_source.variable)
             if input_source.bank == VariableBank.OLD_STATE:
-                return f'{input_source.variable.name} (old state)'
+                return f'{label} (old state)'
             if input_source.bank == VariableBank.NEW_STATE:
-                return f'{input_source.variable.name} (new state)'
-            return input_source.variable.name
+                return f'{label} (new state)'
+            return label
 
         line(f'Program {self.symbols.name}')
         for label, variable_table in [('State variables', self.state_variables),
@@ -284,7 +310,8 @@ class Program:
             line()
             line(f'{label} ({variable_table.name}):')
             line(f'size: {variable_table.size}, alignment: {variable_table.alignment}', 2)
-            for name, variable in sorted(variable_table.variables.items()):
+            for variable in sorted(variable_table.variables, key=self.variable_label):
+                name = self.variable_label(variable)
                 line(f'{name}: {variable.var_type}', 2)
                 line(f'offset: {variable_table.offsets[variable]}', 4)
                 if variable in self.initial_state:
@@ -317,11 +344,11 @@ class Program:
             line(f'{stage.name}:', 2)
             for index, proc in enumerate(schedule, 1):
                 if proc.native is not None:
-                    line(f'{index}. {proc.name}: native {proc.native.name}', 4)
+                    line(f'{index}. {self.procedure_label(proc)}: native {proc.native.name}', 4)
                     input_labels = proc.native.input_names
                     output_labels = proc.native.output_names
                 else:
-                    line(f'{index}. {proc.name}: bytecode', 4)
+                    line(f'{index}. {self.procedure_label(proc)}: bytecode', 4)
                     input_labels = tuple(f'input.{index}' for index in range(len(proc.inputs)))
                     output_labels = tuple(f'output.{index}' for index in range(len(proc.outputs)))
                 line('inputs:', 6)
@@ -329,7 +356,7 @@ class Program:
                     line(f'{label}: {source(input_source)}', 8)
                 line('outputs:', 6)
                 for label, output_target in zip(output_labels, proc.outputs):
-                    line(f'{label}: {output_target.variable.name}', 8)
+                    line(f'{label}: {self.variable_label(output_target.variable)}', 8)
                 if proc.body is not None:
                     line('locals:', 6)
                     for index, value_type in enumerate(proc.body.local_types):
@@ -418,7 +445,7 @@ def _declared_types(value_type: Type, seen: set[int]) -> Iterator[TypeEnum | Typ
 def used_declared_types(program: Program) -> Iterator[TypeEnum | TypeStruct]:
     """Yield each enum and struct type that occurs in the runtime types of a program once."""
     value_types = [variable.var_type for table in (program.state_variables, program.temporaries, program.fixed_values)
-                   for variable in table.variables.values()]
+                   for variable in table.variables]
     for function in program.functions:
         value_types += [*function.parameter_types, function.return_type]
     for schedule in program.procs.values():

@@ -14,17 +14,22 @@ class LoadFailure(Exception):
     """An intentional failure while executing a candidate program's load stage."""
 
     def __init__(self, procedure: Procedure, instruction_index: int, message: str,
-                 values: Sequence[DynamicValue]) -> None:
+                 values: Sequence[DynamicValue], *, procedure_index: int | None = None) -> None:
+        self.procedure_instance = procedure
+        self.procedure_index = procedure_index
         self.procedure = procedure.name
         self.node = procedure.node
         self.instruction_index = instruction_index
         self.message = message
         self.values = tuple(values)
-        super().__init__(f'{self.procedure} at idx{instruction_index}: {message}')
+        label = procedure.name if procedure.name is not None else (
+            f'procedure[{procedure_index}]' if procedure_index is not None else '<unnamed procedure>')
+        super().__init__(f'{label} at idx{instruction_index}: {message}')
 
 
 def execute_procedure(procedure: Procedure, inputs: Sequence[InternalValue],
-                      functions: Mapping[str, NativeFunction] = {}) -> list[InternalValue]:
+                      functions: Mapping[str, NativeFunction] = {}, *,
+                      procedure_index: int | None = None) -> list[InternalValue]:
     """Run a bytecode procedure on internal values.
 
     functions maps the names of called functions to their linked implementations.
@@ -67,7 +72,7 @@ def execute_procedure(procedure: Procedure, inputs: Sequence[InternalValue],
                                       for operand in operands[2:])
             message = parts[0] + ''.join(value.to_text() + parts[2 * index + 2]
                                          for index, value in enumerate(diagnostic_values))
-            raise LoadFailure(procedure, index, message, diagnostic_values)
+            raise LoadFailure(procedure, index, message, diagnostic_values, procedure_index=procedure_index)
         if opcode == Opcode.JUMP:
             index = operands[0].index
             continue

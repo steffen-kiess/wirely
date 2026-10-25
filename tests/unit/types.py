@@ -670,7 +670,7 @@ def check_runtime_limits():
             (members, members.make_value({str(i): empty.make_value({}) for i in range(127)})),
             (depth, None)):
         assert value_type.equals(value, value_type.deserialize(value_type.serialize(value)))
-        Variable('boundary', value_type)
+        Variable(value_type, name='boundary')
 
     # Representation support takes precedence; then depth, count, and storage.
     unsupported = types.TypeStruct('Unsupported', {'large': too_large, 'text': types.String})
@@ -685,7 +685,7 @@ def check_runtime_limits():
         reason = value_type.runtime_type_error()
         for operation in (lambda: value_type.size, lambda: value_type.data_size,
                           lambda: value_type.alignment, lambda: value_type.serialize(None),
-                          lambda: value_type.deserialize(b''), lambda: Variable('value', value_type)):
+                          lambda: value_type.deserialize(b''), lambda: Variable(value_type, name='value')):
             with checks.assertRaises(ValueError) as raised:
                 operation()
             assert reason in str(raised.exception)

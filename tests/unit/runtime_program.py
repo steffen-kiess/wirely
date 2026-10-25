@@ -1,5 +1,6 @@
 from dataclasses import replace
 import datetime
+import io
 import subprocess
 import sys
 from textwrap import dedent
@@ -10,6 +11,9 @@ import wirely
 import wirely.compiler
 from wirely.compiler import program as program_compiler
 from wirely.program import InputSource, NativeProcedureEntry, RunStage, Variable, VariableBank, validate_program
+from wirely.program.loader import load_program
+from wirely.program.writer import write_program
+from wirely.program.program import procedure_instances
 from wirely.runtime.linking import link_native_signatures
 from wirely.runtime.engine import Engine
 from tests.infra.support import test_extension, test_contracts, test_engine
@@ -198,10 +202,10 @@ connect service -> consumer.Service;
     program = program_compiler.compile_nocatch(graph)
     schedule = program.procs[RunStage.LOAD]
     consumer = next(proc for proc in schedule if proc.name == 'consumer.create')
-    resources = {variable.var_type.native_name: variable for variable in program.fixed_values.variables.values()
+    resources = {variable.var_type.native_name: variable for variable in program.fixed_values.variables
                  if variable.is_resource}
     service, other = resources['TestLibrary.Service'], resources['TestLibrary.Other']
-    unknown = Variable('missing', service.var_type)
+    unknown = Variable(service.var_type, name='missing')
 
     def with_source(variable):
         modified = replace(consumer, inputs=(InputSource(VariableBank.FIXED_VALUES, variable),))
@@ -332,6 +336,122 @@ procedure run writes count { count = true; }
     runtime.assert_value_is('First.Shared:child.count', 1)
 
 
+def check_unnamed_initializers():
+    graph = wirely.compiler.compile_strs([('<unnamed-initializers>', '''
+node first: Std.DebugValueSource { Type: boolean, Initial: false }
+node second: Std.DebugValueSource { Type: boolean, Initial: false }
+state seen: boolean = false;
+connect first -> seen;
+''')], add_std=True)
+    assert graph is not None
+    data = write_program(program_compiler.compile_nocatch(graph))
+    loaded = load_program(data)
+    assert write_program(loaded) == data
+    instances = procedure_instances(loaded)
+    assert all(proc.name is None and proc.node is None for proc in instances)
+    assert all(var.name is None for table in (loaded.state_variables, loaded.temporaries, loaded.fixed_values)
+               for var in table.variables)
+    runtime = Engine(loaded)
+    first, second = loaded.procs[RunStage.LOAD]
+    readers = loaded.procs[RunStage.INPUT]
+    assert runtime.get_native_state(first) is not runtime.get_native_state(second)
+    runtime.step()
+    assert runtime.step()[0] == 0
+    runtime.get_native_state(first).set_value(True)
+    assert runtime.step()[0] == 2
+    state, = loaded.state_variables.variables
+    assert runtime.state[state] is True
+    values = [runtime.cache[proc.outputs[0].variable] for proc in readers]
+    assert values == [True, False]
+    runtime.get_native_state(second).set_value(True)
+    assert runtime.step()[0] == 1
+    assert all(runtime.cache[proc.outputs[0].variable] for proc in readers)
+    assert runtime.get_native_state(first).services.name == 'procedure[0]'
+    with checks.assertRaisesRegex(ValueError, 'Unknown initializer instance'):
+        runtime.get_native_state(replace(first))
+    with checks.assertRaisesRegex(ValueError, 'Unknown initializer instance'):
+        runtime.get_native_state(readers[0])
+    with checks.assertRaisesRegex(ValueError, 'Unknown initializer name'):
+        runtime.get_native_state('procedure[0]')
+    with checks.assertRaisesRegex(ValueError, 'Unknown procedure instance'):
+        runtime.trigger(first)
+    with checks.assertRaisesRegex(ValueError, 'Unknown procedure instance'):
+        runtime.trigger(replace(readers[0]))
+    with checks.assertRaisesRegex(ValueError, 'Unknown procedure name'):
+        runtime.trigger('procedure[2]')
+    runtime.trigger(readers[0])
+    assert runtime.step()[0] == 1
+    duplicate_names = replace(loaded, procs={stage: tuple(replace(proc, name='same') for proc in schedule)
+                                           for stage, schedule in loaded.procs.items()})
+    other = Engine(duplicate_names)
+    with checks.assertRaisesRegex(ValueError, 'Ambiguous initializer name'):
+        other.get_native_state('same')
+    with checks.assertRaisesRegex(ValueError, 'Ambiguous procedure name'):
+        other.trigger('same')
+    output = io.StringIO()
+    loaded.dump(output)
+    assert 'temporary[0]' in output.getvalue() and 'fixed[0]' in output.getvalue()
+    assert 'procedure[0]' in output.getvalue() and 'None' not in output.getvalue()
+
+
+def check_unnamed_scheduling():
+    graph = wirely.compiler.compile_strs([('<unnamed-scheduling>', '''
+namespace TestLibrary {
+  node type Probe {
+    native procedure run;
+  }
+}
+node first: TestLibrary.Probe {}
+node second: TestLibrary.Probe {}
+''')])
+    assert graph is not None
+    compiled = program_compiler.compile_nocatch(graph)
+    loaded = load_program(write_program(compiled))
+    first, second = loaded.procs[RunStage.DEFAULT]
+    assert first is not second and first != second
+    assert first.native is second.native and first.inputs == second.inputs == ()
+    probes = []
+    base = datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc)
+    with test_contracts(graph) as contracts:
+        class ProbeRun(contracts.ProbeRun):
+            def prepare(self, *, services):
+                self.index = len(probes)
+                self.calls = 0
+                probes.append(self)
+
+            def run(self, *, services):
+                self.calls += 1
+                if self.calls == 1:
+                    self.deadline = services.start_time_for_stage(RunStage.DEFAULT).monotonic + wirely.Duration.from_seconds(3)
+                    services.trigger_self()
+                if self.calls <= 2:
+                    if self.index == 0:
+                        services.set_wakeup_time(self.deadline)
+                    else:
+                        services.set_wall_wakeup_time(base, base + datetime.timedelta(minutes=1), utc_offset=None)
+                return contracts.ProbeRunResult()
+
+        extension = test_extension(procedures={'TestLibrary.Probe:run': ProbeRun}, contracts=contracts)
+        runtime = Engine(loaded, override_extensions=[extension])
+    runtime.enable_fixed_monotonic_time()
+    runtime.set_fake_wall_time(base)
+    assert runtime.step()[0] == 2
+    assert runtime.step()[0] == 2
+    assert runtime.step()[0] == 0
+    runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(4))
+    assert runtime.step()[0] == 1
+    assert [probe.calls for probe in probes] == [3, 2]
+    runtime.set_fake_wall_time(base + datetime.timedelta(minutes=1))
+    assert runtime.step()[0] == 1
+    assert [probe.calls for probe in probes] == [3, 3]
+    assert runtime.step()[0] == 0
+    runtime.trigger(second)
+    assert runtime.step()[0] == 1
+    assert [probe.calls for probe in probes] == [3, 4]
+    with checks.assertRaisesRegex(ValueError, 'scheduled more than once'):
+        validate_program(replace(loaded, procs={RunStage.DEFAULT: (first, first)}))
+
+
 def check_monotonic_clock():
     graph = wirely.compiler.compile_strs([('<clock>', '')], add_std=False)
     program = program_compiler.compile_nocatch(graph)
@@ -427,6 +547,8 @@ check_resource_isolation()
 check_resource_binding_validation()
 check_native_names()
 check_instance_names()
+check_unnamed_initializers()
+check_unnamed_scheduling()
 check_monotonic_clock()
 check_wall_clock()
 

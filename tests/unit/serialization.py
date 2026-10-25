@@ -208,12 +208,12 @@ def check_struct_codecs():
 
 
 def check_variable_storage():
-    flag = Variable('flag', wirely.types.boolean)
-    small = Variable('small', wirely.types.uint16)
-    first_unit = Variable('first_unit', wirely.types.unit)
-    second_unit = Variable('second_unit', wirely.types.unit)
-    nested = Variable('nested', wirely.types.TypeOption(wirely.types.TypeOption(wirely.types.uint64)))
-    clock = Variable('clock', library_type('Timer.MonotonicTime'))
+    flag = Variable(wirely.types.boolean, name='flag')
+    small = Variable(wirely.types.uint16, name='small')
+    first_unit = Variable(wirely.types.unit, name='first_unit')
+    second_unit = Variable(wirely.types.unit, name='second_unit')
+    nested = Variable(wirely.types.TypeOption(wirely.types.TypeOption(wirely.types.uint64)), name='nested')
+    clock = Variable(library_type('Timer.MonotonicTime'), name='clock')
     table = VariableTable([flag, small, first_unit, nested, clock, second_unit], 'storage')
     values = VariableTableInstance(table)
     independent = VariableTableInstance(table)
@@ -231,7 +231,7 @@ def check_variable_storage():
     for variable in (flag, first_unit):
         with checks.assertRaisesRegex(Exception, 'already set'):
             values.add(variable, expected[variable])
-    foreign = Variable('flag', wirely.types.boolean)
+    foreign = Variable(wirely.types.boolean, name='flag')
     with checks.assertRaisesRegex(Exception, 'not in VariableTable'):
         values.add(foreign, True)
     with checks.assertRaisesRegex(Exception, 'not in VariableTable'):
@@ -253,10 +253,31 @@ def check_variable_storage():
     assert units[first_unit] == units[second_unit] == wirely.Unit()
 
 
+def check_unnamed_storage():
+    small = Variable(wirely.types.uint8)
+    wide = Variable(wirely.types.uint64)
+    units = (Variable(wirely.types.unit), Variable(wirely.types.unit))
+    same = (Variable(wirely.types.boolean, name='same'), Variable(wirely.types.boolean, name='same'))
+    variables = (small, *units, wide, *same)
+    table = VariableTable(variables, 'storage')
+    assert table.variables == variables
+    assert table.offsets[wide] == 0 and table.offsets[small] == 8
+    assert len(table.variable_set) == len(variables)
+    storage = VariableTableInstance(table)
+    for variable, value in zip(variables, (7, wirely.Unit(), wirely.Unit(), 9, True, False)):
+        storage.add(variable, value)
+    assert storage[same[0]] is True and storage[same[1]] is False
+    assert storage[units[0]] == storage[units[1]] == wirely.Unit()
+    assert small.name is None and table.label(small) == 'storage[1]'
+    with checks.assertRaisesRegex(ValueError, 'more than once'):
+        VariableTable((small, small), 'duplicate')
+
+
 check_scalar_codecs()
 check_closed_enum_codecs()
 check_struct_codecs()
 check_variable_storage()
+check_unnamed_storage()
 
 
 async def run_test():

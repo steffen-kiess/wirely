@@ -49,7 +49,7 @@ class StateServices(Generic[K]):
 
     @property
     def name(self) -> str:
-        """Dotted instance name, or qualified type name for a singleton."""
+        """Owner name when available, otherwise a numeric procedure display label."""
         return self._name
 
     def trigger(self, output: K) -> None:
