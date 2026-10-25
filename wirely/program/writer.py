@@ -137,6 +137,11 @@ def _immediate(constant: Constant) -> int | None:
 
 
 def _instruction_immediates(instruction: Instruction) -> dict[int, int]:
+    """Return the encoded immediates of an instruction by operand position.
+
+    A constant operand becomes an immediate when its position is eligible and
+    its integer, Boolean, or enum value fits, so equal programs encode alike.
+    """
     opcode = fmt.Opcode[instruction.opcode.name]
     result = {}
     for position in immediate_positions(opcode, len(instruction.operands)):

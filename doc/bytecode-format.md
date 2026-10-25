@@ -1252,48 +1252,6 @@ numeric inspection, and execution of an already generated transition need
 no symbols. Diagnostics retain numeric procedure, instruction, bank, and
 variable coordinates for host-side symbolication with the build ID.
 
-## Mapping from Program
-
-The in-memory `Program` (`wirely/program/program.py`) has the entities,
-identities, orders, and banks of the ordinary tables, but no encoding:
-
-| Program data | File representation |
-| --- | --- |
-| `state_variables`, `temporaries`, `fixed_values` | `StateVariables`, `Temporaries`, and `FixedValues` |
-| `initial_state` | `InitialState` |
-| `procs` | `Stages` and `ProcedureInstances`, in order |
-| `Procedure.inputs`, `Procedure.outputs` | Input and output `Bindings`, in order |
-| `Procedure.native` | `NativeProcedures` and `InterfaceNames` |
-| `Procedure.body` | `BytecodeProcedures`, `TypeLists`, and `ProcedureCode` |
-| `constants` | `ConstValues` and `ProgramData` |
-| `functions` | `NativeFunctions` and `TypeLists` |
-| `native_procedures` | `NativeProcedures` |
-| `json_names` of enums and structs | `JsonTypes`, `JsonNames`, and `JsonData` |
-| State `Variable.name`, `Procedure.name` | `StateVariableSymbols` and `ProcedureSymbols` |
-| `type_name`, `field_names`, and `members` of types | `TypeSymbols` and `SymbolNames` |
-| `symbols` | `VariableSymbolAliases` |
-
-`constants`, `functions`, and `native_procedures` are derived from the
-procedures and aliases. A writer derives the remaining tables:
-
-- `ValueTypes` interns the types reachable from variables, constants,
-  locals, and functions: declared enums, structs, and resources by
-  identity, other types structurally.
-- `ConstValues` has one entry per retained `Constant` object, ordered by
-  its first use as an input binding, `const` operand, or `FAIL` format.
-  Procedures are visited in stage and schedule order, with input bindings
-  before instructions. Immediate uses do not establish table order.
-  Alias-only constants and aliased immediates are retained after ordinary
-  constant references, in alias-name order.
-  `BytecodeProcedures` has one entry per `ProcedureBody` object.
-- Branch targets are instruction indices. Because branches only go
-  forward, encoding the instructions from last to first gives each
-  displacement its shortest form.
-- `immediate` operands are an encoding choice: a writer chooses them by a
-  fixed rule for constants that fit and whose type another operand, the
-  called function, or the instruction determines. A reader turns them
-  back into `Constant` objects using the type the position requires.
-
 ## Verification
 
 A runtime verifies a file before using it. A file is valid when it

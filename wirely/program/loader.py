@@ -28,6 +28,8 @@ R = TypeVar('R', bound=tuple[Any, ...])
 
 @dataclass(frozen=True)
 class _Immediate:
+    """An immediate operand, decoded into a Constant of the type its position requires."""
+
     number: int
 
 
