@@ -73,7 +73,7 @@ class ValidatedMetadata:
 
     files: tuple[FileMetadata, ...] = ()
     # By declaration, including struct fields and enum members.
-    attributes: Mapping[model.ast.SourceElement, tuple[ValidatedAttribute, ...]] = field(
+    attributes: Mapping[model.SourceElement, tuple[ValidatedAttribute, ...]] = field(
         default_factory=lambda: MappingProxyType({}))
     # The attributes of each edge of a connection, in source order.
     edge_attributes: Mapping[model.DeclarationConnection, tuple[tuple[ValidatedAttribute, ...], ...]] = field(
@@ -105,9 +105,9 @@ class ParsedFile(Sequence['model.Declaration']):
         return self.declarations[index]
 
 
-def _error(source: Attribute | ValidatedAttribute | Metadata | MetadataLiteral | model.ast.SourceElement,
+def _error(source: Attribute | ValidatedAttribute | Metadata | MetadataLiteral | model.SourceElement,
            message: str) -> NoReturn:
-    from .ast import ProgramError, SourceElement
+    from .ast.base import ProgramError, SourceElement
     raise ProgramError(SourceElement(source_position=source.source_position), message)
 
 
@@ -208,8 +208,8 @@ ATTRIBUTE_REGISTRY = {
 
 
 def _direction_name(port: model.DeclarationPort) -> str:
-    from . import ast
-    return 'input' if port.direction == ast.PortDirection.Input else 'output'
+    from .ast.specifiers import PortDirection
+    return 'input' if port.direction == PortDirection.Input else 'output'
 
 
 def _immutable(value: object) -> object:
@@ -242,7 +242,7 @@ def validate_attributes(attributes: Iterable[Attribute], target: str) -> tuple[V
 
 
 def validate_files(files: Sequence[tuple[str | os.PathLike, ParsedFile]], *,
-                   contain: Callable[[model.ast.SourceElement | None], AbstractContextManager[None]] | None = None,
+                   contain: Callable[[model.SourceElement | None], AbstractContextManager[None]] | None = None,
                    warnings: WarningSink) -> ValidatedMetadata:
     """Validate all metadata before the ordinary compilation passes.
 
@@ -251,10 +251,26 @@ def validate_files(files: Sequence[tuple[str | os.PathLike, ParsedFile]], *,
     """
     if contain is None:
         contain = lambda element: contextlib.nullcontext()
-    from . import ast
+    from .ast.parameter_declarations import DeclarationAssertion, DeclarationConstant, DeclarationParameter
+    from .ast.nodes import DeclarationBinding, DeclarationConnection, DeclarationInstance, DeclarationState
+    from .ast.type_declarations import (
+        DeclarationEnumType,
+        DeclarationResourceType,
+        DeclarationStructType,
+        EnumMember,
+        StructField,
+    )
+    from .ast.procedures import DeclarationInitializer, DeclarationLoadAssertion, DeclarationProcedure
+    from .ast.library import DeclarationLibrary
+    from .ast.functions import DeclarationNativeFunction
+    from .ast.node_types import DeclarationNodeType
+    from .ast.operators import DeclarationOperator
+    from .ast.ports import DeclarationPort
+    from .ast.specifiers import PortDirection
+    from .ast.base import SourceElement
     from .expressions import ExpressionBlock
 
-    def allow(item: model.ast.SourceElement, attributes: Iterable[ValidatedAttribute]) -> None:
+    def allow(item: model.SourceElement, attributes: Iterable[ValidatedAttribute]) -> None:
         position = item.source_position
         for attribute in attributes:
             if attribute.name == 'Allow':
@@ -263,7 +279,7 @@ def validate_files(files: Sequence[tuple[str | os.PathLike, ParsedFile]], *,
                 for name in attribute.value:
                     warnings.allow(name, position.filename, position.meta.start_pos, position.meta.end_pos)
 
-    def visit_blocks(element: model.ast.SourceElement) -> None:
+    def visit_blocks(element: model.SourceElement) -> None:
         """Validate the attributes of statements in blocks inside element."""
         if isinstance(element, ExpressionBlock):
             for statement in element.statements:
@@ -275,44 +291,44 @@ def validate_files(files: Sequence[tuple[str | os.PathLike, ParsedFile]], *,
             if name in ('source_position', 'outer_attributes', 'inner_attributes'):
                 continue
             for item in child if isinstance(child, (tuple, list)) else (child,):
-                if isinstance(item, ast.SourceElement):
+                if isinstance(item, SourceElement):
                     visit_blocks(item)
 
     targets = {
-        ast.DeclarationNodeType: 'node_type', ast.DeclarationLibrary: 'namespace',
-        ast.DeclarationInstance: 'node',
-        ast.DeclarationStructType: 'struct', ast.DeclarationEnumType: 'enum',
-        ast.DeclarationResourceType: 'resource_type',
-        ast.DeclarationConnection: 'connection',
-        ast.DeclarationState: 'state',
-        ast.DeclarationBinding: 'binding',
-        ast.DeclarationPort: 'port',
-        ast.DeclarationParameter: 'parameter',
-        ast.DeclarationConstant: 'constant',
-        ast.DeclarationAssertion: 'assertion',
-        ast.DeclarationLoadAssertion: 'assertion',
-        ast.DeclarationProcedure: 'procedure',
-        ast.DeclarationInitializer: 'initializer',
-        ast.DeclarationNativeFunction: 'function',
-        ast.DeclarationOperator: 'operator',
-        ast.StructField: 'struct_field', ast.EnumMember: 'enum_member',
+        DeclarationNodeType: 'node_type', DeclarationLibrary: 'namespace',
+        DeclarationInstance: 'node',
+        DeclarationStructType: 'struct', DeclarationEnumType: 'enum',
+        DeclarationResourceType: 'resource_type',
+        DeclarationConnection: 'connection',
+        DeclarationState: 'state',
+        DeclarationBinding: 'binding',
+        DeclarationPort: 'port',
+        DeclarationParameter: 'parameter',
+        DeclarationConstant: 'constant',
+        DeclarationAssertion: 'assertion',
+        DeclarationLoadAssertion: 'assertion',
+        DeclarationProcedure: 'procedure',
+        DeclarationInitializer: 'initializer',
+        DeclarationNativeFunction: 'function',
+        DeclarationOperator: 'operator',
+        StructField: 'struct_field', EnumMember: 'enum_member',
     }
     # The attributes of the namespace blocks so far, by namespace path.
     namespaces: dict[tuple[str | model.DeclarationNodeType, ...], tuple[ValidatedAttribute, ...]] = {}
-    attributes: dict[model.ast.SourceElement, tuple[ValidatedAttribute, ...]] = {}
+    attributes: dict[model.SourceElement, tuple[ValidatedAttribute, ...]] = {}
     edge_attributes: dict[model.DeclarationConnection, tuple[tuple[ValidatedAttribute, ...], ...]] = {}
 
-    def visit(item: model.ast.SourceElement, scope: tuple[str | model.DeclarationNodeType, ...]) -> None:
+    def visit(item: model.SourceElement, scope: tuple[str | model.DeclarationNodeType, ...]) -> None:
         target = targets[type(item)]
         item_attributes: tuple[ValidatedAttribute, ...] = ()
         with contain(None):
             item_attributes = validate_attributes(item.outer_attributes + item.inner_attributes, target)
         attributes[item] = item_attributes
         allow(item, item_attributes)
-        if not isinstance(item, (ast.DeclarationNodeType, ast.DeclarationLibrary)):
+        if not isinstance(item, (DeclarationNodeType, DeclarationLibrary)):
             visit_blocks(item)
         child_scope = scope
-        if isinstance(item, ast.DeclarationLibrary):
+        if isinstance(item, DeclarationLibrary):
             child_scope = scope + (item.name.id_str,)
             previous = namespaces.get(child_scope)
             if previous is None:
@@ -326,9 +342,9 @@ def validate_files(files: Sequence[tuple[str | os.PathLike, ParsedFile]], *,
                             _error(attribute, f'Duplicate attribute `{attribute.name}`')
                         seen.add(attribute.name)
                 namespaces[child_scope] = merged
-        elif isinstance(item, ast.DeclarationNodeType):
+        elif isinstance(item, DeclarationNodeType):
             child_scope = scope + (item,)
-        if isinstance(item, ast.DeclarationConnection):
+        if isinstance(item, DeclarationConnection):
             with contain(None):
                 edge_attributes[item] = tuple(validate_attributes(
                     item.outer_attributes + source.outer_attributes, 'connection',
@@ -339,15 +355,15 @@ def validate_files(files: Sequence[tuple[str | os.PathLike, ParsedFile]], *,
             visit(child, child_scope)
         for child in getattr(item, 'members', ()):
             visit(child, child_scope)
-        if isinstance(item, ast.DeclarationNodeType):
+        if isinstance(item, DeclarationNodeType):
             check_rows(item.declarations)
-        if isinstance(item, ast.DeclarationPort):
+        if isinstance(item, DeclarationPort):
             check_unordered(item)
 
     def check_unordered(port: model.DeclarationPort) -> None:
         for attribute in attributes[port]:
             if attribute.name == 'Unordered' and not (
-                    port.direction == ast.PortDirection.Input and port.port_spec.list_spec.is_list):
+                    port.direction == PortDirection.Input and port.port_spec.list_spec.is_list):
                 with contain(None):
                     _error(attribute, '`Unordered` requires a `multi` input')
 
@@ -355,7 +371,7 @@ def validate_files(files: Sequence[tuple[str | os.PathLike, ParsedFile]], *,
         """Reject two ports on the same side of a diagram item with the same row."""
         used: dict[Any, str] = {}
         for declaration in declarations:
-            if not isinstance(declaration, ast.DeclarationPort):
+            if not isinstance(declaration, DeclarationPort):
                 continue
             for attribute in attributes.get(declaration, ()):
                 if attribute.name != 'Diagram.Row':

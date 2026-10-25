@@ -108,4 +108,4 @@ class DeclarationPort(Declaration):
         previous = graph.name_declarations.get(self.name.id_str)
         # prepare_interface reports duplicate ports of the same kind.
         if not (isinstance(previous, DeclarationPort) and previous.direction == self.direction):
-            model.ast.register_name(graph, self.name, self)
+            model.register_name(graph, self.name, self)

@@ -111,7 +111,7 @@ class WarningSink:
         finally:
             self._instances.pop()
 
-    def warn(self, name: str, element: model.ast.SourceElement, message: str, *,
+    def warn(self, name: str, element: model.SourceElement, message: str, *,
              hints: Iterable[model.CompilerHint] = (), instance_trace: bool = True) -> None:
         if name not in WARNINGS:
             raise ValueError(f'Unknown warning `{name}`')
@@ -134,7 +134,7 @@ class WarningSink:
             self.report(diagnostic)
 
 
-def warning_diagnostics(name: str, element: model.ast.SourceElement, message: str,
+def warning_diagnostics(name: str, element: model.SourceElement, message: str,
                         hints: Iterable[model.CompilerHint] = ()) -> Iterator[Diagnostic]:
     position = element.source_position
     yield Diagnostic('warning', f'{message} [{name}]', filename=position.filename,
@@ -143,7 +143,7 @@ def warning_diagnostics(name: str, element: model.ast.SourceElement, message: st
         yield _hint_diagnostic(hint)
 
 
-def _context(element: model.ast.SourceElement) -> str:
+def _context(element: model.SourceElement) -> str:
     import lark
 
     error = lark.exceptions.UnexpectedInput()

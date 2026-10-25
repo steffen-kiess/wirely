@@ -302,7 +302,7 @@ class ResolvedPortReference(SourceElement):
                 return
             variable = graph.value_nodes.get(self.node_name_str)
             if variable is not None:
-                is_state = isinstance(variable, model.ast.DeclarationState)
+                is_state = isinstance(variable, model.DeclarationState)
                 if self.port_name is not None:
                     kind = 'State' if is_state else 'Binding'
                     raise ProgramError(self.port_name, f'{kind} `{self.node_name_str}` has no input port `{self.port_name_str}`')
@@ -316,7 +316,7 @@ class ResolvedPortReference(SourceElement):
                 self.port = own_output
                 return
             variable = graph.value_nodes.get(self.node_name_str)
-            if isinstance(variable, model.ast.DeclarationState):
+            if isinstance(variable, model.DeclarationState):
                 if self.port_name_str not in ('old', 'new'):
                     raise ProgramError(self.port_name_elem, 'State connection sources must explicitly reference .old or .new')
                 self.port = model.StateRead(

@@ -24,7 +24,28 @@ from dataclasses import dataclass, replace
 
 import lark
 
-from . import ast
+from .ast.base import Declaration, Identifier, ProgramError, SourceElement, Value as SyntaxValue
+from .ast.parameter_declarations import DeclarationAssertion, DeclarationConstant, DeclarationParameter
+from .ast.nodes import (
+    DeclarationBinding,
+    DeclarationConnection,
+    DeclarationInstance,
+    DeclarationState,
+    ParameterBinding,
+)
+from .ast.type_declarations import DeclarationEnumType, DeclarationStructType
+from .ast.procedures import (
+    DeclarationInitializer,
+    DeclarationProcedure,
+    ReferencePort,
+    StaticBinding,
+    TypedPort,
+)
+from .ast.library import DeclarationLibrary
+from .ast.node_types import DeclarationNodeType
+from .ast.ports import DeclarationPort
+from .ast.values import FunctionCall, Reference, StructLiteral
+from .ast.specifiers import PortTypeSpecificationData
 from . import parser
 from .attributes import Attribute, ParsedFile
 from .sources import ParseCache
@@ -92,9 +113,9 @@ def format_identifier(name: str) -> str:
     for candidate in (name, f'r#{name}'):
         try:
             parsed = parser.parse_str(f'binding {candidate}: value T;', filename='<identifier>')
-        except (lark.UnexpectedInput, lark.exceptions.VisitError, ast.ProgramError):
+        except (lark.UnexpectedInput, lark.exceptions.VisitError, ProgramError):
             continue
-        assert isinstance(parsed[0], ast.DeclarationBinding)
+        assert isinstance(parsed[0], DeclarationBinding)
         if parsed[0].name_str == name:
             return candidate
     raise ValueError(f'Invalid identifier {name!r}')
@@ -168,7 +189,7 @@ def add_declaration(sources: Sources, scope: Sequence[str], declaration: str, *,
     """
     declaration = declaration.strip()
     item = _parse_declaration(declaration)
-    if isinstance(item, ast.DeclarationConnection):
+    if isinstance(item, DeclarationConnection):
         raise ValueError('Use connect() to add connections')
     for metadata in attributes:
         _metadata_name(metadata)
@@ -185,8 +206,8 @@ def add_declaration(sources: Sources, scope: Sequence[str], declaration: str, *,
             break
     texts = dict(sources)
     target = anchor.filename if anchor is not None else _block(record, filename)[0]
-    if attributes and isinstance(item, (ast.DeclarationInstance, ast.DeclarationNodeType)):
-        if isinstance(item, ast.DeclarationNodeType):
+    if attributes and isinstance(item, (DeclarationInstance, DeclarationNodeType)):
+        if isinstance(item, DeclarationNodeType):
             site = _body_site(declaration, item, item.inner_attributes, _end(item.name), _end(item) - 1)
         else:
             site = _body_site(declaration, item, item.instantiation.inner_attributes,
@@ -243,7 +264,7 @@ def connect(sources: Sources, scope: Sequence[str], source: str, target: str, *,
     if index is not None and index < len(existing):
         edge = existing[index]
         statement = edge._declaration
-        assert isinstance(statement, ast.DeclarationConnection)
+        assert isinstance(statement, DeclarationConnection)
         if len(statement.sources) > 1:
             start = _outer_start(edge._source)
             return [TextEdit(edge.filename, start, start, f'{attribute_text}{source}, ')]
@@ -295,7 +316,7 @@ def reconnect(sources: Sources, connection: Connection, *, source: str | None = 
         start, end = edge.source_span
         return [TextEdit(edge.filename, start, end, new_source)]
     statement = edge._declaration
-    assert isinstance(statement, ast.DeclarationConnection)
+    assert isinstance(statement, DeclarationConnection)
     assert edge._source is not None
     text = texts[edge.filename]
     attributes = [text[_start(attribute) + 2:_end(attribute) - 1]
@@ -389,8 +410,8 @@ def replace_declaration(sources: Sources, target: State | Binding | Constant | P
     old = record._declaration
     if type(item) is not type(old) or _declaration_name(item) != _declaration_name(old):
         raise ValueError(f'Expected a declaration of the same kind and name as {target}')
-    if isinstance(item, ast.DeclarationPort):
-        assert isinstance(old, ast.DeclarationPort)
+    if isinstance(item, DeclarationPort):
+        assert isinstance(old, DeclarationPort)
         if item.direction != old.direction:
             raise ValueError('A replaced port must keep its direction')
     return [TextEdit(record.filename, _start(old), _end(old), declaration)]
@@ -428,17 +449,17 @@ def rename(sources: Sources, target: _outline.DeclarationId, new_name: str, *,
     texts = dict(sources)
     edits = [TextEdit(record.filename, _start(declaration.name), _end(declaration.name), new_text)]
     if isinstance(target, NodeType):
-        assert isinstance(declaration, ast.DeclarationNodeType)
+        assert isinstance(declaration, DeclarationNodeType)
         has_native_members = any(
-            isinstance(member, ast.DeclarationInitializer)
-            or (isinstance(member, ast.DeclarationProcedure) and member.is_native)
+            isinstance(member, DeclarationInitializer)
+            or (isinstance(member, DeclarationProcedure) and member.is_native)
             for member in declaration.declarations)
         if has_native_members and declaration.alias is None:
             # Keep the prefix of the native names of its members.
             edits.append(TextEdit(record.filename, _end(declaration.name), _end(declaration.name),
                                   f' as {_format_string(".".join(target.path))}'))
     if isinstance(target, Procedure):
-        assert isinstance(declaration, ast.DeclarationProcedure)
+        assert isinstance(declaration, DeclarationProcedure)
         if declaration.is_native and declaration.alias is None:
             # Keep the native procedure name.
             owner = _single(before.find(NodeType(target.path[:-1])), NodeType(target.path[:-1]))._declaration
@@ -519,8 +540,8 @@ def remove_attribute(sources: Sources, target: _outline.DeclarationId | Connecti
 _OUTER_TARGETS = (State, Binding, Constant, Parameter, Port, Procedure)
 
 _KIND_ORDER = (
-    ast.DeclarationParameter, ast.DeclarationConstant, ast.DeclarationPort, ast.DeclarationState,
-    ast.DeclarationBinding, ast.DeclarationInstance, ast.DeclarationProcedure, ast.DeclarationNodeType,
+    DeclarationParameter, DeclarationConstant, DeclarationPort, DeclarationState,
+    DeclarationBinding, DeclarationInstance, DeclarationProcedure, DeclarationNodeType,
 )
 
 
@@ -571,25 +592,25 @@ def _used_names(scope: _outline.Scope) -> set[str]:
     return used
 
 
-def _scope_items(scope: _outline.Scope) -> Iterator[tuple[str, ast.Declaration]]:
+def _scope_items(scope: _outline.Scope) -> Iterator[tuple[str, Declaration]]:
     """Yield (filename, declaration) for the declarations directly in a scope."""
     for filename, block in scope._blocks:
         declarations = block if isinstance(block, ParsedFile) else block.declarations
         for item in declarations:
-            if not isinstance(item, (ast.DeclarationNodeType, ast.DeclarationLibrary)):
+            if not isinstance(item, (DeclarationNodeType, DeclarationLibrary)):
                 yield filename, item
 
 
-def _endpoint_references(item: ast.Declaration) -> Iterator[tuple[ast.Reference, ast.ReferencePort | None]]:
+def _endpoint_references(item: Declaration) -> Iterator[tuple[Reference, ReferencePort | None]]:
     """Yield (reference, reference port or None) for connection and procedure port references."""
-    if isinstance(item, ast.DeclarationConnection):
+    if isinstance(item, DeclarationConnection):
         for source in item.sources:
             yield source, None
         yield item.target, None
-    elif isinstance(item, (ast.DeclarationProcedure, ast.DeclarationInitializer)):
+    elif isinstance(item, (DeclarationProcedure, DeclarationInitializer)):
         ports = [*item.reads.entries, *item.writes.outputs]
         for port in ports:
-            if isinstance(port, ast.ReferencePort):
+            if isinstance(port, ReferencePort):
                 yield port.reference, port
 
 
@@ -617,9 +638,9 @@ def _static_rename_edits(scope: _outline.Scope, old: str, new: str, new_text: st
         for expression in _expression_fields(item):
             sites += [(filename, identifier, bound) for identifier, bound in _reference_roots(expression)]
         # Plain references in reads clauses are renamed like other procedure ports.
-        if isinstance(item, (ast.DeclarationProcedure, ast.DeclarationInitializer)):
+        if isinstance(item, (DeclarationProcedure, DeclarationInitializer)):
             for entry in item.reads.entries:
-                if isinstance(entry, ast.StaticBinding):
+                if isinstance(entry, StaticBinding):
                     sites += [(filename, identifier, bound) for identifier, bound in _reference_roots(entry.expression)]
     edits = []
     for filename, identifier, bound in sites:
@@ -632,39 +653,39 @@ def _static_rename_edits(scope: _outline.Scope, old: str, new: str, new_text: st
     return edits
 
 
-def _expression_fields(item: ast.Declaration) -> Iterator[ast.Value | None]:
+def _expression_fields(item: Declaration) -> Iterator[SyntaxValue | None]:
     """Yield the expressions of a declaration that can refer to statics of its scope."""
-    if isinstance(item, ast.DeclarationParameter):
+    if isinstance(item, DeclarationParameter):
         yield item.ty
         if item.default_value is not None:
             yield item.default_value
-    elif isinstance(item, ast.DeclarationState):
+    elif isinstance(item, DeclarationState):
         yield item.var_type
         yield item.initial_value
-    elif isinstance(item, ast.DeclarationBinding):
+    elif isinstance(item, DeclarationBinding):
         if not item.is_resource:
             yield item.port_spec.ty
-    elif isinstance(item, ast.DeclarationPort):
-        if isinstance(item.port_spec, ast.PortTypeSpecificationData):
+    elif isinstance(item, DeclarationPort):
+        if isinstance(item.port_spec, PortTypeSpecificationData):
             yield item.port_spec.ty
-    elif isinstance(item, ast.DeclarationAssertion):
+    elif isinstance(item, DeclarationAssertion):
         yield item.condition
         if item.message is not None:
             yield item.message
-    elif isinstance(item, ast.DeclarationInstance):
+    elif isinstance(item, DeclarationInstance):
         for binding in item.instantiation.parameters:
             yield binding.value
-    elif isinstance(item, ast.DeclarationProcedure):
+    elif isinstance(item, DeclarationProcedure):
         for port in (*item.reads.entries, *item.writes.outputs):
-            if isinstance(port, ast.TypedPort) and isinstance(port.port_spec, ast.PortTypeSpecificationData):
+            if isinstance(port, TypedPort) and isinstance(port.port_spec, PortTypeSpecificationData):
                 yield port.port_spec.ty
         if item.body is not None:
             yield item.body
-    elif isinstance(item, ast.DeclarationEnumType):
+    elif isinstance(item, DeclarationEnumType):
         yield item.underlying_type
         for member in item.members:
             yield member.value
-    elif isinstance(item, ast.DeclarationStructType):
+    elif isinstance(item, DeclarationStructType):
         for field in item.fields:
             yield field.field_type
 
@@ -673,16 +694,16 @@ _SYNTAX_SKIPPED = ('source_position', 'outer_attributes', 'inner_attributes', 'a
 
 
 def _reference_roots(element: object,
-                     bound: frozenset[str] = frozenset()) -> Iterator[tuple[ast.Identifier, frozenset[str]]]:
+                     bound: frozenset[str] = frozenset()) -> Iterator[tuple[Identifier, frozenset[str]]]:
     """Yield (identifier, locally bound names) for the root of each value reference."""
-    if isinstance(element, ast.Reference):
+    if isinstance(element, Reference):
         yield element.identifiers[0], bound
-    elif isinstance(element, ast.FunctionCall):
-        if not (isinstance(element.fun, ast.Reference) and element.fun.length == 1):
+    elif isinstance(element, FunctionCall):
+        if not (isinstance(element.fun, Reference) and element.fun.length == 1):
             yield from _reference_roots(element.fun, bound)
         for parameter in element.parameters:
             yield from _reference_roots(parameter, bound)
-    elif isinstance(element, ast.StructLiteral):
+    elif isinstance(element, StructLiteral):
         for field in element.fields:
             yield from _reference_roots(field.value, bound)
     elif isinstance(element, PropertyAccess):
@@ -703,9 +724,9 @@ def _reference_roots(element: object,
     elif isinstance(element, (list, tuple, ParsedFile)):
         for item in element:
             yield from _reference_roots(item, bound)
-    elif isinstance(element, ast.SourceElement):
+    elif isinstance(element, SourceElement):
         for name, child in vars(element).items():
-            if name not in _SYNTAX_SKIPPED and isinstance(child, (ast.SourceElement, list, tuple, ParsedFile)):
+            if name not in _SYNTAX_SKIPPED and isinstance(child, (SourceElement, list, tuple, ParsedFile)):
                 yield from _reference_roots(child, bound)
 
 
@@ -748,16 +769,16 @@ def _verify_rename(sources: Sources, edits: Sequence[TextEdit], before: _outline
         raise ValueError('Renaming would change what references resolve to')
 
 
-def _declaration_name(item: ast.Declaration) -> str:
-    if isinstance(item, ast.DeclarationPort):
+def _declaration_name(item: Declaration) -> str:
+    if isinstance(item, DeclarationPort):
         return item.name_str
     name = getattr(item, 'name')
-    assert isinstance(name, ast.Identifier)
+    assert isinstance(name, Identifier)
     return name.id_str
 
 
-def _binding_removals(filename: str, text: str, bindings: Sequence[ast.ParameterBinding],
-                      removed: Iterable[ast.ParameterBinding]) -> list[TextEdit]:
+def _binding_removals(filename: str, text: str, bindings: Sequence[ParameterBinding],
+                      removed: Iterable[ParameterBinding]) -> list[TextEdit]:
     """Remove bindings with their commas, and lines they leave empty."""
     removed_ids = {id(item) for item in removed}
     edits = []
@@ -806,10 +827,10 @@ def _checked(declaration: str) -> str:
     return declaration
 
 
-def _parse_declaration(declaration: str) -> ast.Declaration:
+def _parse_declaration(declaration: str) -> Declaration:
     try:
         parsed = parser.parse_str(declaration, filename='<declaration>')
-    except (lark.UnexpectedInput, lark.exceptions.VisitError, ast.ProgramError) as error:
+    except (lark.UnexpectedInput, lark.exceptions.VisitError, ProgramError) as error:
         raise ValueError(f'Malformed declaration {declaration!r}') from error
     if len(parsed) != 1 or parsed.inner_attributes:
         raise ValueError(f'Expected one declaration: {declaration!r}')
@@ -819,7 +840,7 @@ def _parse_declaration(declaration: str) -> ast.Declaration:
 def _parse_references(source: str, target: str) -> tuple[str, str]:
     source, target = source.strip(), target.strip()
     item = _parse_declaration(f'connect {source} -> {target};')
-    assert isinstance(item, ast.DeclarationConnection)
+    assert isinstance(item, DeclarationConnection)
     if len(item.sources) != 1 or item.outer_attributes or item.sources[0].outer_attributes:
         raise ValueError(f'Malformed connection {source!r} -> {target!r}')
     return source, target
@@ -827,11 +848,11 @@ def _parse_references(source: str, target: str) -> tuple[str, str]:
 
 def _normalized(reference: str) -> str:
     item = _parse_declaration(f'connect x -> {reference};')
-    assert isinstance(item, ast.DeclarationConnection)
+    assert isinstance(item, DeclarationConnection)
     return '.'.join(identifier.id_str for identifier in item.target.identifiers)
 
 
-def _outer_start(element: ast.SourceElement | None) -> int:
+def _outer_start(element: SourceElement | None) -> int:
     assert element is not None
     return min([_start(element), *map(_start, element.outer_attributes)])
 
@@ -874,7 +895,7 @@ def _insert_after(texts: Mapping[str, str], filename: str, start: int, end: int,
 def _target_record(scope: _outline.Scope, target: str) -> _outline.DeclarationRecord | None:
     """Return the declaration in scope that a connection target refers to, or None."""
     connection = _parse_declaration(f'connect x -> {target};')
-    assert isinstance(connection, ast.DeclarationConnection)
+    assert isinstance(connection, DeclarationConnection)
     reference = connection.target
     name = reference.identifiers[0].id_str
     if reference.length == 1:
@@ -1008,7 +1029,7 @@ def _disconnect_edges(texts: Mapping[str, str], edges: Iterable[_outline.Edge]) 
     edits = []
     for edge, removed in statements.values():
         statement = edge._declaration
-        assert isinstance(statement, ast.DeclarationConnection)
+        assert isinstance(statement, DeclarationConnection)
         filename = edge.filename
         sources = statement.sources
         if len(removed) == len(sources):
@@ -1067,7 +1088,7 @@ def _format_literal(value: object) -> str:
 def _metadata_name(metadata: str) -> str:
     try:
         parsed = parser.parse_str(f'#![{metadata}]', filename='<metadata>')
-    except (lark.UnexpectedInput, lark.exceptions.VisitError, ast.ProgramError) as error:
+    except (lark.UnexpectedInput, lark.exceptions.VisitError, ProgramError) as error:
         raise ValueError(f'Malformed attribute metadata {metadata!r}') from error
     if parsed or len(parsed.inner_attributes) != 1:
         raise ValueError(f'Malformed attribute metadata {metadata!r}')
@@ -1080,12 +1101,12 @@ def _matching(site: _Site, name: str) -> list[Attribute]:
     return [attribute for attribute in site.attributes if attribute.name == name]
 
 
-def _start(element: ast.SourceElement | Attribute | None) -> int:
+def _start(element: SourceElement | Attribute | None) -> int:
     assert element is not None and element.source_position.meta is not None
     return element.source_position.meta.start_pos
 
 
-def _end(element: ast.SourceElement | Attribute | None) -> int:
+def _end(element: SourceElement | Attribute | None) -> int:
     assert element is not None and element.source_position.meta is not None
     return element.source_position.meta.end_pos
 
@@ -1100,13 +1121,13 @@ def _locate(sources: Sources, target: _outline.DeclarationId | Connection, *,
     declaration = record._declaration
     assert declaration is not None
     if isinstance(target, Node):
-        assert isinstance(declaration, ast.DeclarationInstance)
+        assert isinstance(declaration, DeclarationInstance)
         instantiation = declaration.instantiation
         site = _body_site(text, declaration,
                           declaration.outer_attributes + instantiation.inner_attributes,
                           _end(instantiation.type_name), _end(instantiation) - 1)
     elif isinstance(target, NodeType):
-        assert isinstance(declaration, ast.DeclarationNodeType)
+        assert isinstance(declaration, DeclarationNodeType)
         site = _body_site(text, declaration,
                           declaration.outer_attributes + declaration.inner_attributes,
                           _end(declaration.name), _end(declaration) - 1)
@@ -1114,7 +1135,7 @@ def _locate(sources: Sources, target: _outline.DeclarationId | Connection, *,
         site = _Site(list(declaration.outer_attributes), [], 'outer', _start(declaration))
     else:
         assert isinstance(record, _outline.Edge)
-        assert isinstance(declaration, ast.DeclarationConnection)
+        assert isinstance(declaration, DeclarationConnection)
         source = record._source
         assert source is not None
         if len(declaration.sources) == 1:
@@ -1126,7 +1147,7 @@ def _locate(sources: Sources, target: _outline.DeclarationId | Connection, *,
     return record.filename, text, site
 
 
-def _body_site(text: str, declaration: ast.SourceElement, attributes: Sequence[Attribute], brace_search_start: int,
+def _body_site(text: str, declaration: SourceElement, attributes: Sequence[Attribute], brace_search_start: int,
                close_brace: int) -> _Site:
     open_brace = _skip_trivia(text, brace_search_start)
     if text[open_brace] != '{':

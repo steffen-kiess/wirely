@@ -45,7 +45,7 @@ def connection_kind(port: object) -> model.ConnectionKind:
     return model.ConnectionKind.Value if spec is None else spec.kind_spec.kind
 
 
-def connect(source: Any, target: Any, source_element: model.ast.SourceElement, *, attributes: tuple = ()) -> None:
+def connect(source: Any, target: Any, source_element: model.SourceElement, *, attributes: tuple = ()) -> None:
     # TODO: Clean up
     if not isinstance(source, SOURCE_TYPES):
         raise Exception('source parameter is not a data or resource source')
@@ -100,7 +100,7 @@ def occupied_message(target: Any) -> str:
     return message
 
 
-def port_declaration(port: Any) -> model.ast.SourceElement:
+def port_declaration(port: Any) -> model.SourceElement:
     """Return the declaration of a connection end, for hints."""
     if isinstance(port, model.InstanceInputPort):
         return port.type_input_port.port_spec
@@ -115,7 +115,7 @@ def port_declaration(port: Any) -> model.ast.SourceElement:
     return port.graph.value_nodes[port.name]
 
 
-def check_compatible(source: Any, target: Any, source_element: model.ast.SourceElement) -> bool:
+def check_compatible(source: Any, target: Any, source_element: model.SourceElement) -> bool:
     """Check the kinds and types of a connection; return whether it connects resources."""
     def incompatible(message: str) -> NoReturn:
         raise model.ProgramError(source_element, message, hints=[
@@ -229,7 +229,7 @@ def resolve_variable(path: ResolutionPath, var: Any,
         for connection in flow[start:] + flow[:start]:
             if connection not in connections:
                 connections.append(connection)
-        raise model.ast.circular_connection(connections[0], connections[1:])
+        raise model.circular_connection(connections[0], connections[1:])
     seen[key] = var
 
     if isinstance(var, StateRead):

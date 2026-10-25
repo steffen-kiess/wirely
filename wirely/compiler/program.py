@@ -28,8 +28,8 @@ COPY_BODY = ProcedureBody((
 ))
 
 
-def cycle_error(element: model.ast.SourceElement, message: str,
-                steps: Sequence[tuple[model.ast.SourceElement | None, Sequence[model.Connection]]],
+def cycle_error(element: model.SourceElement, message: str,
+                steps: Sequence[tuple[model.SourceElement | None, Sequence[model.Connection]]],
                 via: Sequence[model.Connection]) -> model.ProgramError:
     """Report a dependency cycle at element, with hints following the data around it.
 
@@ -211,8 +211,8 @@ def lower_program(global_node_type: model.NodeType) -> Program:
 
     procs: dict[RunStage, list[tuple[NodePath, model.InstanceProcedure]]] = {}
     done: set[tuple[NodePath, str]] = set()
-    doing: list[tuple[tuple[NodePath, str], model.ast.SourceElement | None, Sequence[model.Connection]]] = []
-    def do(path: NodePath, proc: model.InstanceProcedure, reference: model.ast.SourceElement | None = None,
+    doing: list[tuple[tuple[NodePath, str], model.SourceElement | None, Sequence[model.Connection]]] = []
+    def do(path: NodePath, proc: model.InstanceProcedure, reference: model.SourceElement | None = None,
            via: Sequence[model.Connection] = ()) -> None:
         """Schedule proc after its producers; via has the connections from proc to reference."""
         # TODO: Clean this up (this makes sure that the correct Procedure instance is used for singletons)
@@ -257,7 +257,7 @@ def lower_program(global_node_type: model.NodeType) -> Program:
                     if variable.phase == 'new':
                         assert isinstance(variable.state, model.InstanceStateVariable)
                         assert variable.state.producer is not None
-                        assert isinstance(variable.reference, model.ast.SourceElement)
+                        assert isinstance(variable.reference, model.SourceElement)
                         do(producer_path, variable.state.producer, variable.reference, connections)
                     continue
                 if isinstance(variable, model.InstanceOutputPort):
@@ -321,7 +321,7 @@ def lower_program(global_node_type: model.NodeType) -> Program:
         for path, proc in stage_procs:
             # Native multi value/event specialization is not implemented by the runtime.
             if proc.declaration_procedure.is_native and any(
-                    getattr(source, 'is_list', False) and not model.ast.dependency_is_fixed(source)
+                    getattr(source, 'is_list', False) and not model.dependency_is_fixed(source)
                     for source in proc.static_context._sources.values()):
                 raise model.ProgramError(proc.declaration_procedure,
                                          'Native runtime does not support multi value or event dependencies')
@@ -341,7 +341,7 @@ def lower_program(global_node_type: model.NodeType) -> Program:
                     variable = state_map[state_path, state]
                     if source.phase == 'old':
                         old_states.setdefault(variable, name)
-                    elif (isinstance(port, model.ast.ReferencePort)
+                    elif (isinstance(port, model.ReferencePort)
                           and port.reference.length == 2
                           and port.reference.identifiers[0].id_str in instances[path].node_type.state_nodes
                           and port.reference.identifiers[1].id_str == 'new'):
@@ -384,7 +384,7 @@ def lower_program(global_node_type: model.NodeType) -> Program:
                 assert isinstance(output_variable, Variable)
                 output_types[name] = output_variable.var_type
                 if (isinstance(target, model.InstanceStateVariable)
-                        and isinstance(port, model.ast.ReferencePort)
+                        and isinstance(port, model.ReferencePort)
                         and port.reference.length == 1
                         and port.reference.identifiers[0].id_str in instances[path].node_type.state_nodes):
                     changed_states[name] = output_variable

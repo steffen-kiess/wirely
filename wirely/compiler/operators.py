@@ -17,7 +17,7 @@ SYMBOLS = {'add': '+', 'sub': '-', 'lt': '<', 'le': '<', 'gt': '<', 'ge': '<'}
 
 
 def operator_function(scope: model.Scope, value_type: model.Type, operation: str,
-                      source: model.ast.SourceElement) -> model.CompiledFunction:
+                      source: model.SourceElement) -> model.CompiledFunction:
     symbol = SYMBOLS[operation]
     if isinstance(value_type, (model.types.TypeStruct, model.types.TypeEnum)):
         namespace: model.Scope | None = scope.coordinator.global_node_type
@@ -37,7 +37,7 @@ class OperatorType(model.Type):
     first_type: model.Type
     operation: str
     scope: model.Scope
-    source: model.ast.SourceElement
+    source: model.SourceElement
     argument: bool = False
     integer_only: bool = False
 

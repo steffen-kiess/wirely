@@ -100,7 +100,7 @@ class NodeType(model.Scope):
                         model.CompilerHint(previous, 'Previous declaration was here'),
                     ])
                 static_declarations[name] = decl
-                model.ast.register_name(self, decl.name, decl)
+                model.register_name(self, decl.name, decl)
                 parameter = model.NodeParameter(decl, self)
                 if parameter.is_constant:
                     parsed_constants[name] = parameter
@@ -170,7 +170,7 @@ class NodeType(model.Scope):
         if self.body_state is not ResolutionState.RESOLVING:
             raise RuntimeError('Body validation requires a bound body')
         try:
-            model.ast.validate_nodes(self)
+            model.validate_nodes(self)
         except Exception:
             self.body_state = ResolutionState.FAILED
             raise
@@ -208,7 +208,7 @@ class NodeType(model.Scope):
 
     def create_instance_interface(self, *, name: str, graph: 'NodeType',
                                   par_values: 'Mapping[model.NodeParameter, StaticValue]',
-                                  instantiation: 'model.ast.SourceElement', register: bool = True,
+                                  instantiation: 'model.SourceElement', register: bool = True,
                                   failed_parameters: Collection[model.NodeParameter] = ()) -> 'model.InstanceNode':
         if self.interface_state is not ResolutionState.COMPLETE:
             raise RuntimeError('Instance creation requires a prepared interface')
@@ -278,7 +278,7 @@ class NodeType(model.Scope):
         state_variables = {}
         temporaries = {}
         for variable in self.value_nodes.values():
-            if isinstance(variable, model.ast.DeclarationState):
+            if isinstance(variable, model.DeclarationState):
                 var_type = self.resolve_type(variable.var_type)
                 check_runtime_type(var_type, instantiation)
                 storage = model.InstanceStateVariable(
@@ -286,7 +286,7 @@ class NodeType(model.Scope):
                 )
                 copy_attributes(storage, variable, self.coordinator.attributes(variable))
                 state_variables[variable.name.id_str] = storage
-            elif isinstance(variable, model.ast.DeclarationBinding):
+            elif isinstance(variable, model.DeclarationBinding):
                 var_type = self.resolve_type(variable.var_type, par_values=node.parameter_values)
                 check_runtime_type(var_type, instantiation)
                 impl_var_type = (model.types.TypeOption(var_type)

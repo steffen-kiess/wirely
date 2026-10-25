@@ -16,7 +16,7 @@ import lark
 from wirely.compiler import model
 from wirely.util import getEnvironmentBool
 from .attributes import Attribute, Metadata, MetadataLiteral, ParsedFile
-from .ast import SourceElement, SyntaxElement, capture_source_path
+from .ast.base import SourceElement, SyntaxElement, capture_source_path
 from .expressions import (
     BinaryExpression, UnaryExpression, IfExpression, IfLetExpression, ForExpression, OnExpression, OnTrigger, EmitExpression,
     ExpressionBlock, PropertyAccess, LocalBinding, AssignmentExpression, ExpressionStatement, AssertionStatement,
@@ -62,7 +62,7 @@ ast_classes: list[Any] = [  # Grammar dispatch includes constructors and factori
     model.DeclarationConstant,
     model.DeclarationOperator,
     model.DeclarationAssertion,
-    model.ast.DeclarationLoadAssertion,
+    model.DeclarationLoadAssertion,
     model.DeclarationNodeType,
     model.ParameterBinding,
     model.Instantiation,

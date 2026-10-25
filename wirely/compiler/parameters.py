@@ -33,11 +33,11 @@ class NodeParameter:
         return self.declaration.name
 
     @property
-    def ty(self) -> model.ast.Value:
+    def ty(self) -> model.SyntaxValue:
         return self.declaration.ty
 
     @property
-    def default_value(self) -> model.ast.Value | None:
+    def default_value(self) -> model.SyntaxValue | None:
         return self.declaration.default_value
 
     @property

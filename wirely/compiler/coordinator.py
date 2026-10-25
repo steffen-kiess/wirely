@@ -31,17 +31,17 @@ class CompilerCoordinator:
         # Set by the compiler once the files' attributes are validated.
         self.metadata = ValidatedMetadata()
         # Elements whose errors were recorded when continuing after errors.
-        self.failed: set[model.ast.SourceElement] = set()
+        self.failed: set[model.SourceElement] = set()
         global_node_type.coordinator = self
 
-    def attributes(self, element: model.ast.SourceElement) -> tuple[ValidatedAttribute, ...]:
+    def attributes(self, element: model.SourceElement) -> tuple[ValidatedAttribute, ...]:
         """Return the validated attributes of a declaration."""
         return self.metadata.attributes.get(element, ())
 
-    def has_failed(self, element: model.ast.SourceElement) -> bool:
+    def has_failed(self, element: model.SourceElement) -> bool:
         return element in self.failed
 
-    def source_order(self, element: model.ast.SourceElement) -> tuple[str, int] | tuple[bytes, str, int]:
+    def source_order(self, element: model.SourceElement) -> tuple[str, int] | tuple[bytes, str, int]:
         position = element.source_position
         order = (str(position.filename or ''), getattr(position.meta, 'start_pos', -1))
         if self.shuffle_seed is not None:
@@ -50,7 +50,7 @@ class CompilerCoordinator:
         return order
 
     @contextlib.contextmanager
-    def contain(self, element: model.ast.SourceElement | None) -> Iterator[None]:
+    def contain(self, element: model.SourceElement | None) -> Iterator[None]:
         """Record errors inside as diagnostics and add element to failed, unless stopping at errors."""
         if self.diagnostics is None:
             yield

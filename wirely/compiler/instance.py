@@ -28,7 +28,7 @@ class InstanceNode(model.GraphElement):
     port_storage: dict[model.ProcedureOutputPort, InstanceTemporary | InstanceStateVariable]
 
     def __init__(self, graph: model.NodeType, *, name: str, node_type: model.NodeType,
-                 par_values: Mapping[model.NodeParameter, StaticValue], instantiation: model.ast.SourceElement,
+                 par_values: Mapping[model.NodeParameter, StaticValue], instantiation: model.SourceElement,
                  register: bool = True) -> None:
         super().__init__(graph=graph, name=name)
 
@@ -421,7 +421,7 @@ class PortSources(InstanceSource):
 
 class InstanceStateVariable(InstanceSource, InstanceTarget):
     def __init__(self, node: 'InstanceNode', name: str, var_type: model.types.Type,
-                 initial_value: model.ast.Value) -> None:
+                 initial_value: model.SyntaxValue) -> None:
         super().__init__(node, name)
         if not isinstance(var_type, model.types.Type):
             raise Exception('var_type parameter is not a Type')

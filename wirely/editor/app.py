@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QTreeWidget, QTreeWidgetItem, QWidget,
 )
 
-from wirely.compiler import ast
+from wirely.compiler.ast.base import ProgramError
 from wirely.compiler.diagnostics import Diagnostic
 from wirely.compiler.editing import TextEdit
 from wirely.compiler.outline import Connection, DeclarationId, ElementId, Node, NodeType
@@ -34,7 +34,7 @@ from .sync import Document, Session, python_offset
 from .text_view import CodeEditor
 from .workspace import DetachedWindow, Host, Workspace, WorkspaceManager
 
-_EDIT_ERRORS = (ValueError, TypeError, KeyError, ast.ProgramError, lark.exceptions.LarkError)
+_EDIT_ERRORS = (ValueError, TypeError, KeyError, ProgramError, lark.exceptions.LarkError)
 
 
 def run(filenames: Iterable[str]) -> int:

@@ -25,7 +25,7 @@ from wirely.compiler import model
 from wirely.program import types as _types
 from . import outline as _outline
 from . import support
-from .ast import PortDirection
+from .ast.specifiers import PortDirection
 from .attributes import Attribute, ParsedFile, ValidatedAttribute, validate_files
 from .coordinator import CompilerCoordinator
 from .diagnostics import Diagnostic, WarningSink

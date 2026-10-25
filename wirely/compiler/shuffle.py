@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from typing import Any, TypeVar
 
 from wirely.compiler import model
-from .ast import SourceElement, SyntaxElement
+from .ast.base import SourceElement, SyntaxElement
 from .attributes import ParsedFile
 
 

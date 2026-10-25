@@ -17,7 +17,7 @@ from wirely.compiler.types import resolve_type
 class Value(abc.ABC):
     value_type: Any  # Set by the subclasses.
 
-    def __init__(self, *, ast_element: model.ast.SourceElement) -> None:
+    def __init__(self, *, ast_element: model.SourceElement) -> None:
         self.ast_element = ast_element
 
     @property
@@ -38,7 +38,7 @@ class Value(abc.ABC):
 
 # A constant value which does not depend on any parameter
 class ConstantValue(Value):
-    def __init__(self, value_type: model.Type, value: Any, *, ast_element: model.ast.SourceElement) -> None:
+    def __init__(self, value_type: model.Type, value: Any, *, ast_element: model.SourceElement) -> None:
         super().__init__(ast_element=ast_element)
         self.value_type = value_type
         self.value = value
@@ -66,7 +66,7 @@ class ConstantValue(Value):
 
 class ValueParameter(Value):
     def __init__(self, value_type: model.Type, parameter: model.NodeParameter, *,
-                 ast_element: model.ast.SourceElement) -> None:
+                 ast_element: model.SourceElement) -> None:
         super().__init__(ast_element=ast_element)
         self.value_type = value_type
         self.parameter = parameter
@@ -106,7 +106,7 @@ class InputLengthValue(Value):
     value_type = model.types.uint32
 
     def __init__(self, scope: model.NodeType, port: model.TypeInputPort, *,
-                 ast_element: model.ast.SourceElement) -> None:
+                 ast_element: model.SourceElement) -> None:
         super().__init__(ast_element=ast_element)
         self.scope = scope
         self.port = port
@@ -136,9 +136,9 @@ class InputLengthValue(Value):
 class DeferredValue(Value):
     """An initializer whose expected type needs instance values first."""
 
-    ast_element: model.ast.Value
+    ast_element: model.SyntaxValue
 
-    def __init__(self, scope: model.Scope, expression: model.ast.Value, value_type: model.Type) -> None:
+    def __init__(self, scope: model.Scope, expression: model.SyntaxValue, value_type: model.Type) -> None:
         super().__init__(ast_element=expression)
         self.scope = scope
         self.value_type = value_type
@@ -156,7 +156,7 @@ class DeferredValue(Value):
 
 
 def check_value_type(actual_type: model.Type, expected_type: model.Type,
-                     ast_element: model.ast.SourceElement | None) -> None:
+                     ast_element: model.SourceElement | None) -> None:
     if (not actual_type.contains_parameters and not expected_type.contains_parameters
             and actual_type != expected_type):
         raise model.ProgramError(ast_element, f'Expected value of type `{expected_type}`, got `{actual_type}`')
@@ -170,7 +170,7 @@ class ComputedValue(Value):
 
 class ValueOptionSome(ComputedValue):
     def __init__(self, value_type: model.types.TypeOption, inner_value: Value, *,
-                 ast_element: model.ast.SourceElement) -> None:
+                 ast_element: model.SourceElement) -> None:
         super().__init__(ast_element=ast_element)
         self.value_type = value_type
         self.inner_value = inner_value
@@ -193,7 +193,7 @@ class ValueOptionSome(ComputedValue):
 
 class ValueList(ComputedValue):
     def __init__(self, value_type: model.types.TypeList, elements: Sequence[Value], *,
-                 ast_element: model.ast.SourceElement) -> None:
+                 ast_element: model.SourceElement) -> None:
         super().__init__(ast_element=ast_element)
         self.value_type = value_type
         self.elements = elements
@@ -268,7 +268,7 @@ class ValueFunctionCall(ComputedValue):
 
 class ValueStruct(ComputedValue):
     def __init__(self, value_type: model.types.TypeStruct, fields: Mapping[str, Value], *,
-                 ast_element: model.ast.SourceElement) -> None:
+                 ast_element: model.SourceElement) -> None:
         super().__init__(ast_element=ast_element)
         self.value_type = value_type
         self.fields = fields
@@ -294,7 +294,7 @@ class ValueStruct(ComputedValue):
 class ParameterOptionValue(Value):
     """Inspect presence without reading an omitted parameter."""
 
-    def __init__(self, parameter: model.NodeParameter, *, ast_element: model.ast.SourceElement) -> None:
+    def __init__(self, parameter: model.NodeParameter, *, ast_element: model.SourceElement) -> None:
         super().__init__(ast_element=ast_element)
         self.parameter = parameter
         self.value_type = model.types.TypeOption(parameter.type_resolved)
@@ -319,9 +319,9 @@ class ParameterOptionValue(Value):
 class OptionalBinding(Value):
     """An option expression in the enclosing node's scope."""
 
-    ast_element: model.ast.Value
+    ast_element: model.SyntaxValue
 
-    def __init__(self, scope: model.Scope, expression: model.ast.Value, parameter: model.NodeParameter) -> None:
+    def __init__(self, scope: model.Scope, expression: model.SyntaxValue, parameter: model.NodeParameter) -> None:
         super().__init__(ast_element=expression)
         self.scope = scope
         self.parameter = parameter

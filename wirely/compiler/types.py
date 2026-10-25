@@ -20,7 +20,7 @@ from . import model
 class TypeParameter(Type):
     parameter: model.NodeParameter
     # Where the type is used, for diagnostics; defaults to the parameter's declaration.
-    ast_element: model.ast.SourceElement | None = dataclasses.field(default=None, compare=False, kw_only=True)
+    ast_element: model.SourceElement | None = dataclasses.field(default=None, compare=False, kw_only=True)
 
     def __post_init__(self) -> None:
         if not isinstance(self.parameter, model.NodeParameter):
@@ -79,7 +79,7 @@ class TypeParameter(Type):
         raise Exception('Not a concrete type')
 
 
-def check_runtime_type(value_type: Type, source: model.ast.SourceElement | None) -> None:
+def check_runtime_type(value_type: Type, source: model.SourceElement | None) -> None:
     """Check runtime eligibility once any type parameters have resolved."""
     if not value_type.contains_parameters and not is_runtime_type(value_type):
         raise model.ProgramError(source, f'Type `{value_type}` is not a runtime type: {runtime_type_error(value_type)}')
@@ -104,7 +104,7 @@ def resolve_type(value_type: Type, par_values: Mapping[model.NodeParameter, Stat
     raise TypeError(f'Unsupported parameter-dependent type {value_type!r}')
 
 
-def _parse_option(self: types.TypeOption, value: model.ast.Value, *,
+def _parse_option(self: types.TypeOption, value: model.SyntaxValue, *,
                   scope: model.Scope | None = None) -> model.Some | None:
     if isinstance(value, model.Reference) and value.length == 1 and value.identifiers[0].id_str == 'None':
         return None
@@ -118,20 +118,20 @@ def _parse_option(self: types.TypeOption, value: model.ast.Value, *,
     raise model.ProgramError(value, f'Invalid Option value {value!r}')
 
 
-def _parse_list(self: types.TypeList, value: model.ast.Value, *,
+def _parse_list(self: types.TypeList, value: model.SyntaxValue, *,
                 scope: model.Scope | None = None) -> tuple[object, ...]:
     if not isinstance(value, model.ListLiteral):
         raise model.ProgramError(value, f'Invalid List value {value!r}')
     return tuple(parse_value(self.inner_type, v, scope=scope) for v in value.values)
 
 
-def _parse_unit(self: types.TypeUnit, value: model.ast.Value, *, scope: model.Scope | None = None) -> model.Unit:
+def _parse_unit(self: types.TypeUnit, value: model.SyntaxValue, *, scope: model.Scope | None = None) -> model.Unit:
     if isinstance(value, model.UnitLiteral):
         return model.Unit()
     raise model.ProgramError(value, f'Invalid unit value {value!r}')
 
 
-def _parse_boolean(self: types.TypeBoolean, value: model.ast.Value, *, scope: model.Scope | None = None) -> bool:
+def _parse_boolean(self: types.TypeBoolean, value: model.SyntaxValue, *, scope: model.Scope | None = None) -> bool:
     if isinstance(value, model.Reference) and value.length == 1:
         s = value.identifiers[0].id_str
         if s == 'false':
@@ -141,7 +141,7 @@ def _parse_boolean(self: types.TypeBoolean, value: model.ast.Value, *, scope: mo
     raise model.ProgramError(value, f'Invalid boolean value {value!r}')
 
 
-def _parse_int(self: types.TypeInt, value: model.ast.Value, *, scope: model.Scope | None = None) -> int:
+def _parse_int(self: types.TypeInt, value: model.SyntaxValue, *, scope: model.Scope | None = None) -> int:
     if isinstance(value, model.IntNumber):
         i = value.value
         if i < self.min_value or i > self.max_value:
@@ -150,18 +150,18 @@ def _parse_int(self: types.TypeInt, value: model.ast.Value, *, scope: model.Scop
     raise model.ProgramError(value, f'Invalid int value {value!r}')
 
 
-def _parse_value_type(self: types.TypeValueType, value: model.ast.Value, *,
+def _parse_value_type(self: types.TypeValueType, value: model.SyntaxValue, *,
                       scope: model.Scope | None = None) -> NoReturn:
     raise Exception('TODO: TypeValueType.parse_value()')
 
 
-def _parse_string(self: types.TypeString, value: model.ast.Value, *, scope: model.Scope | None = None) -> str:
+def _parse_string(self: types.TypeString, value: model.SyntaxValue, *, scope: model.Scope | None = None) -> str:
     if isinstance(value, model.StringConstant):
         return value.value
     raise model.ProgramError(value, f'Invalid string value {value!r}')
 
 
-def _parse_enum(self: types.TypeEnum, expr: model.ast.Value, *, scope: model.Scope | None = None) -> Any:
+def _parse_enum(self: types.TypeEnum, expr: model.SyntaxValue, *, scope: model.Scope | None = None) -> Any:
     if not isinstance(expr, model.Reference) or expr.length < 2:
         raise model.ProgramError(expr, f'Expected enum literal `{self.name}.Member`')
     type_name = '.'.join(identifier.id_str for identifier in expr.identifiers[:-1])
@@ -182,7 +182,7 @@ def _parse_enum(self: types.TypeEnum, expr: model.ast.Value, *, scope: model.Sco
         raise model.ProgramError(expr, str(error)) from None
 
 
-def _parse_opaque(self: types.TypeStruct, expr: model.ast.Value, scope: model.Scope | None) -> Any:
+def _parse_opaque(self: types.TypeStruct, expr: model.SyntaxValue, scope: model.Scope | None) -> Any:
     """Parse a string literal with the implementation of an opaque struct."""
     if isinstance(expr, model.StructLiteral):
         raise model.ProgramError(expr, f'Expected `{self}`, got struct literal')
@@ -200,12 +200,12 @@ def _parse_opaque(self: types.TypeStruct, expr: model.ast.Value, scope: model.Sc
     raise model.ProgramError(expr, f'Invalid `{self}` value {expr!r}')
 
 
-def _parse_struct(self: types.TypeStruct, value: model.ast.Value, *, scope: model.Scope | None = None) -> Any:
+def _parse_struct(self: types.TypeStruct, value: model.SyntaxValue, *, scope: model.Scope | None = None) -> Any:
     if self.is_opaque:
         return _parse_opaque(self, value, scope)
     if not isinstance(value, model.StructLiteral):
         raise model.ProgramError(value, f'Expected struct literal `{self.name} {{ ... }}`')
-    fields = model.ast.check_struct_literal(self, value, scope)
+    fields = model.check_struct_literal(self, value, scope)
     return self.make_value({name: parse_value(self.fields[name], field.value, scope=scope)
                             for name, field in fields.items()})
 
@@ -223,7 +223,7 @@ _literal_parsers: dict[type, Callable[..., Any]] = {
 }
 
 
-def parse_value(value_type: Type, value: model.ast.Value, *, scope: model.Scope | None = None) -> Any:
+def parse_value(value_type: Type, value: model.SyntaxValue, *, scope: model.Scope | None = None) -> Any:
     if isinstance(value_type, types.TypeResource):
         raise model.ProgramError(value, 'Resources cannot be compile-time values')
     parser = _literal_parsers[type(value_type)]

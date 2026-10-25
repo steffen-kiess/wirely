@@ -37,7 +37,7 @@ class DeclarationNativeFunction(Declaration):
 
     def collect_declarations(self, graph: Any) -> None:
         from ..native_functions import validate_entry
-        if not isinstance(graph, model.ast.Namespace) and graph.name is not None:
+        if not isinstance(graph, model.Namespace) and graph.name is not None:
             raise ProgramError(self, 'Native functions are only allowed at root or in namespaces')
         function = CompiledFunction(self, graph)
         if function.function_name == 'Some':

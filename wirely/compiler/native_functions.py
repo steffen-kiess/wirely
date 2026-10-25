@@ -22,7 +22,7 @@ class FunctionServices:
 
     __slots__ = ('_function_name', '_services', '_call', '_arguments', '_warnings', 'native_types')
 
-    def __init__(self, *, function_name: str, services: Mapping[str, object], call: model.ast.SourceElement,
+    def __init__(self, *, function_name: str, services: Mapping[str, object], call: model.SourceElement,
                  arguments: Sequence[object], warnings: WarningSink, native_types: NativeTypes) -> None:
         self.native_types = native_types
         self._function_name = function_name
@@ -46,13 +46,13 @@ class FunctionServices:
         """The path of the file containing the call, if it is a file."""
         return self._call.source_position.source_path
 
-    def _source(self, argument: int | None) -> model.ast.SourceElement:
+    def _source(self, argument: int | None) -> model.SourceElement:
         if argument is None:
             return self._call
         if type(argument) is not int or not 0 <= argument < len(self._arguments):
             raise ValueError(f'Invalid function argument index {argument!r}')
         source = self._arguments[argument]
-        assert isinstance(source, model.ast.SourceElement)
+        assert isinstance(source, model.SourceElement)
         return source
 
     def error(self, message: str, *, argument: int | None = None) -> model.ProgramError:
@@ -183,7 +183,7 @@ def validate_native_names(declarations: Iterable[model.Declaration]) -> None:
 
 
 def resolve_implementation(function: model.CompiledFunction,
-                           call: model.ast.SourceElement) -> ConstantFunctionImplementation:
+                           call: model.SourceElement) -> ConstantFunctionImplementation:
     if function.constant_implementation is not None:
         return function.constant_implementation
     try:
@@ -200,7 +200,7 @@ def resolve_implementation(function: model.CompiledFunction,
 
 
 def invoke(function: model.CompiledFunction, values: Sequence[object], sources: Sequence[object],
-           call: model.ast.SourceElement) -> object:
+           call: model.SourceElement) -> object:
     from wirely.runtime.value_types import from_native, to_native
 
     native_types = function.scope.coordinator.global_node_type.native_extension.native_types
@@ -228,7 +228,7 @@ def invoke(function: model.CompiledFunction, values: Sequence[object], sources: 
                                  f'{error}') from error
 
 
-def runtime_implementation(function: model.CompiledFunction, call: model.ast.SourceElement) -> Callable[..., object]:
+def runtime_implementation(function: model.CompiledFunction, call: model.SourceElement) -> Callable[..., object]:
     if function.runtime_implementation is None:
         from wirely.runtime.linking import bind_native_function
         try:
@@ -241,7 +241,7 @@ def runtime_implementation(function: model.CompiledFunction, call: model.ast.Sou
 
 
 def invoke_runtime_function(function: model.CompiledFunction, values: Sequence[object],
-                            call: model.ast.SourceElement) -> object:
+                            call: model.SourceElement) -> object:
     """Evaluate a runtime-callable native function during compilation."""
     name = function.function_name
     implementation = runtime_implementation(function, call)
@@ -251,4 +251,4 @@ def invoke_runtime_function(function: model.CompiledFunction, values: Sequence[o
         # Runtime functions must not fail, so an exception is a library error.
         inner = RuntimeError(f'Internal error in function `{name}`: {type(error).__name__}: {error}')
         inner.__cause__ = error
-        raise model.ast.InternalCompilerError(call, inner) from error
+        raise model.InternalCompilerError(call, inner) from error

@@ -11,7 +11,8 @@ if TYPE_CHECKING:
     from .parameters import StaticValue
 
 from . import model
-from .ast import SourcePosition, SourceElement, SyntaxElement, ProgramError, Value as AstValue, check_struct_literal
+from .ast.base import SourcePosition, SourceElement, SyntaxElement, ProgramError, Value as AstValue
+from .ast.values import check_struct_literal
 from .types import resolve_type, check_runtime_type
 from .operators import OperatorType, SYMBOLS, operator_function
 from .value import Value, ConstantValue, InputLengthValue, check_value_type

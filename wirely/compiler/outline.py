@@ -19,7 +19,21 @@ import functools
 from dataclasses import dataclass, field
 from typing import Any, TypeAlias, TypeVar, cast, overload
 
-from . import ast
+from .ast.specifiers import (
+    ConnectionKind,
+    PortDirection,
+    PortTypeSpecification,
+    PortTypeSpecificationData,
+    PortTypeSpecificationFixed,
+)
+from .ast.base import Declaration, ProgramError, SourceElement
+from .ast.nodes import DeclarationBinding, DeclarationConnection, DeclarationInstance, DeclarationState
+from .ast.parameter_declarations import DeclarationConstant, DeclarationParameter
+from .ast.library import DeclarationLibrary
+from .ast.procedures import DeclarationLoadAssertion, DeclarationProcedure, ReferencePort, TypedPort
+from .ast.node_types import DeclarationNodeType
+from .ast.ports import DeclarationPort
+from .ast.values import Reference
 from .ast.procedures import Port as AstPort
 from . import attributes as _attributes
 from .diagnostics import Diagnostic
@@ -110,7 +124,7 @@ class PortInfo:
     kind: str
     is_list: bool
     type_text: str
-    _declaration: ast.DeclarationPort | None = field(default=None, compare=False, repr=False)
+    _declaration: DeclarationPort | None = field(default=None, compare=False, repr=False)
 
 
 @dataclass(frozen=True)
@@ -134,7 +148,7 @@ class NodeInfo:
     # None if the type is not declared in the sources.
     node_type: NodeType | None
     ports: tuple[PortInfo, ...] | None
-    _declaration: ast.DeclarationInstance | None = field(default=None, compare=False, repr=False)
+    _declaration: DeclarationInstance | None = field(default=None, compare=False, repr=False)
 
 
 @dataclass(frozen=True)
@@ -147,7 +161,7 @@ class StateInfo:
     name: str
     type_text: str
     initial_text: str
-    _declaration: ast.DeclarationState | None = field(default=None, compare=False, repr=False)
+    _declaration: DeclarationState | None = field(default=None, compare=False, repr=False)
 
 
 @dataclass(frozen=True)
@@ -160,7 +174,7 @@ class BindingInfo:
     name: str
     type_text: str
     kind: str
-    _declaration: ast.DeclarationBinding | None = field(default=None, compare=False, repr=False)
+    _declaration: DeclarationBinding | None = field(default=None, compare=False, repr=False)
 
 
 @dataclass(frozen=True)
@@ -173,7 +187,7 @@ class ConstantInfo:
     name: str
     type_text: str
     value_text: str
-    _declaration: ast.DeclarationConstant | None = field(default=None, compare=False, repr=False)
+    _declaration: DeclarationConstant | None = field(default=None, compare=False, repr=False)
 
 
 @dataclass(frozen=True)
@@ -187,7 +201,7 @@ class ParameterInfo:
     type_text: str
     default_text: str | None
     is_optional: bool
-    _declaration: ast.DeclarationParameter | None = field(default=None, compare=False, repr=False)
+    _declaration: DeclarationParameter | None = field(default=None, compare=False, repr=False)
 
 
 @dataclass(frozen=True)
@@ -217,7 +231,7 @@ class ProcedureInfo:
     stage: str
     inputs: tuple[ProcedurePortInfo, ...]
     outputs: tuple[ProcedurePortInfo, ...]
-    _declaration: ast.DeclarationProcedure | None = field(default=None, compare=False, repr=False)
+    _declaration: DeclarationProcedure | None = field(default=None, compare=False, repr=False)
 
 
 @dataclass(frozen=True)
@@ -241,8 +255,8 @@ class Edge:
     source_span: tuple[int, int] | None
     target_span: tuple[int, int] | None
     attributes: tuple
-    _declaration: ast.DeclarationConnection | ast.ReferencePort | None = field(default=None, compare=False, repr=False)
-    _source: ast.Reference | None = field(default=None, compare=False, repr=False)
+    _declaration: DeclarationConnection | ReferencePort | None = field(default=None, compare=False, repr=False)
+    _source: Reference | None = field(default=None, compare=False, repr=False)
 
 
 @dataclass(frozen=True)
@@ -278,7 +292,7 @@ class NodeTypeInfo:
     has_initializer: bool
     is_singleton: bool
     scope: Scope
-    _declaration: ast.DeclarationNodeType | None = field(default=None, compare=False, repr=False)
+    _declaration: DeclarationNodeType | None = field(default=None, compare=False, repr=False)
 
     @property
     def ports(self) -> tuple[PortInfo, ...]:
@@ -292,7 +306,7 @@ class NodeTypeInfo:
 DeclarationRecord: TypeAlias = NodeInfo | NodeTypeInfo | StateInfo | BindingInfo | ConstantInfo | ParameterInfo | PortInfo | ProcedureInfo
 Record: TypeAlias = DeclarationRecord | ProcedurePortInfo | Edge
 RecordT = TypeVar('RecordT')
-Block: TypeAlias = _attributes.ParsedFile | ast.DeclarationNodeType | ast.DeclarationLibrary
+Block: TypeAlias = _attributes.ParsedFile | DeclarationNodeType | DeclarationLibrary
 
 
 @dataclass(frozen=True)
@@ -436,19 +450,19 @@ class _Builder:
         self.kind = kind
         self.path = path
         self.parent = parent
-        self.items: list[ast.Declaration] = []
+        self.items: list[Declaration] = []
         self.namespaces: dict[str, _Builder] = {}
-        self.node_types: list[tuple[ast.DeclarationNodeType, _Builder]] = []
+        self.node_types: list[tuple[DeclarationNodeType, _Builder]] = []
         self.blocks: list[tuple[str, Block]] = []
         self.port_records: tuple[PortInfo, ...] | None = None
         self.name_table: dict[str, dict[str, ElementId]] | None = None
 
 
-def _collect(builder: _Builder, declarations: Iterable[ast.Declaration]) -> None:
+def _collect(builder: _Builder, declarations: Iterable[Declaration]) -> None:
     for item in declarations:
-        if isinstance(item, ast.DeclarationLoadAssertion):
+        if isinstance(item, DeclarationLoadAssertion):
             continue
-        if isinstance(item, ast.DeclarationLibrary):
+        if isinstance(item, DeclarationLibrary):
             name = item.name.id_str
             child = builder.namespaces.get(name)
             if child is None:
@@ -457,7 +471,7 @@ def _collect(builder: _Builder, declarations: Iterable[ast.Declaration]) -> None
             if not item.dotted:
                 child.blocks.append((_filename(item), item))
             _collect(child, item.declarations)
-        elif isinstance(item, ast.DeclarationNodeType):
+        elif isinstance(item, DeclarationNodeType):
             assert item.name is not None
             child = _Builder('node_type', builder.path + (item.name.id_str,), builder)
             child.blocks.append((_filename(item), item))
@@ -467,23 +481,23 @@ def _collect(builder: _Builder, declarations: Iterable[ast.Declaration]) -> None
             builder.items.append(item)
 
 
-def _text(element: ast.SourceElement) -> str:
+def _text(element: SourceElement) -> str:
     position = element.source_position
     assert position.meta is not None
     return position.input_data[position.meta.start_pos:position.meta.end_pos]
 
 
-def _span(element: ast.SourceElement) -> tuple[int,int]:
+def _span(element: SourceElement) -> tuple[int,int]:
     meta = element.source_position.meta
     assert meta is not None
     return (meta.start_pos, meta.end_pos)
 
 
-def _filename(element: ast.SourceElement) -> str:
+def _filename(element: SourceElement) -> str:
     return cast(str, element.source_position.filename)
 
 
-def _reference_text(reference: ast.Reference) -> str:
+def _reference_text(reference: Reference) -> str:
     return '.'.join(identifier.id_str for identifier in reference.identifiers)
 
 
@@ -493,7 +507,7 @@ def attribute_value(attributes: Iterable[_attributes.Attribute], name: str) -> A
         if attribute.name == name:
             try:
                 return _attributes.ATTRIBUTE_REGISTRY[name].validate(attribute)
-            except ast.ProgramError:
+            except ProgramError:
                 return None
     return None
 
@@ -502,15 +516,15 @@ def _position(attributes: Iterable[_attributes.Attribute]) -> tuple | None:
     return attribute_value(attributes, 'Diagram.Position')
 
 
-def _direction(direction: ast.PortDirection) -> str:
-    return 'input' if direction == ast.PortDirection.Input else 'output'
+def _direction(direction: PortDirection) -> str:
+    return 'input' if direction == PortDirection.Input else 'output'
 
 
-def _port_kind(spec: ast.PortTypeSpecification) -> str:
-    if isinstance(spec, ast.PortTypeSpecificationFixed):
+def _port_kind(spec: PortTypeSpecification) -> str:
+    if isinstance(spec, PortTypeSpecificationFixed):
         return 'fixed'
-    assert isinstance(spec, ast.PortTypeSpecificationData)
-    return 'value' if spec.kind_spec.kind == ast.ConnectionKind.Value else 'event'
+    assert isinstance(spec, PortTypeSpecificationData)
+    return 'value' if spec.kind_spec.kind == ConnectionKind.Value else 'event'
 
 
 def _ports(builder: _Builder) -> tuple[PortInfo, ...]:
@@ -521,7 +535,7 @@ def _ports(builder: _Builder) -> tuple[PortInfo, ...]:
                      _position(item.outer_attributes), _direction(item.direction),
                      None if item.name is None else item.name_str, _port_kind(item.port_spec),
                      item.port_spec.list_spec.is_list, _text(item.port_spec.ty), item)
-            for item in builder.items if isinstance(item, ast.DeclarationPort))
+            for item in builder.items if isinstance(item, DeclarationPort))
     return builder.port_records
 
 
@@ -531,26 +545,26 @@ def _names(builder: _Builder) -> dict[str, dict[str, ElementId]]:
         table: dict[str, dict[str, ElementId]] = {key: {} for key in ('static', 'input', 'output', 'state', 'binding', 'procedure',
                                      'node')}
         for item in builder.items:
-            if isinstance(item, ast.DeclarationConstant):
+            if isinstance(item, DeclarationConstant):
                 table['static'][item.name.id_str] = Constant(builder.path + (item.name.id_str,))
-            elif isinstance(item, ast.DeclarationParameter):
+            elif isinstance(item, DeclarationParameter):
                 table['static'][item.name.id_str] = Parameter(builder.path + (item.name.id_str,))
-            elif isinstance(item, ast.DeclarationPort):
+            elif isinstance(item, DeclarationPort):
                 direction = _direction(item.direction)
                 table[direction][item.name_str] = Port(builder.path + (item.name_str,), direction)
-            elif isinstance(item, ast.DeclarationState):
+            elif isinstance(item, DeclarationState):
                 table['state'][item.name_str] = State(builder.path + (item.name_str,))
-            elif isinstance(item, ast.DeclarationBinding):
+            elif isinstance(item, DeclarationBinding):
                 table['binding'][item.name_str] = Binding(builder.path + (item.name_str,))
-            elif isinstance(item, ast.DeclarationProcedure):
+            elif isinstance(item, DeclarationProcedure):
                 table['procedure'][item.name.id_str] = Procedure(builder.path + (item.name.id_str,))
-            elif isinstance(item, ast.DeclarationInstance):
+            elif isinstance(item, DeclarationInstance):
                 table['node'][item.name.id_str] = Node(builder.path + (item.name.id_str,))
         builder.name_table = table
     return builder.name_table
 
 
-def _resolve_node_type(builder: _Builder, reference: ast.Reference) -> _Builder | None:
+def _resolve_node_type(builder: _Builder, reference: Reference) -> _Builder | None:
     """Return the builder of the referenced node type, like Scope.resolve_node_type."""
     names = [identifier.id_str for identifier in reference.identifiers]
     scope: _Builder | None = builder
@@ -573,7 +587,7 @@ def _resolve_node_type(builder: _Builder, reference: ast.Reference) -> _Builder 
     return None
 
 
-def _resolve_endpoint(builder: _Builder, reference: ast.Reference, is_target: bool) -> Endpoint:
+def _resolve_endpoint(builder: _Builder, reference: Reference, is_target: bool) -> Endpoint:
     """Resolve a connection end like ResolvedPortReference, within one scope."""
     text = _reference_text(reference)
     if reference.length > 2:
@@ -597,25 +611,25 @@ def _resolve_endpoint(builder: _Builder, reference: ast.Reference, is_target: bo
 def _port_key(port: AstPort) -> str | None:
     try:
         return port.key
-    except ast.ProgramError:
+    except ProgramError:
         return None
 
 
 def _procedure_port(procedure_id: Procedure, port: AstPort, direction: str) -> ProcedurePortInfo:
     common = (ProcedurePort(procedure_id, _port_key(port), direction), _filename(port), _span(port),
               _port_key(port), direction)
-    if isinstance(port, ast.TypedPort):
+    if isinstance(port, TypedPort):
         spec = port.port_spec
         return ProcedurePortInfo(*common, None, _port_kind(spec), spec.list_spec.is_list, _text(spec.ty))
-    assert isinstance(port, ast.ReferencePort)
+    assert isinstance(port, ReferencePort)
     return ProcedurePortInfo(*common, _text(port.reference), None, False, None)
 
 
-def _record(builder: _Builder, item: ast.Declaration) -> Record | None:
+def _record(builder: _Builder, item: Declaration) -> Record | None:
     path = builder.path
     attributes = item.outer_attributes
     common = (_filename(item), _span(item))
-    if isinstance(item, ast.DeclarationInstance):
+    if isinstance(item, DeclarationInstance):
         instantiation = item.instantiation
         attributes = item.outer_attributes + instantiation.inner_attributes
         node_type = _resolve_node_type(builder, instantiation.type_name)
@@ -626,24 +640,24 @@ def _record(builder: _Builder, item: ast.Declaration) -> Record | None:
                         item.name.id_str, _text(instantiation.type_name), parameters,
                         None if node_type is None else NodeType(node_type.path),
                         None if node_type is None else _ports(node_type), item)
-    if isinstance(item, ast.DeclarationState):
+    if isinstance(item, DeclarationState):
         return StateInfo(State(path + (item.name_str,)), *common, attributes, _position(attributes),
                          item.name_str, _text(item.var_type), _text(item.initial_value), item)
-    if isinstance(item, ast.DeclarationBinding):
+    if isinstance(item, DeclarationBinding):
         return BindingInfo(Binding(path + (item.name_str,)), *common, attributes,
                            _position(attributes), item.name_str, _text(item.port_spec.ty),
                            _port_kind(item.port_spec), item)
-    if isinstance(item, ast.DeclarationConstant):
+    if isinstance(item, DeclarationConstant):
         assert item.default_value is not None
         return ConstantInfo(Constant(path + (item.name.id_str,)), *common, attributes,
                             _position(attributes), item.name.id_str, _text(item.ty),
                             _text(item.default_value), item)
-    if isinstance(item, ast.DeclarationParameter):
+    if isinstance(item, DeclarationParameter):
         default = None if item.default_value is None else _text(item.default_value)
         return ParameterInfo(Parameter(path + (item.name.id_str,)), *common, attributes,
                              _position(attributes), item.name.id_str, _text(item.ty), default,
                              item.is_optional, item)
-    if isinstance(item, ast.DeclarationProcedure):
+    if isinstance(item, DeclarationProcedure):
         procedure_id = Procedure(path + (item.name.id_str,))
         return ProcedureInfo(
             procedure_id, *common, attributes, _position(attributes), item.name.id_str,
@@ -654,7 +668,7 @@ def _record(builder: _Builder, item: ast.Declaration) -> Record | None:
     return None
 
 
-def _read_ports(item: ast.DeclarationProcedure) -> list[AstPort]:
+def _read_ports(item: DeclarationProcedure) -> list[AstPort]:
     """Return the ports of a reads clause, without compile-time expressions."""
     return [entry for entry in item.reads.entries if isinstance(entry, AstPort)]
 
@@ -665,23 +679,23 @@ def _procedure_endpoint(procedure_id: Procedure, port: AstPort) -> Endpoint:
     return Endpoint(name if key is None else f'{name}.{key}', procedure_id, key)
 
 
-def _edges(builder: _Builder, item: ast.Declaration) -> Iterator[Edge]:
-    if isinstance(item, ast.DeclarationConnection):
+def _edges(builder: _Builder, item: Declaration) -> Iterator[Edge]:
+    if isinstance(item, DeclarationConnection):
         target = _resolve_endpoint(builder, item.target, True)
         for source in item.sources:
             connection = Connection(builder.path, _reference_text(source), target.text)
             yield Edge('connect', connection, _resolve_endpoint(builder, source, False), target,
                        _filename(item), _span(item), _span(source), _span(item.target),
                        item.outer_attributes + source.outer_attributes, item, source)
-    elif isinstance(item, ast.DeclarationProcedure):
+    elif isinstance(item, DeclarationProcedure):
         procedure_id = Procedure(builder.path + (item.name.id_str,))
         for port in _read_ports(item):
-            if isinstance(port, ast.ReferencePort):
+            if isinstance(port, ReferencePort):
                 endpoint = _procedure_endpoint(procedure_id, port)
                 yield Edge('reference', None, _resolve_endpoint(builder, port.reference, False),
                            endpoint, _filename(port), _span(port), _span(port.reference), None, (), port)
         for port in item.writes.outputs:
-            if isinstance(port, ast.ReferencePort):
+            if isinstance(port, ReferencePort):
                 endpoint = _procedure_endpoint(procedure_id, port)
                 yield Edge('reference', None, endpoint,
                            _resolve_endpoint(builder, port.reference, True),

@@ -67,7 +67,7 @@ class Connection:
     source: object
     target: object
     attributes: tuple
-    source_element: 'model.ast.SourceElement'
+    source_element: 'model.SourceElement'
     kind: str
 
 
@@ -236,7 +236,7 @@ class InstanceLocalResource:
 
 class StateNode(GraphElement):
     def __init__(self, graph: 'model.NodeType', type: 'model.types.Type', *, name: str,
-                 initial_value: 'model.ast.Value') -> None:
+                 initial_value: 'model.SyntaxValue') -> None:
         super().__init__(graph, name=name)
         self.var_type = type
 
