@@ -405,10 +405,12 @@ a struct's `Fields` range. Runtime field offsets follow the
 const-only field offsets follow
 [ProgramData](#programdata).
 
-Types are equal exactly when their indices are equal. Producers intern
-structurally equal types; enums, structs, and resource types have one entry
-per declaration. Inner, underlying, and field types occur before the types
-using them, making size calculation possible in one forward pass.
+Types are equal exactly when their indices are equal. Enums, structs, and
+resource types have one entry per declaration. Since verified files never
+mix two entries where one type is required, readers may treat structurally
+equal entries of other types as the same type. Inner, underlying, and field
+types occur before the types using them, making size calculation possible
+in one forward pass.
 
 A resource is a handle to a native object, such as a KNX connection. It
 has storage size zero and alignment 1; the runtime keeps the native object
@@ -1395,6 +1397,8 @@ Verifiers do not check these rules:
 
 - Sections do not overlap each other, the header, or the directory.
 - Buffers place variables in decreasing type alignment.
+- Structurally equal types other than enums, structs, and resource types
+  have one entry.
 - The JSON names and the member symbols of one type are distinct.
 - Variable, procedure, and present type symbols are distinct within their
   table.
