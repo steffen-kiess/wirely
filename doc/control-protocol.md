@@ -82,8 +82,9 @@ The session has a 32-bit request counter. It is 0 for `Hello` and goes up
 by one with each new request. `Seq` holds its low 8 bits.
 
 The client may have as many requests outstanding as the runtime's window,
-which `Hello` reports. The runtime handles requests in order and responds
-in order.
+which `Hello` reports. Windows are at most 256, so the `Seq` values of
+outstanding requests are distinct. The runtime handles requests in order
+and responds in order.
 
 On transports that can lose messages, the window is 1. If a client gets no
 response before its timeout, it sends the identical request again. The
@@ -195,8 +196,8 @@ contains only the keys that changed since the last acknowledged
 notification, or since the subscribing response. `null` means that a key
 no longer has a value.
 
-Notifications have their own counter, which goes up by one with each
-notification; `Seq` holds its low 8 bits. They do not count against the
+Notifications have their own 32-bit counter, which goes up by one with
+each notification; `Seq` holds its low 8 bits. They do not count against the
 window and are not ordered with responses.
 
 The client acknowledges each notification with `Kind` 4 and the
@@ -406,11 +407,13 @@ HMAC-SHA256(key, direction || client nonce || runtime nonce
                  || counter || header || body)
 ```
 
-`direction` is one byte: 0 for requests, 1 for responses and errors.
-Tags for notifications and acknowledgements are not specified yet.
-`counter` is the request counter as a little-endian `uint32`. Responses use
-the counter of their request. Receivers discard messages with invalid tags,
-and the runtime answers them with `Unauthenticated` without a tag.
+`direction` is one byte: 0 for requests, 1 for responses and errors, 2 for
+notifications, and 3 for acknowledgements. `counter` is a little-endian
+`uint32`: the request counter for requests, the counter of their request
+for responses and errors, the notification counter for notifications, and
+the counter of their notification for acknowledgements. Receivers discard
+messages with invalid tags, and the runtime answers them with
+`Unauthenticated` without a tag.
 
 Tags protect against modified, forged, and replayed messages, but the
 protocol does not encrypt messages. Use TLS where state values are
@@ -442,7 +445,24 @@ their timeout. Sessions should use message limits of about 256 bytes.
 
 ### KNX
 
-The KNX transport will be specified later.
+The KNX transport will be specified later. Working notes, not final:
+
+- Messages are sent connectionless to the runtime's individual address.
+  Group addresses would reach every device on the line, and the
+  connection-oriented mode adds an acknowledgement frame per frame, while
+  this protocol already sequences and retransmits messages.
+- Messages that do not fit into one frame are split into fragments, since
+  KNX does not split long messages and a standard TP1 frame carries only
+  about 14 bytes. Each fragment starts with one byte: a "last fragment"
+  bit and a 7-bit index. Index 0 starts a new message; `Seq` already
+  detects outdated messages, so fragments need no message number.
+- A CRC over the reassembled message detects corruption, since the frame
+  checksum is weak, and fragments of different messages that got mixed.
+  Single-frame messages might omit it, because the CRC alone can push a
+  small message into a second frame.
+- Extended frames, where the installation supports them, reduce the
+  number of fragments. On TP1, each frame costs about 20 ms beyond its
+  data.
 
 ## Local sockets
 
