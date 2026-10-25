@@ -59,6 +59,12 @@ added sentence for practical value to the intended reader.
 Read the [test guide](doc/tests.md) for test structure, authoring conventions,
 and execution commands.
 
+Add slow tests only when they provide substantial, distinct coverage that
+cannot be obtained with a cheaper test. Keep fixtures small and avoid
+repeated compilation, large datasets, or subprocess startup unless needed
+to test the behavior. If the coverage does not justify the runtime cost,
+do not add the test.
+
 Additions or substantive changes to `tests/wrl/` or `tests/misc/` require careful
 review to preserve coverage; routine import or path adjustments are exceptions.
 
