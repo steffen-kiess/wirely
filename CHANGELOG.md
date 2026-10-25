@@ -2,6 +2,29 @@
 
 ## 0.1.5 (Unreleased)
 
+### Breaking changes and migration
+
+#### Procedure clauses
+
+Replace `depends on` with `reads` and `produces` with `writes`. In native
+procedures and initializers, move `uses` values into `reads` and give
+expressions other than names an alias. `writes` is a reserved word.
+
+```wirely
+native initializer create
+  reads Host, optional(Port) as Port
+  writes default output as "device";
+```
+
+#### Native node types
+
+Replace `native node type` with `node type`, and name initializers, as in
+`native initializer create`.
+
+#### Fixed ports
+
+Replace the port kind `resource T` with `fixed T`.
+
 ## 0.1.4 - 2026-10-24
 
 ### Breaking changes and migration
