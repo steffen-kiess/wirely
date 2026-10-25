@@ -1,7 +1,8 @@
 from typing import Any
 
 import wirely
-from wirely import DynamicValue, Some, ValueType
+from wirely import Some
+from wirely.runtime.value_types import DynamicValue, ValueType
 from wirely.generated import timer as contracts
 from wirely.program.program import RunStage
 from wirely.runtime.native_api import PreparationServices, ProcedureServices

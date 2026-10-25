@@ -2,7 +2,8 @@
 
 from typing import Any
 
-from wirely import UInt16, ValueType
+from wirely import UInt16
+from wirely.runtime.value_types import ValueType
 from wirely.knx.address import parse_group_address as parse_address
 from wirely.knx.value_types import VALUE_TYPES, get_value_type
 

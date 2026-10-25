@@ -3,7 +3,9 @@ from unittest import TestCase
 from unittest.mock import patch
 
 from wirely.program.limits import is_runtime_type
-from wirely.runtime.extensions import NativeTypes
+from wirely.runtime import value_types
+from wirely.runtime.extensions import NativeEnum, NativeStruct, NativeTypes
+from wirely.types.open_enum import OpenIntEnum
 from wirely.generated import extension as builtin_extension
 import wirely
 from tests.infra.support import internal, library_type
@@ -13,7 +15,7 @@ checks = TestCase()
 
 
 def check_parsing_and_conversions():
-    boolean = wirely.value_types.boolean
+    boolean = value_types.boolean
     for text, expected in [('0', False), ('false', False), ('tRUE', True)]:
         assert boolean.parse(text, native_types=builtin_extension.native_types).extract(boolean, native_types=builtin_extension.native_types) is expected
     for value in (False, True):
@@ -25,7 +27,7 @@ def check_parsing_and_conversions():
 
     for signed in (False, True):
         for bits in (8, 16, 32, 64, 128):
-            descriptor = getattr(wirely.value_types, ('int' if signed else 'uint') + str(bits))
+            descriptor = getattr(value_types, ('int' if signed else 'uint') + str(bits))
             integer = wirely.types.integers.integer_class(bits, signed)
             minimum = -(2 ** (bits - 1)) if signed else 0
             maximum = 2 ** (bits - (1 if signed else 0)) - 1
@@ -46,25 +48,25 @@ def check_parsing_and_conversions():
                 for check in (internal.verify_value, descriptor.json_decode):
                     with checks.assertRaises(ValueError):
                         check(value)
-    integer = wirely.value_types.uint16
+    integer = value_types.uint16
     for operation in (lambda: integer.json_decode('invalid'),
                       lambda: integer.from_native(wirely.UInt16(42), native_types=builtin_extension.native_types).json_encode('invalid'),
                       lambda: integer.json_decode(42, 'invalid')):
         with checks.assertRaises(ValueError):
             operation()
-    string = wirely.value_types.string
+    string = value_types.string
     assert string.json_decode('hello').extract(string, native_types=builtin_extension.native_types) == 'hello'
     assert string.from_native('hello', native_types=builtin_extension.native_types).json_encode() == 'hello'
-    time_of_day = wirely.ValueType(library_type('Schedule.TimeOfDay'))
+    time_of_day = value_types.ValueType(library_type('Schedule.TimeOfDay'))
     assert time_of_day.parse('11:17', native_types=builtin_extension.native_types).extract(time_of_day, native_types=builtin_extension.native_types) == wirely.TimeOfDay.from_parts(11, 17)
     # Fractions round to the nearest 2**-64 s; times before 24:00 stay before it.
     last = wirely.TimeOfDay(ticks=wirely.TimeOfDay.END_TICKS - 1)
     assert wirely.TimeOfDay.parse('23:59:59.99999999999999999999') == last
     assert str(last) == '23:59:59.99999999999999999995'
     assert wirely.TimeOfDay.parse('00:00:01.1') == wirely.TimeOfDay.from_parts(0, 0, 1, 1_844_674_407_370_955_162)
-    assert wirely.value_types.unit.parse('()', native_types=builtin_extension.native_types).extract(wirely.value_types.unit, native_types=builtin_extension.native_types) == wirely.Unit()
-    duration = wirely.ValueType(library_type('Std.Duration'))
-    for descriptor, text in [(wirely.value_types.unit, '0'),
+    assert value_types.unit.parse('()', native_types=builtin_extension.native_types).extract(value_types.unit, native_types=builtin_extension.native_types) == wirely.Unit()
+    duration = value_types.ValueType(library_type('Std.Duration'))
+    for descriptor, text in [(value_types.unit, '0'),
                              (time_of_day, '123'),
                              (duration, 'x'),
                              (duration, 'P')]:
@@ -75,7 +77,7 @@ def check_parsing_and_conversions():
         with checks.assertRaises(ValueError):
             value_type.parse(text)
 
-    descriptor = wirely.ValueType(wirely.program.types.TypeEnum(
+    descriptor = value_types.ValueType(wirely.program.types.TypeEnum(
         'Mode', {'Cool': 3, 'EmergencyHeat': 5}, is_open=True, underlying_type=wirely.program.types.uint8,
     ))
     cool = descriptor.parse('Cool', native_types=builtin_extension.native_types)
@@ -91,11 +93,11 @@ def check_parsing_and_conversions():
 def check_enum_values():
     # Enum values are member numbers; values of another enum type with the same numbers differ.
     mode_type = wirely.program.types.TypeEnum('Mode', {'Cool': 3, 'Heat': 4}, is_open=True, underlying_type=wirely.program.types.uint8)
-    descriptor = wirely.ValueType(mode_type)
+    descriptor = value_types.ValueType(mode_type)
     cool = descriptor.parse('Cool', native_types=builtin_extension.native_types)
     assert cool == descriptor.json_decode('Cool') and hash(cool) == hash(descriptor.json_decode('Cool'))
     assert cool != descriptor.parse('Heat', native_types=builtin_extension.native_types)
-    other = wirely.ValueType(wirely.program.types.TypeEnum(
+    other = value_types.ValueType(wirely.program.types.TypeEnum(
         'Mode', {'Cool': 3, 'Heat': 4}, is_open=True, underlying_type=wirely.program.types.uint8,
     ))
     assert cool != other.parse('Cool', native_types=builtin_extension.native_types)
@@ -106,12 +108,12 @@ def check_enum_values():
             invalid()
 
     # The Python enum registered under a native enum's native name is the native representation.
-    class Mode(wirely.value_types.OpenIntEnum, minimum=0, maximum=255):
+    class Mode(OpenIntEnum, minimum=0, maximum=255):
         Cool = 3
         Heat = 4
 
-    registry = {'Native.Mode': wirely.value_types.NativeEnum(Mode, is_open=True, underlying_type='uint8')}
-    native = wirely.ValueType(wirely.program.types.TypeEnum('Example.Mode', {'Cool': 3, 'Heat': 4}, is_open=True,
+    registry = {'Native.Mode': NativeEnum(Mode, is_open=True, underlying_type='uint8')}
+    native = value_types.ValueType(wirely.program.types.TypeEnum('Example.Mode', {'Cool': 3, 'Heat': 4}, is_open=True,
                                                     underlying_type=wirely.program.types.uint8, native_name='Native.Mode'))
     native_types = NativeTypes(enums=registry)
     assert native.parse('Heat', native_types=native_types).extract(native, native_types=native_types) is Mode.Heat
@@ -121,7 +123,7 @@ def check_enum_values():
     with checks.assertRaises(ValueError):
         native.from_native(3, native_types=native_types)
     # Enums with the native name of another enum but not declared native have no native representation.
-    plain = wirely.ValueType(wirely.program.types.TypeEnum('Native.Mode', {'Cool': 3}, is_open=True,
+    plain = value_types.ValueType(wirely.program.types.TypeEnum('Native.Mode', {'Cool': 3}, is_open=True,
                                                    underlying_type=wirely.program.types.uint8))
     with checks.assertRaisesRegex(ValueError, 'has no native representation'):
         native_types = NativeTypes(enums=registry)
@@ -130,7 +132,6 @@ def check_enum_values():
 
 def check_open_int_enums():
     from wirely.generated.enums import KNXProtocol
-    from wirely.types.value_types import OpenIntEnum
 
     class Offset(OpenIntEnum, minimum=-128, maximum=127):
         Zero = 0
@@ -181,7 +182,7 @@ def check_open_and_closed_enums():
     for underlying in (types.int8, types.uint8, types.int128, types.uint128):
         for members in ({}, {'Named': 1}):
             opened = types.TypeEnum('Open', members, is_open=True, underlying_type=underlying)
-            descriptor = wirely.ValueType(opened)
+            descriptor = value_types.ValueType(opened)
             assert opened.default_value() == 0
             assert opened.is_open
             for number in (underlying.min_value, 0, underlying.max_value):
@@ -206,10 +207,10 @@ def check_open_and_closed_enums():
 
 def check_descriptors_and_lists():
     list_type = wirely.program.types.TypeList(wirely.program.types.uint16)
-    first = wirely.ValueType(wirely.program.types.TypeOption(list_type))
-    second = wirely.ValueType(wirely.program.types.TypeOption(wirely.program.types.TypeList(wirely.program.types.uint16)))
-    assert first == second and first != wirely.value_types.uint16
-    assert len({first, second, wirely.value_types.uint16}) == 2
+    first = value_types.ValueType(wirely.program.types.TypeOption(list_type))
+    second = value_types.ValueType(wirely.program.types.TypeOption(wirely.program.types.TypeList(wirely.program.types.uint16)))
+    assert first == second and first != value_types.uint16
+    assert len({first, second, value_types.uint16}) == 2
     assert str(first) == 'Option[List[uint16]]'
     assert not first.supports_json and not first.supports_csv
     number = wirely.UInt16
@@ -225,28 +226,28 @@ def check_descriptors_and_lists():
         with checks.assertRaises(ValueError):
             operation()
 
-    nested = wirely.ValueType(wirely.program.types.TypeList(list_type))
+    nested = value_types.ValueType(wirely.program.types.TypeList(list_type))
     native = ((number(1), number(2)), (number(3),))
     assert nested.from_native(native, native_types=builtin_extension.native_types).extract(nested, native_types=builtin_extension.native_types) == native
     for invalid in ('12', {1, 2}, iter([1, 2]), [number(1)], ('invalid',)):
         with checks.assertRaises(ValueError):
-            wirely.ValueType(list_type).from_native(invalid, native_types=builtin_extension.native_types)
+            value_types.ValueType(list_type).from_native(invalid, native_types=builtin_extension.native_types)
 
-    optional = wirely.ValueType(wirely.program.types.TypeOption(wirely.program.types.uint16))
+    optional = value_types.ValueType(wirely.program.types.TypeOption(wirely.program.types.uint16))
     assert optional.parse('none', native_types=builtin_extension.native_types).extract(optional, native_types=builtin_extension.native_types) is None
     assert optional.parse('7', native_types=builtin_extension.native_types).extract(optional, native_types=builtin_extension.native_types) == wirely.Some(number(7))
     assert optional.supports_csv
     assert optional.from_native(None, native_types=builtin_extension.native_types).to_csv_value() == ('', False)
     assert optional.parse('7', native_types=builtin_extension.native_types).to_csv_value() == ('7', False)
-    values = wirely.ValueType(wirely.program.types.TypeList(wirely.program.types.TypeOption(wirely.program.types.ValueType)))
-    supplied = (wirely.Some(wirely.value_types.uint16), None)
+    values = value_types.ValueType(wirely.program.types.TypeList(wirely.program.types.TypeOption(wirely.program.types.ValueType)))
+    supplied = (wirely.Some(value_types.uint16), None)
     assert values.from_native(supplied, native_types=builtin_extension.native_types).extract(values, native_types=builtin_extension.native_types) == supplied
     with checks.assertRaises(ValueError):
         values.from_native((wirely.Some(wirely.program.types.uint16),), native_types=builtin_extension.native_types)
-    value_type = wirely.value_types.value_type
+    value_type = value_types.value_type
     with checks.assertRaises(ValueError):
         value_type.from_native(wirely.program.types.uint16, native_types=builtin_extension.native_types)
-    assert value_type.from_native(wirely.value_types.uint16, native_types=builtin_extension.native_types).extract(value_type, native_types=builtin_extension.native_types) == wirely.value_types.uint16
+    assert value_type.from_native(value_types.uint16, native_types=builtin_extension.native_types).extract(value_type, native_types=builtin_extension.native_types) == value_types.uint16
 
 
 def check_integers():
@@ -287,27 +288,27 @@ def check_integers():
 
 
 def check_dynamic_values():
-    uint16 = wirely.value_types.uint16
+    uint16 = value_types.uint16
     seven = uint16.from_native(wirely.UInt16(7), native_types=builtin_extension.native_types)
     assert seven.type == uint16 and seven.extract(uint16, native_types=builtin_extension.native_types) == wirely.UInt16(7) and seven.to_native(native_types=builtin_extension.native_types) == wirely.UInt16(7)
     assert seven == uint16.from_native(wirely.UInt16(7), native_types=builtin_extension.native_types) and hash(seven) == hash(uint16.from_native(wirely.UInt16(7), native_types=builtin_extension.native_types))
     assert seven != uint16.from_native(wirely.UInt16(8), native_types=builtin_extension.native_types)
-    assert seven != wirely.value_types.uint8.from_native(wirely.UInt8(7), native_types=builtin_extension.native_types) and seven != wirely.UInt16(7)
+    assert seven != value_types.uint8.from_native(wirely.UInt8(7), native_types=builtin_extension.native_types) and seven != wirely.UInt16(7)
     assert (seven.to_text(native_types=builtin_extension.native_types), seven.json_encode(), seven.to_csv_value()) == ('7', 7, ('7', False))
     assert repr(seven) == 'DynamicValue(uint16: 7)'
     with checks.assertRaisesRegex(ValueError, 'Expected a value of type `uint8`, got `uint16`'):
-        seven.extract(wirely.value_types.uint8, native_types=builtin_extension.native_types)
+        seven.extract(value_types.uint8, native_types=builtin_extension.native_types)
     for value in (7, wirely.UInt8(7), True, None):
         with checks.assertRaises(ValueError):
             uint16.from_native(value, native_types=builtin_extension.native_types)
-    for operation in (lambda: wirely.DynamicValue(), lambda: __import__('pickle').dumps(seven)):
+    for operation in (lambda: value_types.DynamicValue(), lambda: __import__('pickle').dumps(seven)):
         with checks.assertRaises(TypeError):
             operation()
     with checks.assertRaises(AttributeError):
         seven._value = 8
 
     # Composite descriptors keep nested options and lists.
-    nested = wirely.value_types.option(wirely.value_types.option(wirely.value_types.list_of(uint16)))
+    nested = value_types.option(value_types.option(value_types.list_of(uint16)))
     assert str(nested) == 'Option[Option[List[uint16]]]'
     for native in (None, wirely.Some(None), wirely.Some(wirely.Some((wirely.UInt16(1), wirely.UInt16(2))))):
         value = nested.from_native(native, native_types=builtin_extension.native_types)
@@ -318,17 +319,17 @@ def check_dynamic_values():
             nested.from_native(invalid, native_types=builtin_extension.native_types)
 
     # Formatting and conversions depend on the type.
-    text = wirely.value_types.string.from_native('a"b', native_types=builtin_extension.native_types)
+    text = value_types.string.from_native('a"b', native_types=builtin_extension.native_types)
     assert (text.to_text(native_types=builtin_extension.native_types), text.json_encode()) == ('"a\\"b"', 'a"b')
-    time = wirely.ValueType(library_type('Schedule.TimeOfDay')).from_native(wirely.TimeOfDay.from_parts(11, 17), native_types=builtin_extension.native_types)
+    time = value_types.ValueType(library_type('Schedule.TimeOfDay')).from_native(wirely.TimeOfDay.from_parts(11, 17), native_types=builtin_extension.native_types)
     for operation in (time.json_encode, time.to_csv_value):
         with checks.assertRaises(ValueError):
             operation()
-    descriptor = wirely.value_types.value_type.from_native(uint16, native_types=builtin_extension.native_types)
-    assert descriptor.extract(wirely.value_types.value_type, native_types=builtin_extension.native_types) == uint16 and descriptor.to_text(native_types=builtin_extension.native_types) == 'uint16'
+    descriptor = value_types.value_type.from_native(uint16, native_types=builtin_extension.native_types)
+    assert descriptor.extract(value_types.value_type, native_types=builtin_extension.native_types) == uint16 and descriptor.to_text(native_types=builtin_extension.native_types) == 'uint16'
 
     # Enums and structs that are not native have no native representation.
-    mode = wirely.ValueType(wirely.program.types.TypeEnum('Mode', {'Off': 0, 'On': 1}, is_open=False,
+    mode = value_types.ValueType(wirely.program.types.TypeEnum('Mode', {'Off': 0, 'On': 1}, is_open=False,
                                                   underlying_type=wirely.program.types.uint8))
     with checks.assertRaisesRegex(ValueError, 'Enum `Mode` has no native representation'):
         mode.from_native(1, native_types=builtin_extension.native_types)
@@ -343,9 +344,9 @@ def check_unit():
         unit.value = True
     for invalid in (None, (), False, wirely.Some(unit)):
         with checks.assertRaises(ValueError):
-            wirely.value_types.unit.from_native(invalid, native_types=builtin_extension.native_types)
+            value_types.unit.from_native(invalid, native_types=builtin_extension.native_types)
     with checks.assertRaises(ValueError):
-        wirely.value_types.unit.from_native(unit, native_types=builtin_extension.native_types).json_encode()
+        value_types.unit.from_native(unit, native_types=builtin_extension.native_types).json_encode()
 
 
 def check_times():
@@ -385,7 +386,7 @@ def check_times():
     assert wirely.Duration.parse('PT2S') == span
     for text in ('P', 'PT', '-PT1S', 'P1M', 'invalid'):
         with checks.assertRaises(ValueError):
-            wirely.ValueType(library_type('Std.Duration')).parse(text, native_types=builtin_extension.native_types)
+            value_types.ValueType(library_type('Std.Duration')).parse(text, native_types=builtin_extension.native_types)
     with checks.assertRaises(Exception):
         wirely.Duration(ticks=-1)
     longer = wirely.Duration.from_seconds(5)
@@ -413,7 +414,7 @@ def check_type_names():
     nested = types.TypeOption(types.TypeList(types.TypeOption(types.uint8)))
     assert str(nested) == 'Option[List[Option[uint8]]]'
     assert str(types.TypeOption(pair)) == 'Option[Pair]'
-    assert str(wirely.ValueType(nested)) == 'Option[List[Option[uint8]]]'
+    assert str(value_types.ValueType(nested)) == 'Option[List[Option[uint8]]]'
 
 
 def check_to_text():
@@ -462,10 +463,10 @@ def check_to_text():
         assert library_type('Std.Duration').to_text(internal(duration), native_types=native_types) == text, duration.to_iso()
         assert wirely.Duration.parse(text) == duration
     # DynamicValues format the same way.
-    optional = wirely.value_types.option(wirely.value_types.uint8)
+    optional = value_types.option(value_types.uint8)
     assert optional.from_native(wirely.Some(wirely.UInt8(3)), native_types=builtin_extension.native_types).to_text(native_types=builtin_extension.native_types) == 'Some(3)'
     with checks.assertRaises(ValueError):
-        wirely.value_types.uint8.from_native(256, native_types=builtin_extension.native_types)
+        value_types.uint8.from_native(256, native_types=builtin_extension.native_types)
 
 
 def check_structs():
@@ -480,18 +481,18 @@ def check_structs():
         packet_type.index('extra')
 
     # Values of another struct type with the same fields are different.
-    packet = wirely.DynamicValue._make(packet_type, (True, 7))
+    packet = value_types.DynamicValue._make(packet_type, (True, 7))
     other = wirely.program.types.TypeStruct('Packet', dict(packet_type.fields))
-    assert packet == wirely.DynamicValue._make(packet_type, (True, 7))
-    assert packet != wirely.DynamicValue._make(other, (True, 7))
-    assert packet != wirely.DynamicValue._make(packet_type, (False, 7))
+    assert packet == value_types.DynamicValue._make(packet_type, (True, 7))
+    assert packet != value_types.DynamicValue._make(other, (True, 7))
+    assert packet != value_types.DynamicValue._make(packet_type, (False, 7))
 
     settings_type = wirely.program.types.TypeStruct('Settings', {
         'text': wirely.program.types.String,
         'items': wirely.program.types.TypeList(wirely.program.types.TypeOption(packet_type)),
         'inner': packet_type, 'type': wirely.program.types.ValueType,
     })
-    settings_descriptor = wirely.ValueType(settings_type)
+    settings_descriptor = value_types.ValueType(settings_type)
     assert not settings_descriptor.supports_json and not settings_descriptor.supports_csv
     with checks.assertRaises(ValueError):
         settings_descriptor.parse('{}', native_types=builtin_extension.native_types)
@@ -502,10 +503,10 @@ def check_structs():
         y: wirely.Int8
 
     fields = (wirely.runtime.signatures.Int(8, True),) * 2
-    registry = {'Native.Point': wirely.value_types.NativeStruct(Point, fields)}
+    registry = {'Native.Point': NativeStruct(Point, fields)}
     point_fields = {'x': wirely.program.types.int8, 'y': wirely.program.types.int8}
-    point_type = wirely.ValueType(wirely.program.types.TypeStruct('Example.Point', point_fields, native_name='Native.Point'))
-    plain_type = wirely.ValueType(wirely.program.types.TypeStruct('Native.Point', point_fields))
+    point_type = value_types.ValueType(wirely.program.types.TypeStruct('Example.Point', point_fields, native_name='Native.Point'))
+    plain_type = value_types.ValueType(wirely.program.types.TypeStruct('Native.Point', point_fields))
     native_types = NativeTypes(structs=registry)
     point = Point(wirely.Int8(1), wirely.Int8(-2))
     assert point_type.from_native(point, native_types=native_types).extract(point_type, native_types=native_types) == point

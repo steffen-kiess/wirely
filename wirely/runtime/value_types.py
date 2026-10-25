@@ -1,22 +1,199 @@
-"""Conversion between internal values and the values native code receives.
+"""Value type descriptors for native Python implementations, and conversions.
 
-A signature type from wirely.runtime.signatures marks where a native
-interface is generic: its type variable positions are DynamicValues. Without
-a signature, the whole value is concrete. The resolved Type gives the
-structure in both cases.
+ValueType and DynamicValue are the descriptors and values native code
+receives for type parameters. The conversions translate between internal
+values and the values native code receives. A signature type from
+wirely.runtime.signatures marks where a native interface is generic: its
+type variable positions are DynamicValues. Without a signature, the whole
+value is concrete. The resolved Type gives the structure in both cases.
 """
 
 from __future__ import annotations
 
-from typing import Any
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Generic, NoReturn, TypeVar, cast
 
 from ..program import types
 from ..program.types import InternalValue
-from ..types.option import Some
+from ..types.integers import Int8, Int16, Int32, Int64, Int128, UInt8, UInt16, UInt32, UInt64, UInt128
 from ..types.integers import integer_class
-from ..types.value_types import DynamicValue, ValueType
+from ..types.option import Some
+from ..types.unit import Unit
 from . import signatures
-from .extensions import NativeTypes
+
+if TYPE_CHECKING:
+    from .extensions import NativeTypes
+
+N = TypeVar('N')  # Native representation of a ValueType's values.
+
+
+@dataclass(frozen=True, slots=True, init=False)
+class ValueType(Generic[N]):
+    """An immutable descriptor of a resolved Wirely value type.
+
+    N is the native representation of the type's values; descriptors
+    received from programs are ValueType[Any].
+    """
+
+    _type: types.Type
+
+    def __init__(self: ValueType[Any], value_type: types.Type) -> None:
+        if not isinstance(value_type, types.Type) or value_type.contains_parameters:
+            raise ValueError('ValueType requires a resolved value type')
+        object.__setattr__(self, '_type', value_type)
+
+    def from_native(self, value: N, *, native_types: NativeTypes) -> DynamicValue:
+        """Return the DynamicValue of a value in native representation."""
+        return DynamicValue._make(self._type, from_native(None, self._type, value, native_types=native_types))
+
+    def __str__(self) -> str:
+        return str(self._type)
+
+    def __repr__(self) -> str:
+        return f'ValueType({self})'
+
+    def parse(self, text: str, *, native_types: NativeTypes) -> DynamicValue:
+        """Parse a value in the text format."""
+        return DynamicValue._make(self._type, self._type.parse(text, native_types=native_types))
+
+    @property
+    def supports_json(self) -> bool:
+        return getattr(self._type, 'is_json_serializable', False)
+
+    def json_decode(self, value: Any, format: str | None = None) -> DynamicValue:
+        """Convert a JSON-compatible Python value."""
+        if not self.supports_json:
+            raise ValueError(f'`{self}` does not support JSON conversion')
+        try:
+            value = self._type.json_decode(value, format)
+        except Exception as error:
+            raise ValueError(str(error)) from error
+        return DynamicValue._make(self._type, value)
+
+    @property
+    def supports_csv(self) -> bool:
+        return getattr(self._type, 'has_to_csv_value', False)
+
+
+class DynamicValue:
+    """An immutable value of a type known only at runtime, with its ValueType.
+
+    Create values with ValueType methods such as from_native(). Values are
+    equal when their types are equal and their values are equal in Wirely.
+    """
+
+    __slots__ = ('_type', '_value')
+
+    _type: types.Type
+    _value: types.InternalValue
+
+    def __init__(self) -> None:
+        raise TypeError('Create DynamicValues with ValueType methods')
+
+    @classmethod
+    def _make(cls, value_type: types.Type, value: types.InternalValue) -> DynamicValue:
+        """Return a value from its internal representation, which is validated."""
+        descriptor = ValueType(value_type)
+        try:
+            value = value_type.verify_value(value)
+        except Exception as error:
+            raise ValueError(f'Invalid `{descriptor}` value {value!r}: {error}') from error
+        result = object.__new__(cls)
+        object.__setattr__(result, '_type', value_type)
+        object.__setattr__(result, '_value', value)
+        return result
+
+    @property
+    def type(self) -> ValueType[Any]:
+        return ValueType(self._type)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        raise AttributeError('DynamicValue is immutable')
+
+    def __delattr__(self, name: str) -> None:
+        raise AttributeError('DynamicValue is immutable')
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, DynamicValue):
+            return NotImplemented
+        return self._type == other._type and self._type.equals(self._value, other._value)
+
+    def __hash__(self) -> int:
+        return hash((self._type, self._value))
+
+    def __repr__(self) -> str:
+        try:
+            text = self._type.to_text(self._value)
+        except Exception:
+            text = repr(self._value)
+        return f'DynamicValue({self._type}: {text})'
+
+    def __reduce__(self) -> NoReturn:
+        raise TypeError('DynamicValue cannot be pickled')
+
+    def to_text(self, *, native_types: NativeTypes) -> str:
+        """Format the value in the text format."""
+        try:
+            return self._type.to_text(self._value, native_types=native_types)
+        except Exception as error:
+            raise ValueError(str(error)) from error
+
+    def json_encode(self, format: str | None = None) -> Any:
+        """Return the value as a JSON-compatible Python value."""
+        if not self.type.supports_json:
+            raise ValueError(f'`{self._type}` does not support JSON conversion')
+        try:
+            return self._type.json_encode(self._value, format)
+        except Exception as error:
+            raise ValueError(str(error)) from error
+
+    def to_csv_value(self) -> tuple[str, bool]:
+        """Return the CSV text of the value and whether it needs quotes."""
+        if not self.type.supports_csv:
+            raise ValueError(f'`{self._type}` does not support CSV conversion')
+        try:
+            return self._type.to_csv_value(self._value)
+        except Exception as error:
+            raise ValueError(str(error)) from error
+
+    def extract(self, value_type: ValueType[N], *, native_types: NativeTypes) -> N:
+        """Return the native representation, requiring the value to have this type."""
+        if value_type._type != self._type:
+            raise ValueError(f'Expected a value of type `{value_type}`, got `{self._type}`')
+        return cast(N, self.to_native(native_types=native_types))
+
+    def to_native(self, *, native_types: NativeTypes) -> object:
+        """Return the native representation; not every type has one."""
+        return to_native(None, self._type, self._value, native_types=native_types)
+
+
+T = TypeVar('T')
+
+
+def option(inner: ValueType[T]) -> ValueType[Some[T] | None]:
+    """Return the descriptor of Option[inner]."""
+    return ValueType(types.TypeOption(inner._type))
+
+
+def list_of(inner: ValueType[T]) -> ValueType[tuple[T, ...]]:
+    """Return the descriptor of List[inner]."""
+    return ValueType(types.TypeList(inner._type))
+
+
+unit: ValueType[Unit] = ValueType(types.unit)
+boolean: ValueType[bool] = ValueType(types.boolean)
+int8: ValueType[Int8] = ValueType(types.int8)
+int16: ValueType[Int16] = ValueType(types.int16)
+int32: ValueType[Int32] = ValueType(types.int32)
+int64: ValueType[Int64] = ValueType(types.int64)
+int128: ValueType[Int128] = ValueType(types.int128)
+uint8: ValueType[UInt8] = ValueType(types.uint8)
+uint16: ValueType[UInt16] = ValueType(types.uint16)
+uint32: ValueType[UInt32] = ValueType(types.uint32)
+uint64: ValueType[UInt64] = ValueType(types.uint64)
+uint128: ValueType[UInt128] = ValueType(types.uint128)
+string: ValueType[str] = ValueType(types.String)
+value_type: ValueType[ValueType[Any]] = ValueType(types.ValueType)
 
 
 def to_native(signature: signatures.SignatureType | None, value_type: types.Type,
@@ -164,7 +341,7 @@ def _from_native(signature: signatures.SignatureType | None, value_type: types.T
         return value.value
     if isinstance(value_type, types.TypeValueType):
         if not isinstance(value, ValueType):
-            raise _error(path, f'Expected a wirely.ValueType, got {value!r}')
+            raise _error(path, f'Expected a ValueType, got {value!r}')
         return value._type
     if isinstance(value_type, types.TypePrimitive) and type(value) is value_type.python_type:
         return value

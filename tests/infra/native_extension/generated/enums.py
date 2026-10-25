@@ -3,7 +3,8 @@
 
 import enum
 
-from wirely.types.value_types import NativeEnum, OpenIntEnum
+from wirely.runtime.extensions import NativeEnum
+from wirely.types.open_enum import OpenIntEnum
 
 __all__ = [
     'TestLibraryOperatorClosed',

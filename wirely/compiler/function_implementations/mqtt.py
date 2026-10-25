@@ -2,7 +2,8 @@
 
 from typing import Any
 
-from wirely import Some, ValueType
+from wirely import Some
+from wirely.runtime.value_types import ValueType
 from wirely.generated.structs import MQTTTemplateParts
 
 from ..native_functions import FunctionServices

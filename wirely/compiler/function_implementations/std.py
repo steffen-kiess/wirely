@@ -3,7 +3,8 @@
 from typing import Any
 
 import wirely
-from wirely import ValueType
+from wirely.runtime import value_types
+from wirely.runtime.value_types import ValueType
 from wirely.generated.structs import StdFormatParts
 
 from ..native_functions import FunctionServices
@@ -14,9 +15,9 @@ def parse_format(format_string: str, value_type: ValueType[Any], *, services: Fu
         prefix, suffix, has_value = parse_format_string(format_string)
     except ValueError as error:
         raise services.error(str(error), argument=0) from error
-    if has_value and value_type == wirely.value_types.unit:
+    if has_value and value_type == value_types.unit:
         raise services.error('Format with {} for unit type', argument=0)
-    if not has_value and value_type != wirely.value_types.unit:
+    if not has_value and value_type != value_types.unit:
         raise services.error(f'Format without {{}} for type `{value_type}`', argument=0)
     return StdFormatParts(prefix, suffix, has_value)
 

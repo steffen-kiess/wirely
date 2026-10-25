@@ -103,7 +103,7 @@ def check_native_struct(struct_type: TypeStruct, native_types: NativeTypes) -> N
 
 def link_opaque_values(program: Program, extension: RuntimeNativeExtension) -> None:
     """Check static and initial values containing opaque structs with their implementations."""
-    from .native_values import check_opaque_values
+    from .value_types import check_opaque_values
     values: list[tuple[Type, Any]] = [(constant.value_type, constant.value) for constant in program.constants]
     values += [(variable.var_type, value) for variable, value in program.initial_state.items()]
     for value_type, value in values:

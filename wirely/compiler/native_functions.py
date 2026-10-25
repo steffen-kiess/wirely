@@ -201,7 +201,7 @@ def resolve_implementation(function: model.CompiledFunction,
 
 def invoke(function: model.CompiledFunction, values: Sequence[object], sources: Sequence[object],
            call: model.ast.SourceElement) -> object:
-    from wirely.runtime.native_values import from_native, to_native
+    from wirely.runtime.value_types import from_native, to_native
 
     native_types = function.scope.coordinator.global_node_type.native_extension.native_types
     binding = resolve_implementation(function, call)

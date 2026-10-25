@@ -2,6 +2,7 @@ from collections import Counter
 from pathlib import Path
 
 from wirely.generated import extension as builtin_extension
+from wirely.runtime import value_types
 import wirely
 from wirely.compiler import program as program_compiler
 import wirely.compiler.compilation
@@ -61,7 +62,7 @@ def implementations(contracts):
                 pass
 
             def run(self, *, services, previous, current, type):
-                observations[services.name] = tuple(value.extract(wirely.value_types.uint8, native_types=builtin_extension.native_types).value
+                observations[services.name] = tuple(value.extract(value_types.uint8, native_types=builtin_extension.native_types).value
                                                     for value in (previous, current))
                 return getattr(contracts, contract.__name__ + 'Result')(output=True)
         return Observe

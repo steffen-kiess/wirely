@@ -13,8 +13,8 @@ from wirely.runtime.native_api import (
     InitializerAdapter, InterfaceBinding, NativeProcedure, NativeState, PreparationServices, ProcedureAdapter,
     ProcedureServices, StateServices,
 )
+from wirely.runtime.value_types import DynamicValue, ValueType
 from wirely.types.option import Some
-from wirely.types.value_types import DynamicValue, ValueType
 
 if TYPE_CHECKING:
     from wirely.native.csv import ValueWriterState

@@ -42,9 +42,10 @@ Its Python implementation is:
 ```python
 from typing import Any
 
-from wirely import DynamicValue, Some, ValueType
+from wirely import Some
 from wirely.generated import std as contracts
 from wirely.runtime.native_api import PreparationServices, ProcedureServices
+from wirely.runtime.value_types import DynamicValue, ValueType
 
 
 class DebugEventPrinterRun(contracts.DebugEventPrinterRun):
@@ -110,7 +111,7 @@ engine = Engine(compile_nocatch(graph), extensions=[extension])
 `NativeProcedure`, and `NativeFunction` entries bundle a signature with a
 lazy implementation loader. Resource entries load Python classes; enum,
 struct, and opaque struct entries use `NativeEnum`, `NativeStruct`, and
-`NativeOpaque` from `wirely.types.value_types`.
+`NativeOpaque` from `wirely.runtime.extensions`.
 `CompilerNativeExtension` in `wirely.compiler.extensions` contains only
 `functions`: `NativeConstantFunction` entries with signatures and loaders.
 All enum and struct classes belong to the runtime extension, including
@@ -238,10 +239,10 @@ resolved defaults are ordinary values.
 | Native enums | Generated Python enum |
 | Native structs | Generated `NamedTuple` |
 | Opaque structs | The class implementing it |
-| `type` | `wirely.ValueType` |
+| `type` | `ValueType` |
 | `Option[T]` | `None` or `wirely.Some(value)` |
 | `List[T]` | `tuple` of inner values |
-| A runtime value of a `type` parameter `T` | `wirely.DynamicValue` |
+| A runtime value of a `type` parameter `T` | `DynamicValue` |
 | Resources | The object the provider returned |
 
 A generic `fixed T` port carries a resource object when `T` is a resource
@@ -304,9 +305,9 @@ Run `tools/generate-native-types` after changing any native declaration.
 ## Value type descriptors and dynamic values
 
 Ports of a type given by a `type` parameter, such as `value Type`,
-carry `wirely.DynamicValue`s. A dynamic value is immutable and has a
-`type`, a `wirely.ValueType`. Dynamic values are equal when their types
-and values are equal.
+carry `DynamicValue`s from `wirely.runtime.value_types`. A dynamic value is
+immutable and has a `type`, a `ValueType` from the same module. Dynamic
+values are equal when their types and values are equal.
 
 - `to_text(native_types=context)` formats the value in the
   [text format](value-types.md#text-format).
@@ -318,13 +319,12 @@ and values are equal.
 - `to_native(native_types=context)` returns the Python representation
   of any type that has one.
 
-`wirely.ValueType` is immutable and supports equality, hashing, and `str()`
-with Wirely type names. Built-in descriptors are in `wirely.types.value_types`,
-using Python names: `unit`, `boolean`, `int8` through `int128`, `uint8` through
-`uint128`, `string`, `duration`, `time_of_day`, `monotonic_time`,
-and `value_type`. `option(inner)` and `list_of(inner)` describe options and
-lists. These descriptors are typed, so extracting a `uint8` returns
-a `wirely.UInt8`.
+`ValueType` is immutable and supports equality, hashing, and `str()` with
+Wirely type names. Built-in descriptors are in `wirely.runtime.value_types`,
+using Python names: `unit`, `boolean`, `int8` through `int128`, `uint8`
+through `uint128`, `string`, and `value_type`. `option(inner)` and
+`list_of(inner)` describe options and lists. These descriptors are typed,
+so extracting a `uint8` returns a `wirely.UInt8`.
 
 - `from_native(value, native_types=context)` returns the dynamic value
   of a Python representation.
@@ -545,9 +545,9 @@ with the snake-case function name:
 ```python
 from typing import Any
 
-from wirely import ValueType
 from wirely.compiler.native_functions import FunctionServices
 from wirely.knx.value_types import get_value_type
+from wirely.runtime.value_types import ValueType
 
 
 def value_type_name(type: ValueType[Any], *, services: FunctionServices) -> str:

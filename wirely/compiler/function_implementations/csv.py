@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from wirely import ValueType
+from wirely.runtime.value_types import ValueType
 
 from ..native_functions import FunctionServices
 

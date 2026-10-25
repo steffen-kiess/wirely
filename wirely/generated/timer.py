@@ -12,8 +12,8 @@ from wirely.program.types import InternalValue
 from wirely.runtime.native_api import (
     InterfaceBinding, NativeProcedure, PreparationServices, ProcedureAdapter, ProcedureServices,
 )
+from wirely.runtime.value_types import DynamicValue, ValueType
 from wirely.types.option import Some
-from wirely.types.value_types import DynamicValue, ValueType
 
 if TYPE_CHECKING:
     from wirely.native.timer import MonotonicTime

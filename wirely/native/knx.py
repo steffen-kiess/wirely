@@ -3,7 +3,8 @@ import contextlib
 from typing import Any, Literal
 
 import wirely
-from wirely import DynamicValue, Some, UInt16, ValueType
+from wirely import Some, UInt16
+from wirely.runtime.value_types import DynamicValue, ValueType
 from wirely.generated import knx as contracts
 from wirely.knx.value_types import get_value_type
 from wirely.native.support import check_state_type

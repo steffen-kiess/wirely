@@ -7,8 +7,8 @@ from collections.abc import Sequence
 from typing import Any, Protocol, cast
 
 from wirely.compiler.native_functions import ConstantFunctionContract, FunctionServices
+from wirely.runtime.value_types import ValueType
 from wirely.types.integers import UInt16
-from wirely.types.value_types import ValueType
 
 __all__ = [
 ]

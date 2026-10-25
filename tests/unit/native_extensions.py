@@ -7,6 +7,7 @@ from typing import NamedTuple
 from unittest import TestCase
 
 import wirely
+from wirely.runtime import value_types
 from wirely.compiler.compilation import compile_files, compile_strs
 from wirely.compiler import program as program_compiler
 from wirely.compiler.extensions import (
@@ -19,7 +20,8 @@ from wirely.runtime.engine import Engine
 from wirely.runtime.extensions import NativeFunction, NativeTypes, RuntimeNativeExtension, resolve_extensions
 from wirely.runtime.native_api import FunctionContract
 from wirely.runtime.signatures import Enum, Function, Int, List, Option, Struct
-from wirely.types.value_types import NativeEnum, NativeStruct, OpenIntEnum
+from wirely.runtime.extensions import NativeEnum, NativeStruct
+from wirely.types.open_enum import OpenIntEnum
 
 
 checks = TestCase()
@@ -45,7 +47,7 @@ def check_resolution():
         with checks.assertRaises(ValueError):
             resolve_extensions(normal, override_extensions=overrides)
     with checks.assertRaisesRegex(TypeError, 'native_types'):
-        wirely.value_types.boolean.from_native(True)
+        value_types.boolean.from_native(True)
 
 
 def value_extension(number):
@@ -112,12 +114,12 @@ node probe: Probe {}
         engine = engines[index]
         runtime, _, payload, mode = variants[index]
         engine.step()
-        descriptor = wirely.ValueType(engine.program.symbols.variable_aliases['probe.Value'].value_type)
+        descriptor = value_types.ValueType(engine.program.symbols.variable_aliases['probe.Value'].value_type)
         value = descriptor.from_native(payload(wirely.Some(mode(index + 2))), native_types=engine.native_types)
         native = value.to_native(native_types=engine.native_types)
         assert type(native) is payload and type(native.modes.value) is mode
         assert descriptor.from_native(native, native_types=engine.native_types) == value
-        nested = wirely.value_types.list_of(wirely.value_types.option(descriptor))
+        nested = value_types.list_of(value_types.option(descriptor))
         collection = (wirely.Some(native), None)
         assert nested.from_native(collection, native_types=engine.native_types).extract(
             nested, native_types=engine.native_types) == collection

@@ -7,7 +7,8 @@ from collections.abc import AsyncIterator
 from typing import Any, Literal
 
 import wirely
-from wirely import DynamicValue, Some, ValueType
+from wirely import Some
+from wirely.runtime.value_types import DynamicValue, ValueType
 from wirely.generated import mqtt as contracts
 from wirely.native.support import check_state_type
 from wirely.generated.enums import MQTTFormat

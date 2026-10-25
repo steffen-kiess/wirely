@@ -3,7 +3,9 @@
 import importlib
 from typing import TYPE_CHECKING, Any
 
-from wirely import Some, Unit, value_types, ValueType
+from wirely import Some, Unit
+from wirely.runtime import value_types
+from wirely.runtime.value_types import ValueType
 from wirely.program import types
 from wirely.program.types import Type
 from wirely.program.program import Program, RunStage, Variable, VariableTable, InputSource

@@ -4,7 +4,7 @@ import wirely
 from wirely.program.program import Variable, VariableTable
 from wirely.generated import extension as builtin_extension
 from wirely.runtime.contexts import VariableTableInstance
-from wirely.runtime.native_values import check_opaque_values
+from wirely.runtime.value_types import check_opaque_values
 from tests.infra.support import internal, library_type
 
 

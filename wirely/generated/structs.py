@@ -5,8 +5,8 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
+from wirely.runtime.extensions import NativeOpaque, NativeStruct
 from wirely.runtime.signatures import Builtin, Int
-from wirely.types.value_types import NativeOpaque, NativeStruct
 
 __all__ = [
     'MQTTTemplateParts',

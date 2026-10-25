@@ -2,16 +2,63 @@
 
 from __future__ import annotations
 
+import enum
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field, fields
 from types import MappingProxyType
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
-from ..types.value_types import NativeEnum, NativeOpaque, NativeStruct
+from ..program.types import InternalValue, Type
 from . import signatures
+from . import value_types
 
 if TYPE_CHECKING:
     from .native_api import FunctionImplementation, ProcedureImplementation, StateImplementation
+
+
+@dataclass(frozen=True, slots=True)
+class NativeEnum:
+    """What the runtime expects of a native enum; numbers are its contract, not names."""
+
+    python_type: type[enum.IntEnum]  # IntEnum of the known members; its length is a closed enum's member count.
+    is_open: bool
+    underlying_type: str  # Integer type name, such as 'uint8'.
+
+
+@dataclass(frozen=True, slots=True)
+class NativeStruct:
+    """What the runtime expects of a native struct; field types in order are its contract, not names."""
+
+    python_type: type  # NamedTuple built positionally from the field values.
+    fields: tuple  # Signature type of each field (wirely.runtime.signatures), in order.
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, 'fields', tuple(self.fields))
+
+
+@dataclass(frozen=True, slots=True)
+class NativeOpaque:
+    """What the runtime expects of an opaque struct; field types in order are its contract, not names.
+
+    The class builds a value with from_fields(*fields), raising ValueError
+    for invalid fields, and returns them with to_fields(). Both use the
+    native representation of the fields. Optionally, the class method
+    parse(text) and the method to_text() convert values from and to text.
+    The value with all fields zero must be valid.
+    """
+
+    fields: tuple  # Signature type of each field (wirely.runtime.signatures), in order.
+    load: Callable[[], type]  # Returns the class implementing the values.
+    _loaded: list = field(default_factory=list, init=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, 'fields', tuple(self.fields))
+
+    @property
+    def python_type(self) -> type:
+        if not self._loaded:
+            self._loaded.append(self.load())
+        return self._loaded[0]
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,6 +72,14 @@ class NativeTypes:
     def __post_init__(self) -> None:
         for item in fields(self):
             object.__setattr__(self, item.name, MappingProxyType(dict(getattr(self, item.name))))
+
+    def to_native(self, value_type: Type, value: InternalValue) -> Any:
+        """Return the native representation of a valid internal value; raise ValueError if there is none."""
+        return value_types.to_native(None, value_type, value, native_types=self)
+
+    def from_native(self, value_type: Type, value: object) -> InternalValue:
+        """Return the internal representation of a native value; raise ValueError if it does not have the type."""
+        return value_types.from_native(None, value_type, value, native_types=self)
 
 
 @dataclass(frozen=True, slots=True)

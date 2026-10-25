@@ -2,6 +2,7 @@ from typing import NamedTuple
 from unittest import TestCase
 
 from wirely.runtime.extensions import RuntimeNativeExtension
+from wirely.runtime import value_types
 from wirely.compiler.extensions import CompilerNativeExtension
 from wirely.generated import extension as builtin_extension
 from wirely.runtime.extensions import NativeTypes
@@ -13,7 +14,8 @@ from wirely.compiler import program as program_compiler
 from wirely.runtime.engine import Engine
 from tests.infra.support import test_extension, test_constant_function, test_contracts
 from wirely.runtime.signatures import Builtin
-from wirely.types.value_types import NativeEnum, NativeOpaque, NativeStruct, OpenIntEnum
+from wirely.runtime.extensions import NativeEnum, NativeOpaque, NativeStruct
+from wirely.types.open_enum import OpenIntEnum
 
 
 checks = TestCase()
@@ -50,7 +52,7 @@ def value_classes(contracts):
                 assert missing is alias is None
                 assert absent == wirely.Some(None)
                 assert default is True
-                assert type == wirely.value_types.uint16
+                assert type == value_types.uint16
                 assert mode.name == 'On'
                 assert number == wirely.Int32(12)
                 assert call == wirely.UInt16(40)
@@ -62,7 +64,7 @@ def value_classes(contracts):
                 assert at == wirely.TimeOfDay.from_parts(0, 30)
                 assert span == wirely.Duration.parse('PT1S')
                 assert instant is None
-                assert descriptors == (wirely.Some(wirely.value_types.uint16), None)
+                assert descriptors == (wirely.Some(value_types.uint16), None)
                 self.seed = seed
 
             def run(self, *, services, state, connection, seed, **values):
@@ -172,7 +174,7 @@ def check_optional_values():
     # Direct optional bindings also handle type values and forwarded omissions.
     for arguments, expected, expected_type in [
         ('', None, None), ('Maybe: None', wirely.Some(None), None),
-        ('Maybe: Some(true), Type: uint16', wirely.Some(wirely.Some(True)), wirely.value_types.uint16),
+        ('Maybe: Some(true), Type: uint16', wirely.Some(wirely.Some(True)), value_types.uint16),
     ]:
         graph = compile_strs([('<optional-values>', f'''namespace TestLibrary {{
       node type OptionalProbe {{
@@ -249,9 +251,9 @@ def check_state_types():
     # Procedures of generic native state types require the state's type.
     from wirely.native.support import check_state_type
 
-    check_state_type('node', wirely.value_types.uint8, wirely.value_types.uint8)
+    check_state_type('node', value_types.uint8, value_types.uint8)
     with checks.assertRaisesRegex(ValueError, 'node: procedure type `string` does not match state type `uint8`'):
-        check_state_type('node', wirely.value_types.string, wirely.value_types.uint8)
+        check_state_type('node', value_types.string, value_types.uint8)
 
 
 def check_native_conversions():
@@ -259,7 +261,7 @@ def check_native_conversions():
     # type variable positions of a signature become DynamicValues.
     from wirely.program import types
     from wirely.runtime import signatures
-    from wirely.runtime.native_values import from_native, to_native
+    from wirely.runtime.value_types import from_native, to_native
 
     class Mode(OpenIntEnum, minimum=0, maximum=255):
         On = 1
@@ -282,7 +284,7 @@ def check_native_conversions():
         (types.String, 'text', 'text'),
         (types.unit, wirely.Unit(), wirely.Unit()),
         (span, (5,), wirely.Duration(ticks=5)),
-        (types.ValueType, types.uint8, wirely.value_types.uint8),
+        (types.ValueType, types.uint8, value_types.uint8),
         (mode, 1, Mode.On),
         (pair, (True, 7), Pair(True, wirely.UInt8(7))),
         (types.TypeList(types.TypeOption(types.TypeOption(types.uint8))), (None, wirely.Some(None), wirely.Some(wirely.Some(2))),
@@ -300,14 +302,14 @@ def check_native_conversions():
     option = types.TypeOption(types.TypeOption(types.uint16))
     signature = signatures.Option(signatures.TypeVar('Type'))
     native = to_native(signature, option, wirely.Some(wirely.Some(4)), native_types=native_types)
-    bound = wirely.value_types.option(wirely.value_types.uint16)
+    bound = value_types.option(value_types.uint16)
     assert native == wirely.Some(bound.from_native(wirely.Some(wirely.UInt16(4)), native_types=native_types))
     assert from_native(signature, option, native, native_types=native_types) == wirely.Some(wirely.Some(4))
     assert to_native(signature, option, wirely.Some(None), native_types=native_types) == wirely.Some(bound.from_native(None, native_types=native_types))
     assert to_native(signature, option, None, native_types=native_types) is None
 
     for signature, value_type, value, message in [
-        (signature, option, wirely.Some(wirely.value_types.uint16.from_native(wirely.UInt16(4), native_types=native_types)),
+        (signature, option, wirely.Some(value_types.uint16.from_native(wirely.UInt16(4), native_types=native_types)),
          'in option: Expected a DynamicValue of `Option\\[uint16\\]`, got one of `uint16`'),
         (signature, option, wirely.Some(wirely.Some(wirely.UInt16(4))), 'in option: Expected a DynamicValue'),
         (None, pair, Pair(True, 7), "in field `count`: Expected a wirely.UInt8 for `uint8`, got 7"),
@@ -318,7 +320,7 @@ def check_native_conversions():
         (None, types.uint8, wirely.Int8(1), 'Expected a wirely.UInt8 for `uint8`'),
         (None, types.uint8, True, 'Expected a wirely.UInt8 for `uint8`'),
         (None, types.TypeOption(types.boolean), True, 'Expected None or wirely.Some'),
-        (None, types.ValueType, types.uint8, 'Expected a wirely.ValueType'),
+        (None, types.ValueType, types.uint8, 'Expected a ValueType'),
     ]:
         with checks.assertRaisesRegex(ValueError, message):
             from_native(signature, value_type, value, native_types=native_types)

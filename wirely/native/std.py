@@ -1,7 +1,8 @@
 from typing import Any, Literal
 
 import wirely
-from wirely import DynamicValue, Some, ValueType
+from wirely import Some
+from wirely.runtime.value_types import DynamicValue, ValueType
 from wirely.generated import std as contracts
 from wirely.native.support import check_state_type
 from wirely.runtime.native_api import (
@@ -10,7 +11,7 @@ from wirely.runtime.native_api import (
 )
 from wirely.generated.structs import StdFormatParts
 from wirely.runtime.extensions import NativeTypes
-from wirely.runtime.native_values import check_opaque_values
+from wirely.runtime.value_types import check_opaque_values
 from wirely.program.types import InternalValue
 from wirely.types.time import Duration as Duration  # Implements the opaque struct Std.Duration.
 

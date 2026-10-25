@@ -2,7 +2,8 @@ import contextlib
 import asyncio
 from typing import Any, Literal
 
-from wirely import DynamicValue, Some, ValueType
+from wirely import Some
+from wirely.runtime.value_types import DynamicValue, ValueType
 from wirely.generated import process as contracts
 from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices
 from wirely.util import verbose_print

@@ -3,6 +3,7 @@ import io
 from types import SimpleNamespace
 
 from wirely.generated import extension as builtin_extension
+from wirely.runtime import value_types
 import wirely
 from wirely.native.csv import MyCsvWriter, ValueWriterCreate, ValueWriterRun
 from wirely.program.program import RunStage
@@ -15,7 +16,7 @@ class Invocation:
     def __init__(self, writer):
         self.writer = writer
         self.procedure = ValueWriterRun()
-        self.value_type = wirely.value_types.option(wirely.value_types.boolean)
+        self.value_type = value_types.option(value_types.boolean)
         self.inputs = {}
         self.last_written_at = None
         self.triggered = False

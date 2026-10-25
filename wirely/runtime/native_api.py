@@ -19,7 +19,7 @@ from ..program.types import InternalValue, Type
 from ..types.time import MonotonicTime
 from . import signatures
 from .extensions import NativeTypes
-from .native_values import from_native, to_native
+from .value_types import from_native, to_native
 from .resources import ResourceType, ResourceValue
 from .time_snapshot import TimeSnapshot
 from .wall_clock import WallWakeup

@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from wirely.types.value_types import ValueType
+from wirely.runtime.value_types import ValueType
 
 
 def check_state_type(name: str, procedure_type: ValueType[Any], state_type: ValueType[Any]) -> None:

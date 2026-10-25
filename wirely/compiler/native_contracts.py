@@ -166,11 +166,11 @@ def annotation(signature: signatures.SignatureType | signatures.ResourceType, im
     from wirely.types.integers import integer_class
 
     if isinstance(signature, signatures.TypeVar):
-        return imports.add('wirely.types.value_types', 'DynamicValue')
+        return imports.add('wirely.runtime.value_types', 'DynamicValue')
     if isinstance(signature, signatures.Builtin):
         if signature.name == 'type':
             imports.add('typing', 'Any')
-            return imports.add('wirely.types.value_types', 'ValueType') + '[Any]'
+            return imports.add('wirely.runtime.value_types', 'ValueType') + '[Any]'
         module, name = _builtins[signature.name]
         return name if module is None else imports.add(module, name)
     if isinstance(signature, signatures.Int):
@@ -674,9 +674,8 @@ def _type_declarations(declarations: Iterable[Any]) -> list[Any]:
 def _placeholder_opaque(value_type: Any) -> Any:
     """Return an implementation of an opaque struct whose literals parse to its default value."""
     from wirely.compiler.native_signatures import signature_type
-    from wirely.runtime.extensions import NativeTypes
-    from wirely.runtime.native_values import to_native
-    from wirely.types.value_types import NativeOpaque
+    from wirely.runtime.extensions import NativeOpaque, NativeTypes
+    from wirely.runtime.value_types import to_native
 
     fields = tuple(to_native(None, field_type, field_type.default_value(), native_types=NativeTypes())
                    for field_type in value_type.fields.values())
@@ -777,7 +776,7 @@ def generate_enums(graph: Any, source_paths: set[str] | None = None, *,
     lines = [HEADER + '"""Python enums for native enum types."""', '']
     if not all(value_type.is_open for _, _, value_type, _ in classes):
         lines += ['import enum', '']
-    lines += ['from wirely.types.value_types import NativeEnum, OpenIntEnum', '',
+    lines += ['from wirely.runtime.extensions import NativeEnum', 'from wirely.types.open_enum import OpenIntEnum', '',
               '__all__ = [', *(f'    {name!r},' for name, *_ in classes), ']', '']
     for python_name, name, value_type, declaration in classes:
         if not value_type.members:
@@ -816,8 +815,8 @@ def generate_structs(graph: Any, source_paths: set[str] | None = None, *,
                      for name, value_type, _ in opaque}
     imports = _Imports(package + '.generated.structs', native_locations)
     imports.add('typing', 'NamedTuple')
-    imports.add('wirely.types.value_types', 'NativeOpaque')
-    imports.add('wirely.types.value_types', 'NativeStruct')
+    imports.add('wirely.runtime.extensions', 'NativeOpaque')
+    imports.add('wirely.runtime.extensions', 'NativeStruct')
     for name in sorted({name for types in (*fields.values(), *opaque_fields.values())
                         for field in types for name in signature_names(field)}):
         imports.add('wirely.runtime.signatures', name)

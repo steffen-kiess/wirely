@@ -387,18 +387,15 @@ class TypeStruct(Type):
         python_type = self._opaque_class(native_types) if self.is_opaque else None
         if python_type is None or not hasattr(python_type, 'parse'):
             raise ValueError(f'`{self}` does not support text parsing')
-        from ..runtime.native_values import from_native
         assert native_types is not None
-        return from_native(None, self, python_type.parse(text), native_types=native_types)
+        return native_types.from_native(self, python_type.parse(text))
 
     def to_text(self, value: Any, *, native_types: NativeTypes | None = None) -> str:
         value = self.verify_value(value)
         python_type = self._opaque_class(native_types) if self.is_opaque else None
         if python_type is not None and hasattr(python_type, 'to_text'):
-            from ..runtime.native_values import to_native
             assert native_types is not None
-            native: Any = to_native(None, self, value, native_types=native_types)
-            return native.to_text()
+            return native_types.to_native(self, value).to_text()
         if not value:
             return f'{self} {{}}'
         if self.field_names is None:

@@ -7,7 +7,7 @@ from ..program.procedures import ARITHMETIC_OPCODES, CONVERSION_OPCODES, ConstOp
 from ..program.program import Procedure
 from ..program.types import InternalValue, convert
 from ..types.option import Some
-from ..types.value_types import DynamicValue
+from .value_types import DynamicValue
 from .extensions import NativeTypes
 
 NativeFunction = Callable[[Sequence[InternalValue]], InternalValue]

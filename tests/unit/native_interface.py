@@ -9,6 +9,7 @@ from typing import NamedTuple
 from unittest import TestCase
 
 from wirely.runtime.extensions import RuntimeNativeExtension
+from wirely.runtime import value_types
 from wirely.generated import extension as builtin_extension
 import wirely
 from wirely.compiler import program as program_compiler
@@ -18,7 +19,8 @@ from wirely.runtime.engine import Engine
 from wirely.runtime.native_api import NativeProcedure
 from tests.infra.support import send_event_text, test_extension, test_contracts
 from wirely.runtime.signatures import Builtin, Enum, Int, Opaque
-from wirely.types.value_types import NativeEnum, NativeOpaque, NativeStruct, OpenIntEnum
+from wirely.runtime.extensions import NativeEnum, NativeOpaque, NativeStruct
+from wirely.types.open_enum import OpenIntEnum
 import wirely.generated.structs
 import wirely.generated.enums
 
@@ -511,9 +513,9 @@ def check_outputs():
 
     native procedure run reads Type writes default output as "output";
     '''
-    option = wirely.value_types.option(wirely.value_types.boolean)
+    option = value_types.option(value_types.boolean)
     for invalid, message in [(wirely.Some(True), 'Expected a DynamicValue of `Option\\[boolean\\]`, got Some'),
-                             (wirely.value_types.boolean.from_native(True, native_types=builtin_extension.native_types),
+                             (value_types.boolean.from_native(True, native_types=builtin_extension.native_types),
                               'Expected a DynamicValue of `Option\\[boolean\\]`, got one of `boolean`')]:
         expect_output_error(generic, invalid, message, parameters='Type: Option[boolean]')
 
@@ -986,7 +988,7 @@ node constant: Std.Constant { Type: Example.Percent, Value: "7%" }
     probe.step()
     assert received == [Percent(42)]
     probe.assert_value_is('constant', (7,))
-    percent = wirely.ValueType(probe.program.symbols.variable_aliases['constant'].constant.value_type)
+    percent = value_types.ValueType(probe.program.symbols.variable_aliases['constant'].constant.value_type)
     assert percent.from_native(Percent(5), native_types=probe.native_types).to_text(native_types=probe.native_types) == '5%'
     for opaque_type, level, message in [
         (None, '"42%"', "Cannot find opaque struct type `Test.Percent`"),

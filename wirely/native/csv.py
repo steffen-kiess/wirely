@@ -8,7 +8,8 @@ from collections.abc import Iterator, Sequence
 from typing import Any
 
 import wirely
-from wirely import DynamicValue, MonotonicTime, Some, ValueType
+from wirely import MonotonicTime, Some
+from wirely.runtime.value_types import DynamicValue, ValueType
 from wirely.generated import csv as contracts
 from wirely.program.program import RunStage
 from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices

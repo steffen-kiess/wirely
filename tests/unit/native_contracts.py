@@ -3,6 +3,7 @@ import types
 from unittest import TestCase
 
 from wirely.generated import extension as builtin_extension
+from wirely.runtime import value_types
 import wirely
 import wirely.compiler.compilation
 from wirely.program import types as wirely_types
@@ -182,9 +183,9 @@ def check_adapters():
                     'Out': wirely_types.TypeOption(value_type), 'Count': wirely_types.uint8},
         output_resource_types={}, native_types=builtin_extension.native_types)
     Probe._adapter.prepare(probe, PreparationServices(name='probe', native_types=builtin_extension.native_types), binding)
-    assert probe.prepared == ('probe', owner, wirely.ValueType(value_type))
+    assert probe.prepared == ('probe', owner, value_types.ValueType(value_type))
 
-    descriptor = wirely.ValueType(value_type)
+    descriptor = value_types.ValueType(value_type)
     procedure_services = ProcedureServices(name='probe', stage_times={}, trigger_self=lambda: None, native_types=builtin_extension.native_types)
     payload = descriptor.from_native((True, False), native_types=builtin_extension.native_types)
     probe.result = contracts.ProbeRunResult(out=wirely.Some(payload), count=wirely.UInt8(2))
@@ -201,7 +202,7 @@ def check_adapters():
         (None, 'Probe must return a ProbeRunResult, got None'),
         (contracts.ProbeRunResult(out=None, count=2),
          "Probe: invalid value for output `Count`: Expected a wirely.UInt8 for `uint8`, got 2"),
-        (contracts.ProbeRunResult(out=wirely.Some(wirely.value_types.boolean.from_native(True, native_types=builtin_extension.native_types)), count=wirely.UInt8(0)),
+        (contracts.ProbeRunResult(out=wirely.Some(value_types.boolean.from_native(True, native_types=builtin_extension.native_types)), count=wirely.UInt8(0)),
          "Probe: invalid value for output `Out`: in option: Expected a DynamicValue of `List\\[boolean\\]`, "
          'got one of `boolean`'),
     ]:

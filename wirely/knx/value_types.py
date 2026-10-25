@@ -4,7 +4,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
-from wirely import DynamicValue, Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, ValueType, value_types
+from wirely import Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32
+from wirely.runtime import value_types
+from wirely.runtime.value_types import DynamicValue, ValueType
 from wirely.types.integers import Integer
 from wirely.runtime.extensions import NativeTypes
 
