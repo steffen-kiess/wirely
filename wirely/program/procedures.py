@@ -3,7 +3,7 @@
 import enum
 from dataclasses import dataclass
 
-from ..types import Type
+from .types import Type
 from ..util import immutable_enum
 
 

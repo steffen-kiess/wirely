@@ -6,5 +6,5 @@ from .types.unit import Unit
 from .types.time import MonotonicTime, Duration, TimeOfDay
 from . import types
 from .types import value_types
-from .types import Type
+from .program.types import Type
 from .types.value_types import DynamicValue, ValueType

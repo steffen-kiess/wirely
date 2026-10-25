@@ -5,7 +5,7 @@ from __future__ import annotations
 import enum
 from typing import Any, TypeVar, cast
 
-from ..types import Type, TypeBoolean, TypeEnum, TypeInt, TypeStruct
+from .types import Type, TypeBoolean, TypeEnum, TypeInt, TypeStruct
 from .generated.format import enum_types, record_types
 
 R = TypeVar('R', bound=tuple[Any, ...])

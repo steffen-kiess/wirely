@@ -6,8 +6,8 @@ from __future__ import annotations
 import enum
 from typing import Any, NamedTuple
 
-from wirely.types import TypeEnum, TypeStruct, boolean, uint8, uint16, uint32, uint64, uint128
-from wirely.types.value_types import OpenIntEnum
+from wirely.program.types import TypeEnum, TypeStruct, boolean, uint8, uint16, uint32, uint64, uint128
+from wirely.types.open_enum import OpenIntEnum
 
 __all__ = [
     'Header',

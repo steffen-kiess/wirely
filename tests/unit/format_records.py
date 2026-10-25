@@ -2,7 +2,7 @@ import enum
 import struct
 from unittest import TestCase
 
-from wirely import types
+from wirely.program import types
 from wirely.program import pack_record, record_size, unpack_record
 from wirely.program.generated.format import (
     ClosedEnumType, CompositeType, Header, IntegerType, MonotonicTime, OpenEnumType, OptionalRef,

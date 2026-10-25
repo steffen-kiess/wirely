@@ -12,7 +12,7 @@ from typing import Any
 
 from ..runtime.extensions import RuntimeNativeExtension
 from ..runtime.native_api import FunctionBinding, FunctionContract
-from ..types import InternalValue, Type
+from ..program.types import InternalValue, Type
 
 
 @dataclass(frozen=True, slots=True)

@@ -4,7 +4,7 @@ from dataclasses import replace
 from unittest import TestCase
 
 import wirely.compiler
-from wirely import types
+from wirely.program import types
 from wirely.compiler import program as program_compiler
 from wirely.program import (
     BranchTarget, Constant, ConstOperand, InputSource, Instruction, Opcode, Operand, OperandKind,

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterator, Mapping
 from typing import Any, overload
 
-from wirely import types
+from wirely.program import types
 from wirely.compiler import model
 from wirely.compiler.ast.specifiers import ConnectionKind
 from wirely.compiler.expressions import compile_constant

@@ -276,7 +276,7 @@ def _initializer_code(native_name: str, signature: signatures.Initializer, impor
     types.update((key, annotation(item, imports, resource_classes, strict)) for key, item in signature.uses.items())
     for name in ('NativeState', 'StateServices', 'InitializerAdapter', 'InterfaceBinding'):
         imports.add('wirely.runtime.native_api', name)
-    imports.add('wirely.types', 'InternalValue')
+    imports.add('wirely.program.types', 'InternalValue')
     imports.add('typing', 'Any')
     imports.add('typing', 'cast')
     imports.module('abc')
@@ -337,7 +337,7 @@ def _load_code(native_name: str, signature: signatures.Procedure, imports: _Impo
     types.update((key, annotation(item, imports, resource_classes, strict)) for key, item in signature.uses.items())
     for name in ('NativeProcedure', 'PreparationServices', 'ProcedureServices', 'ProcedureAdapter', 'InterfaceBinding'):
         imports.add('wirely.runtime.native_api', name)
-    imports.add('wirely.types', 'InternalValue')
+    imports.add('wirely.program.types', 'InternalValue')
     imports.add('collections.abc', 'Mapping')
     imports.add('typing', 'cast')
     imports.module('abc')
@@ -396,7 +396,7 @@ def _procedure_code(native_name: str, signature: signatures.Procedure, imports: 
     for name in ('NativeProcedure', 'PreparationServices', 'ProcedureServices', 'ProcedureAdapter',
                  'InterfaceBinding'):
         imports.add('wirely.runtime.native_api', name)
-    imports.add('wirely.types', 'InternalValue')
+    imports.add('wirely.program.types', 'InternalValue')
     imports.add('collections.abc', 'Mapping')
     imports.add('typing', 'cast')
     imports.module('abc')
@@ -467,7 +467,7 @@ def _function_code(native_name: str, signature: signatures.Function, imports: _I
                       f'{annotation(signature.result, imports, resource_classes)}]')
     for name in ('FunctionBinding', 'FunctionContract'):
         imports.add('wirely.runtime.native_api', name)
-    imports.add('wirely.types', 'InternalValue')
+    imports.add('wirely.program.types', 'InternalValue')
     imports.add('collections.abc', 'Sequence')
     adapter = f'_call_{snake_case(contract).rstrip("_")}'
     if parameters:
@@ -843,7 +843,7 @@ def generate_structs(graph: Any, source_paths: set[str] | None = None, *,
 
 def generate_format_records(graph: Any, *, source_root: Path = repository_root) -> str:
     """Return a module with the Python class and the Wirely type of each enum and struct of the binary program format."""
-    from wirely.types import TypeBoolean, TypeEnum, TypeInt, TypeStruct
+    from wirely.program.types import TypeBoolean, TypeEnum, TypeInt, TypeStruct
 
     def position(declaration: Any) -> int:
         return declaration.source_position.meta.start_pos
@@ -929,8 +929,8 @@ def generate_format_records(graph: Any, *, source_root: Path = repository_root) 
                          *sorted(constants, key=lambda name: (name != 'boolean', len(name), name))])
     lines = [HEADER + '"""Python classes and Wirely types of the enums and records of the binary program format."""',
              '', 'from __future__ import annotations', '', 'import enum', 'from typing import Any, NamedTuple', '',
-             f'from wirely.types import {imports}',
-             *(['from wirely.types.value_types import OpenIntEnum'] if any(value_type.is_open for value_type in enums)
+             f'from wirely.program.types import {imports}',
+             *(['from wirely.types.open_enum import OpenIntEnum'] if any(value_type.is_open for value_type in enums)
                else []),
              '', '__all__ = [', *(f'    {name!r},' for _, name, _ in classes), "    'enum_types',", "    'record_types',",
              ']', '', *(line for _, _, body in classes for line in body), *types]

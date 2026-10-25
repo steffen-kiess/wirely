@@ -12,7 +12,8 @@ from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
 
-from wirely import types
+from wirely import Some, Unit
+from wirely.program import types
 from wirely.__main__ import main
 from wirely.compiler import compile_files, compile_strs
 from wirely.compiler import program as program_compiler
@@ -119,7 +120,7 @@ def check_types_and_constants():
                             underlying_type=types.int16, json_names={300: 'high', -3: 'low'})
     resource = types.TypeResource('Resource', 'Test.Resource')
     typed = types.TypeList(types.ValueType)
-    constants = [Constant(pair, (types.Some(1), None)), Constant(twin, (None, None)),
+    constants = [Constant(pair, (Some(1), None)), Constant(twin, (None, None)),
                  Constant(closed, 1), Constant(opened, -3), Constant(typed, (resource, option)),
                  Constant(types.String, 'héllo'), Constant(types.String, 'héllo')]
     inputs = tuple(InputSource(VariableBank.CONST_VALUES, constant=item) for item in constants)
@@ -194,7 +195,7 @@ def check_variables_and_procedures():
     prog = program(procs=((RunStage.LOAD, (init, setup)),
                           (RunStage.DEFAULT, (native, first, second, distinct, last))),
                    state=(small, wide, empty), temporaries=(temporary,), fixed=(fixed, resource),
-                   initial={small: 9, wide: 0x12345678, empty: types.Unit()})
+                   initial={small: 9, wide: 0x12345678, empty: Unit()})
     data = sections(prog)
     for section, table in ((fmt.SectionType.StateVariables, prog.state_variables),
                            (fmt.SectionType.FixedValues, prog.fixed_values),
@@ -231,7 +232,7 @@ def check_nested_type_values():
     wrapper = types.TypeStruct('Types', {'values': types.TypeOption(types.TypeList(types.ValueType))})
     opaque = types.TypeStruct('Native', {'ticks': types.uint64}, native_name='Test.Native', is_opaque=True)
     unnamed = types.TypeStruct(None, (types.boolean,))
-    constants = [Constant(wrapper, (types.Some((types.TypeOption(first), types.TypeOption(second))),)),
+    constants = [Constant(wrapper, (Some((types.TypeOption(first), types.TypeOption(second))),)),
                  Constant(opaque, (7,)), Constant(unnamed, (True,)), Constant(types.String, '')]
     proc = Procedure(tuple(InputSource(VariableBank.CONST_VALUES, constant=item) for item in constants), (), name='test.load',
                      native=NativeProcedureEntry('Test:load', ('a', 'b', 'c', 'd'), ()))

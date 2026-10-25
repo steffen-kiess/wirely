@@ -6,7 +6,8 @@ from dataclasses import replace
 from unittest import TestCase
 from unittest.mock import patch
 
-from wirely import types
+from wirely import Some, Unit
+from wirely.program import types
 from wirely.program import (
     Constant, InputSource, NativeProcedureEntry, Opcode,
     OutputTarget, Procedure, ProcedureBody, RunStage, Section, SectionList, Variable, VariableBank,
@@ -155,12 +156,12 @@ def check_values():
     # Reused tail padding is valid in nested options and final struct fields.
     pair = types.TypeStruct('Pair', {'large': types.uint64, 'small': types.uint8})
     nested = types.TypeOption(types.TypeOption(pair))
-    for value in (None, types.Some(None), types.Some(types.Some((7, 1)))):
+    for value in (None, Some(None), Some(Some((7, 1)))):
         data = bound_constants(Constant(nested, value))
         verify_program(data)
         assert write_program(load_program(data)) == data
     variable = Variable(types.TypeOption(types.uint64))
-    data = write_program(state_program((variable,), {variable: types.Some(9)}))
+    data = write_program(state_program((variable,), {variable: Some(9)}))
     reject(change_section(data, f.SectionType.InitialState,
                           lambda section: replace(section, data=section.data[:-1] + b'\x01')), 'Padding')
     reject(replace_data(data, f.SectionType.InitialState, b''), 'bounds|size')
@@ -359,7 +360,7 @@ def check_limits_and_independence():
     with checks.assertRaises(VerificationLimitError):
         verify_program(units)
     # Equal payloads share storage but each reference still requires bounded work.
-    shared = bound_constants(*(Constant(types.TypeList(types.unit), (types.Unit(),) * 256) for _ in range(20)))
+    shared = bound_constants(*(Constant(types.TypeList(types.unit), (Unit(),) * 256) for _ in range(20)))
     verify_program(shared)
     with checks.assertRaises(VerificationLimitError):
         verify_program(shared, max_steps=5000)
@@ -424,7 +425,7 @@ def check_random_values():
     for index in range(30):
         inner, value = rng.choice(cases)
         if index % 3 == 0:
-            cases.append((types.TypeOption(inner), types.Some(value)))
+            cases.append((types.TypeOption(inner), Some(value)))
         elif index % 3 == 1:
             cases.append((types.TypeList(inner), (value, value)))
         else:

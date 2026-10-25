@@ -12,7 +12,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..types import Type
+    from ..program.types import Type
 
 
 class SignatureType:
@@ -117,14 +117,14 @@ class Function:
 
 
 def _builtin_types() -> dict[str, type]:
-    from .. import types
+    from ..program import types
     return {'unit': types.TypeUnit, 'boolean': types.TypeBoolean, 'string': types.TypeString,
             'type': types.TypeValueType}
 
 
 def matches(signature_type: SignatureType, value_type: Type, bindings: Mapping[str, Type]) -> bool:
     """Whether a value type has a signature type; bindings map type variable names to types."""
-    from .. import types
+    from ..program import types
 
     if isinstance(signature_type, TypeVar):
         return signature_type.name in bindings and value_type == bindings[signature_type.name]

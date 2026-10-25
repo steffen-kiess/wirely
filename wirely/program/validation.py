@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 
-from ..types import Type, TypeBoolean, TypeEnum, TypeInt, TypeList, TypeOption, TypeStruct, boolean, String, uint32
+from .types import Type, TypeBoolean, TypeEnum, TypeInt, TypeList, TypeOption, TypeStruct, boolean, String, uint32
 from .limits import is_runtime_type
 from .procedures import (
     ARITHMETIC_OPCODES, CONVERSION_OPCODES, Function,

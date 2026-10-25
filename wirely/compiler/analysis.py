@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 
 from wirely.compiler import model
-from wirely import types as _types
+from wirely.program import types as _types
 from . import outline as _outline
 from . import support
 from .ast import PortDirection

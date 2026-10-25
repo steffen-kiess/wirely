@@ -10,7 +10,8 @@ from pathlib import Path
 from unittest import TestCase
 from unittest.mock import AsyncMock, mock_open, patch
 
-from wirely import types
+from wirely import Some, Unit
+from wirely.program import types
 from wirely.cli import run as run_command
 from wirely.program import (
     BranchTarget, Constant, ConstOperand, Function, InputSource, NativeProcedureEntry, Opcode, Operand, OperandKind,
@@ -84,7 +85,7 @@ def check_constants_and_bindings():
     other_mode = types.TypeEnum('Mode', {'Off': 0, 'On': 1}, is_open=False, underlying_type=types.uint8)
     option = types.TypeOption(mode)
     wrapper = types.TypeStruct('Types', {'values': types.TypeOption(types.TypeList(types.ValueType))})
-    value = Constant(wrapper, (types.Some((option, types.TypeOption(other_mode), option)),))
+    value = Constant(wrapper, (Some((option, types.TypeOption(other_mode), option)),))
     opaque = types.TypeStruct('Native', {'ticks': types.uint64}, native_name='Test.Native', is_opaque=True)
     constants = (value, Constant(opaque, (7,)), Constant(types.String, 'héllo'), Constant(types.String, ''))
     fixed = Variable(types.uint8)
@@ -392,13 +393,13 @@ def check_shared_bodies():
 def check_budgets():
     value_type = types.TypeList(types.unit)
     writer = ConstDataWriter(lambda value_type: 0)
-    offset = writer.add(value_type, (types.Unit(),) * 3)
+    offset = writer.add(value_type, (Unit(),) * 3)
     reader = ConstDataReader(writer.data, lambda index: types.unit, max_values=8)
     assert len(reader.read(offset, value_type)) == 3
     assert len(reader.read(offset, value_type)) == 3
     with checks.assertRaisesRegex(ValueError, 'budget'):
         reader.read(offset, value_type)
-    constant = Constant(value_type, (types.Unit(),) * 3)
+    constant = Constant(value_type, (Unit(),) * 3)
     proc = Procedure((InputSource(VariableBank.CONST_VALUES, constant=constant),), (), name='test.run',
                      native=NativeProcedureEntry('Test:run', ('value',), ()))
     data = write_program(program(procs=((RunStage.LOAD, (proc,)),)))

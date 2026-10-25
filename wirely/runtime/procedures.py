@@ -4,7 +4,8 @@ from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 from ..program import ARITHMETIC_OPCODES, CONVERSION_OPCODES, ConstOperand, Opcode, OperandKind, Procedure
-from ..types import InternalValue, Some, convert
+from ..program.types import InternalValue, convert
+from ..types.option import Some
 from ..types.value_types import DynamicValue
 from .extensions import NativeTypes
 

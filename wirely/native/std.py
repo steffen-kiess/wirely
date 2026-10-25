@@ -11,7 +11,7 @@ from wirely.runtime.native_api import (
 from wirely.generated.structs import StdFormatParts
 from wirely.runtime.extensions import NativeTypes
 from wirely.runtime.native_values import check_opaque_values
-from wirely.types import InternalValue
+from wirely.program.types import InternalValue
 from wirely.types.time import Duration as Duration  # Implements the opaque struct Std.Duration.
 
 

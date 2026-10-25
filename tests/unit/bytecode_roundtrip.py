@@ -1,6 +1,6 @@
 """A small execution probe for the test runner's bytecode mode."""
 
-from wirely import types
+from wirely.program import types
 from wirely.program import (
     Constant, ConstOperand, InputSource, Instruction, Opcode, Operand, OperandKind, OutputTarget,
     Procedure, ProcedureBody, Program, ProgramSymbols, RunStage, Variable, VariableBank, VariableTable,

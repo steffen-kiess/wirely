@@ -9,11 +9,11 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 from wirely.generated.structs import TwoNCredentials
+from wirely.program.types import InternalValue
 from wirely.runtime.native_api import (
     InitializerAdapter, InterfaceBinding, NativeProcedure, NativeState, PreparationServices, ProcedureAdapter,
     ProcedureServices, StateServices,
 )
-from wirely.types import InternalValue
 from wirely.types.integers import Int32, UInt16
 from wirely.types.option import Some
 from wirely.types.unit import Unit

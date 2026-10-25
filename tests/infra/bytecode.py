@@ -4,7 +4,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field, replace
 from typing import Any
 
-from wirely import types
+from wirely.program import types
 from wirely.program import (
     BranchTarget, Constant, ConstOperand, Function, InputSource, OutputTarget, Procedure, Program,
     RunStage, Variable, VariableTable,

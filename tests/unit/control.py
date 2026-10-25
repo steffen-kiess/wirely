@@ -18,7 +18,7 @@ from cryptography.x509.oid import NameOID
 import wirely.cli.client
 import wirely.compiler
 import wirely.misc.service
-import wirely.types
+import wirely.program.types
 from wirely.cli import run as run_command
 from wirely.compiler import program as program_compiler
 from wirely.control import node_commands
@@ -356,7 +356,7 @@ def check_node_commands():
         (lambda: node_commands.resolve(engine.program, 'c'), '`c` has no typed commands'),
         (lambda: node_commands.resolve(engine.program, 'missing'), 'Cannot find node `missing`'),
         (lambda: target.encode('x', native_types), "Invalid `uint16` value 'x'"),
-        (lambda: dataclasses.replace(target, value_type=wirely.types.boolean).encode('2', native_types),
+        (lambda: dataclasses.replace(target, value_type=wirely.program.types.boolean).encode('2', native_types),
          "Invalid `boolean` value '2'"),
     ]:
         try:

@@ -10,11 +10,11 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 
 from wirely.generated.enums import MQTTFormat
 from wirely.generated.structs import MQTTTemplateParts
+from wirely.program.types import InternalValue
 from wirely.runtime.native_api import (
     InitializerAdapter, InterfaceBinding, NativeProcedure, NativeState, PreparationServices, ProcedureAdapter,
     ProcedureServices, StateServices,
 )
-from wirely.types import InternalValue
 from wirely.types.option import Some
 from wirely.types.value_types import DynamicValue, ValueType
 

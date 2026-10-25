@@ -4,7 +4,7 @@ from collections.abc import Callable, Iterable
 from hashlib import sha512
 from typing import Any
 
-from ..types import (
+from .types import (
     Type, TypeBoolean, TypeEnum, TypeInt, TypeList, TypeOption, TypeResource,
     TypeString, TypeStruct, TypeUnit, TypeValueType,
 )

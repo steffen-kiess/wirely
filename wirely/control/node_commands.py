@@ -10,7 +10,7 @@ from typing import Any
 from ..program import Program
 from ..program.program import procedure_instances
 from ..runtime.extensions import NativeTypes
-from ..types import Type, TypeOption
+from ..program.types import Type, TypeOption
 
 
 @dataclass(frozen=True)

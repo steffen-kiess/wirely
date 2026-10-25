@@ -10,11 +10,11 @@ from tests.infra.native_extension.generated.enums import TestLibraryOperatorClos
 from tests.infra.native_extension.generated.structs import TestLibraryOperatorValue
 from typing import cast
 
+from wirely.program.types import InternalValue
 from wirely.runtime.native_api import (
     FunctionBinding, FunctionContract, InterfaceBinding, NativeProcedure, PreparationServices,
     ProcedureAdapter, ProcedureServices,
 )
-from wirely.types import InternalValue
 from wirely.types.integers import Int16
 from wirely.types.unit import Unit
 

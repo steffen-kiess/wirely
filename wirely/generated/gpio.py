@@ -9,11 +9,11 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 from wirely.generated.enums import GPIOActiveState, GPIOBias, GPIODrive
+from wirely.program.types import InternalValue
 from wirely.runtime.native_api import (
     InitializerAdapter, InterfaceBinding, NativeProcedure, NativeState, PreparationServices, ProcedureAdapter,
     ProcedureServices, StateServices,
 )
-from wirely.types import InternalValue
 
 if TYPE_CHECKING:
     from wirely.native.gpio import OutputState

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 from ..functions import bind_native_function
 from ..program import Constant, InputSource, Program, Variable, VariableBank, used_declared_types
 from ..program.limits import is_runtime_type
-from ..types import Type, TypeEnum, TypeResource, TypeStruct
+from ..program.types import Type, TypeEnum, TypeResource, TypeStruct
 from .extensions import NativeTypes, RuntimeNativeExtension
 from .native_api import InitializerAdapter, NativeProcedure, NativeState, ProcedureAdapter
 from .procedures import NativeFunction

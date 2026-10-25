@@ -16,7 +16,7 @@ from wirely.runtime.native_api import (
 from wirely.runtime.extensions import RuntimeNativeExtension, resolve_extensions
 from wirely.runtime.resources import ResourceValue
 from wirely.runtime.signatures import Procedure as SignatureProcedure
-from wirely.types import InternalValue, TypeResource
+from wirely.program.types import InternalValue, TypeResource
 from wirely.types.time import Duration, MonotonicTime
 from wirely.runtime.procedures import execute_procedure
 from wirely.runtime.wall_clock import WallClockWaiter, WallWakeup

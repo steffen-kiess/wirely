@@ -10,8 +10,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from .. import types
-from ..types import InternalValue, Some
+from ..program import types
+from ..program.types import InternalValue
+from ..types.option import Some
 from ..types.integers import integer_class
 from ..types.value_types import DynamicValue, ValueType
 from . import signatures

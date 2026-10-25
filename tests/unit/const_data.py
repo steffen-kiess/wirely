@@ -3,10 +3,11 @@
 import struct
 from unittest import TestCase
 
-from wirely import types
+from wirely.program import types
 from wirely.program.const_data import ConstDataWriter, const_layout, read_const
 from wirely.program.limits import MAX_TOTAL_MEMBER_COUNT, is_runtime_type
-from wirely.types import Some, Unit
+from wirely.types.option import Some
+from wirely.types.unit import Unit
 
 
 checks = TestCase()

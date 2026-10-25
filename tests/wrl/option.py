@@ -22,7 +22,7 @@ payload.append(3)
 assert some_list.value is payload
 assert some_list == wirely.Some([1, 2, 3])
 
-option_type = wirely.types.TypeOption(wirely.types.boolean)
+option_type = wirely.program.types.TypeOption(wirely.program.types.boolean)
 assert option_type.verify_value(None) is None
 assert option_type.verify_value(wirely.Some(False)) == wirely.Some(False)
 assert option_type.parse('none') is None
@@ -45,7 +45,7 @@ for invalid in [(True,), (), (True, False), True, wirely.Some(None),
 # Python equality alone, which considers 1 equal to True.
 assert wirely.Some(1) == wirely.Some(True)
 
-nested_type = wirely.types.TypeOption(option_type)
+nested_type = wirely.program.types.TypeOption(option_type)
 assert nested_type.verify_value(wirely.Some(None)) == wirely.Some(None)
 assert nested_type.verify_value(wirely.Some(wirely.Some(True))) == wirely.Some(wirely.Some(True))
 assert not nested_type.equals(wirely.Some(None), wirely.Some(wirely.Some(True)))
@@ -59,7 +59,7 @@ class IntegerSubclass(int):
     pass
 
 
-integer_option = wirely.types.TypeOption(wirely.types.int8)
+integer_option = wirely.program.types.TypeOption(wirely.program.types.int8)
 assert integer_option.verify_value(wirely.Some(7)) == wirely.Some(7)
 # Integer payloads must be plain ints in range.
 for payload in (IntegerSubclass(7), True, 128):
@@ -68,7 +68,7 @@ for payload in (IntegerSubclass(7), True, 128):
 with checks.assertRaises(ValueError):
     integer_option.parse('128')
 
-list_option = wirely.types.TypeOption(wirely.types.TypeList(option_type))
+list_option = wirely.program.types.TypeOption(wirely.program.types.TypeList(option_type))
 assert list_option.verify_value(wirely.Some([None, wirely.Some(True)])) == wirely.Some((None, wirely.Some(True)))
 with checks.assertRaises(Exception):
     list_option.verify_value(wirely.Some([wirely.Some(1)]))

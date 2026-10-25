@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from wirely.compiler import model
 from wirely.runtime.engine import Engine
-from wirely.types import TypeStruct
+from wirely.program.types import TypeStruct
 
 if TYPE_CHECKING:
     from wirely.program import Program

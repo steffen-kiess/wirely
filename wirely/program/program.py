@@ -9,7 +9,7 @@ from types import MappingProxyType
 from typing import TextIO
 
 from ..util import immutable_enum
-from ..types import Type, TypeEnum, TypeList, TypeOption, TypeResource, TypeStruct
+from .types import Type, TypeEnum, TypeList, TypeOption, TypeResource, TypeStruct
 from .limits import is_runtime_type, runtime_type_error
 from .names import member_owner
 from .procedures import Constant, ConstOperand, Function, Instruction, Opcode, ProcedureBody

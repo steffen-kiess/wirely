@@ -30,7 +30,7 @@ from .attributes import Attribute, ParsedFile
 from .sources import ParseCache
 from . import outline as _outline
 from .expressions import ExpressionBlock, IfLetExpression, LocalBinding, PropertyAccess
-from wirely import types as _types
+from wirely.program import types as _types
 from .outline import (
     Binding, Connection, Constant, Node, NodeType, Parameter, Port, Procedure, ProcedurePort, State,
     outline,

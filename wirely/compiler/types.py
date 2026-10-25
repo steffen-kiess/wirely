@@ -11,8 +11,8 @@ if TYPE_CHECKING:
     from .parameters import StaticValue
 
 from ..program.limits import is_runtime_type, runtime_type_error
-from ..types import Type, TypeOption, TypeList
-from .. import types
+from ..program.types import Type, TypeOption, TypeList
+from ..program import types
 from . import model
 
 

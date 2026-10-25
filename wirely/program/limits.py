@@ -1,6 +1,6 @@
 """Inclusive limits for individual runtime values, and the check of types against them."""
 
-from ..types import Type
+from .types import Type
 
 MAX_STORAGE_SIZE = 128
 MAX_NESTING_DEPTH = 16

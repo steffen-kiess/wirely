@@ -2,7 +2,8 @@ import io
 from unittest import TestCase
 
 import wirely
-from wirely import types
+from wirely import Some, Unit
+from wirely.program import types
 from tests.infra.native_extension.generated import test_library as contracts
 from tests.infra.support import library_type, test_extension
 from wirely.program import (
@@ -116,8 +117,8 @@ def check_structs_and_options():
     ], local_types=(pair, option, pair, nested),
        output_types=(pair, pair, types.uint8, option, types.boolean, option,
                      types.boolean, pair, types.boolean, nested, types.boolean))
-    assert outcome == (initial, updated, 7, types.Some(updated), True, types.Some(updated),
-                      True, pair.default_value(), False, types.Some(None), True)
+    assert outcome == (initial, updated, 7, Some(updated), True, Some(updated),
+                      True, pair.default_value(), False, Some(None), True)
 
 
 def check_conversions():
@@ -128,7 +129,7 @@ def check_conversions():
         (Opcode.CONVERT_WRAPPING, types.int16, 300, types.int8, 44),
         (Opcode.CONVERT_SATURATING, types.int16, 300, types.int8, 127),
         (Opcode.CONVERT_CHECKED, types.int16, 300, int8_option, None),
-        (Opcode.CONVERT_CHECKED, types.int16, -128, int8_option, types.Some(-128)),
+        (Opcode.CONVERT_CHECKED, types.int16, -128, int8_option, Some(-128)),
         (Opcode.CONVERT_SATURATING, types.int16, -1, types.uint8, 0),
         (Opcode.CONVERT_WRAPPING, level, 200, types.int8, -56),
         (Opcode.CONVERT_WRAPPING, types.boolean, True, types.uint8, 1),
@@ -136,7 +137,7 @@ def check_conversions():
     ]
     # Booleans are 1-bit unsigned integers.
     for value, wrapped, saturated, checked in [
-            (0, False, False, types.Some(False)), (1, True, True, types.Some(True)),
+            (0, False, False, Some(False)), (1, True, True, Some(True)),
             (2, False, True, None), (3, True, True, None), (-1, True, False, None)]:
         cases += [(Opcode.CONVERT_WRAPPING, types.int8, value, types.boolean, wrapped),
                   (Opcode.CONVERT_SATURATING, types.int8, value, types.boolean, saturated),
@@ -157,7 +158,7 @@ def check_calls():
         return min(max(value, low), high)
 
     def no_values():
-        return types.Unit()
+        return Unit()
 
     bindings = test_extension(functions={'TestLibrary.Clamp': contracts._Clamp.implementation(clamp_values),
                                             'TestLibrary.Nothing': contracts._Nothing.implementation(no_values)})
@@ -167,7 +168,7 @@ def check_calls():
         instruction(Opcode.CALL, output(1), nothing, 0),
         instruction(Opcode.RETURN),
     ], output_types=(types.int16, types.unit), override_extensions=[bindings])
-    assert outcome == (100, types.Unit())
+    assert outcome == (100, Unit())
 
     # Linking requires an implementation for every called function, even if unreachable.
     missing = Function('TestLibrary.Missing', (), types.boolean)
@@ -235,17 +236,17 @@ def check_arithmetic():
         (Opcode.ADD_WRAPPING, 127, 1, -128),
         (Opcode.ADD_SATURATING, 127, 1, 127),
         (Opcode.ADD_CHECKED, 127, 1, None),
-        (Opcode.ADD_CHECKED, 126, 1, types.Some(127)),
+        (Opcode.ADD_CHECKED, 126, 1, Some(127)),
         (Opcode.SUB_WRAPPING, -128, 1, 127),
         (Opcode.SUB_SATURATING, 0, -128, 127),
         (Opcode.SUB_CHECKED, 0, -128, None),
         (Opcode.MUL_WRAPPING, 64, 2, -128),
         (Opcode.MUL_SATURATING, -64, 3, -128),
-        (Opcode.MUL_CHECKED, -64, 2, types.Some(-128)),
-        (Opcode.DIV_CHECKED, -7, 2, types.Some(-3)),
+        (Opcode.MUL_CHECKED, -64, 2, Some(-128)),
+        (Opcode.DIV_CHECKED, -7, 2, Some(-3)),
         (Opcode.DIV_CHECKED, -128, -1, None),
         (Opcode.DIV_CHECKED, 1, 0, None),
-        (Opcode.REM_CHECKED, -7, 2, types.Some(-1)),
+        (Opcode.REM_CHECKED, -7, 2, Some(-1)),
         (Opcode.REM_CHECKED, 1, 0, None),
     ]
     instructions = []

@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar, overload
 
 from ..program import RunStage
-from ..types import InternalValue, Type
+from ..program.types import InternalValue, Type
 from ..types.time import MonotonicTime
 from . import signatures
 from .extensions import NativeTypes

@@ -256,7 +256,7 @@ def check_state_types():
 def check_native_conversions():
     # Values convert recursively between internal and native representations;
     # type variable positions of a signature become DynamicValues.
-    from wirely import types
+    from wirely.program import types
     from wirely.runtime import signatures
     from wirely.runtime.native_values import from_native, to_native
 

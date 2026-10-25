@@ -2,9 +2,9 @@
 
 from typing import Any
 
-from . import Type, TypeBoolean, TypeEnum, TypeInt, TypeOption, TypeStruct, TypeUnit
-from .option import Some
-from .unit import Unit
+from .types import Type, TypeBoolean, TypeEnum, TypeInt, TypeOption, TypeStruct, TypeUnit
+from ..types.option import Some
+from ..types.unit import Unit
 
 
 def _check_runtime(value_type: Type) -> None:

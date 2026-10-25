@@ -10,7 +10,8 @@ representations, also beyond the runtime limits.
 from collections.abc import Callable
 from typing import Any
 
-from ..types import Some, Type, TypeList, TypeOption, TypeResource, TypeString, TypeStruct, TypeValueType
+from .types import Type, TypeList, TypeOption, TypeResource, TypeString, TypeStruct, TypeValueType
+from ..types.option import Some
 from .generated.format import ListValue, Ref, StringRef, ValueTypeValue, record_types
 from .records import pack_record, unpack_record
 

@@ -5,7 +5,7 @@ from unittest import TestCase
 from wirely.generated import extension as builtin_extension
 import wirely
 import wirely.compiler
-from wirely import types as wirely_types
+from wirely.program import types as wirely_types
 from wirely.compiler import native_contracts
 from wirely.compiler.native_signatures import native_signatures
 from wirely.program import RunStage

@@ -8,10 +8,10 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
+from wirely.program.types import InternalValue
 from wirely.runtime.native_api import (
     InterfaceBinding, NativeProcedure, PreparationServices, ProcedureAdapter, ProcedureServices,
 )
-from wirely.types import InternalValue
 from wirely.types.option import Some
 
 if TYPE_CHECKING:

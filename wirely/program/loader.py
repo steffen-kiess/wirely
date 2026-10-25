@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Literal, TypeVar, overload
 
-from .. import types
+from . import types
 from .const_data import ConstDataReader
 from ._binary import BinaryFile, ValueRef
 from .container import SectionList
