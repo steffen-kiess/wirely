@@ -289,10 +289,13 @@ class TypeStruct(Type):
 
     def __init__(self, name: str | None, fields: Mapping[str, Type] | Sequence[Type], *,
                  native_name: str | None = None, is_opaque: bool = False,
-                 native_types: NativeTypes | None = None, json_names: Sequence[str] | None = None) -> None:
+                 native_types: NativeTypes | None = None, json_names: Sequence[str] | None = None,
+                 field_names: Sequence[str | None] | None = None) -> None:
         """Create a struct from named fields, or from field types alone.
 
-        json_names are the JSON names of the fields; by default, the field names.
+        json_names defaults to the names of a field mapping. field_names
+        supplies optional symbols for positional field types, independently
+        of JSON names.
         """
         if native_name is not None and (type(native_name) is not str or not native_name):
             raise ValueError('Struct native_name must be a nonempty string or None')
@@ -307,17 +310,31 @@ class TypeStruct(Type):
         self._fields: Mapping[str, Type] | None
         if isinstance(fields, Mapping):
             self._fields = MappingProxyType(dict(fields))
-            self.field_names: tuple[str, ...] | None = tuple(self._fields)
+            self.field_names: tuple[str | None, ...] | None = tuple(self._fields)
             self.field_types: tuple[Type, ...] = tuple(self._fields.values())
         else:
             self._fields = None
             self.field_names = None
             self.field_types = tuple(fields)
+        if not self.field_types:
+            self.field_names = ()
+            self._fields = MappingProxyType({})
+        if field_names is not None:
+            if isinstance(fields, Mapping):
+                raise ValueError('Use either named fields or field_names')
+            if len(field_names) != len(self.field_types):
+                raise ValueError('Expected one field name or None per field')
+            present = [name for name in field_names if name is not None]
+            if any(not isinstance(name, str) for name in present) or len(set(present)) != len(present):
+                raise ValueError('Field names must be distinct strings or None')
+            self.field_names = tuple(field_names) if present or not self.field_types else None
+            self._fields = (None if self.field_names is None else MappingProxyType(
+                {name: ty for name, ty in zip(field_names, self.field_types) if name is not None}))
         if any(not isinstance(field_type, Type) or field_type.contains_parameters
                for field_type in self.field_types):
             raise ValueError('Struct fields require resolved value types')
         # JSON names of the fields, the JsonTypes entry of the struct, or None without one.
-        self.json_names = self.field_names if json_names is None else tuple(json_names)
+        self.json_names = (tuple(fields) if isinstance(fields, Mapping) else None) if json_names is None else tuple(json_names)
         if self.json_names is not None and len(self.json_names) != len(self.field_types):
             raise ValueError(f'Struct `{self}` needs one JSON name per field')
 
@@ -330,7 +347,8 @@ class TypeStruct(Type):
 
     def field_label(self, index: int) -> str:
         """Return a field's name, or its position without field names."""
-        return str(index) if self.field_names is None else self.field_names[index]
+        name = None if self.field_names is None else self.field_names[index]
+        return str(index) if name is None else name
 
     @property
     def is_ordered(self) -> bool:  # type: ignore[override]
@@ -389,13 +407,19 @@ class TypeStruct(Type):
 
     def make_value(self, fields: Mapping[str, Any]) -> tuple:
         """Return the value with these field values by name."""
+        if self.field_names is None:
+            raise ValueError(f'Struct `{self}` has no field names')
+        if any(name is None for name in self.field_names):
+            raise ValueError(f'Struct `{self}` needs complete field names for named construction')
         if not isinstance(fields, Mapping) or fields.keys() != self.fields.keys():
             raise ValueError(f'Expected exactly the fields of `{self}`: {", ".join(f"`{field}`" for field in self.fields)}')
         return self.verify_value(tuple(fields[name] for name in self.fields))
 
     def index(self, name: str) -> int:
         """Return the position of a field."""
-        return tuple(self.fields).index(name)
+        if self.field_names is None:
+            raise ValueError(f'Struct `{self}` has no field names')
+        return self.field_names.index(name)
 
     def verify_value(self, value: Any) -> Any:
         if type(value) is not tuple or len(value) != len(self.field_types):
@@ -429,8 +453,8 @@ class TypeStruct(Type):
         if self.field_names is None:
             fields = ', '.join(field_type.to_text(field) for field_type, field in zip(self.field_types, value))
         else:
-            fields = ', '.join(f'{name}: {field_type.to_text(field)}'
-                               for name, field_type, field in zip(self.field_names, self.field_types, value))
+            fields = ', '.join(f'{self.field_label(index)}: {field_type.to_text(field)}'
+                               for index, (field_type, field) in enumerate(zip(self.field_types, value)))
         return f'{self} {{ {fields} }}'
 
 
@@ -792,14 +816,13 @@ class TypeEnum(TypePrimitive):
             raise ValueError('Enum native_name must be a nonempty string or None')
         if not isinstance(underlying_type, TypeInt):
             raise ValueError('Enum underlying_type must be an integer type')
+        inferred_count = not is_open and member_count is None
         if is_open:
             if member_count is not None:
                 raise ValueError('Open enums have no member count')
         else:
             if member_count is None:
                 member_count = len(members)
-            elif members and len(members) != member_count:
-                raise ValueError('Closed enums name either all members or none')
             closed_enum_underlying_type(member_count)
             if underlying_type.is_signed or underlying_type.bits not in (8, 16, 32):
                 raise ValueError('Closed enum underlying_type must be uint8, uint16, or uint32')
@@ -807,8 +830,10 @@ class TypeEnum(TypePrimitive):
         for index, (member, number) in enumerate(members.items()):
             if type(number) is not int or not underlying_type.min_value <= number <= underlying_type.max_value:
                 raise ValueError(f'Enum member `{member}` does not fit `{underlying_type}`')
-            if not is_open and number != index:
+            if inferred_count and number != index:
                 raise ValueError('Closed enum numbers must be consecutive from zero in declaration order')
+            if not is_open and (member_count is None or not 0 <= number < member_count):
+                raise ValueError('Closed enum member number is out of range')
             if number in names:
                 raise ValueError(f'Enum members `{names[number]}` and `{member}` have the same number {number}')
             names[number] = member
@@ -856,7 +881,7 @@ class TypeEnum(TypePrimitive):
     def _parse_impl(self, text: str) -> Any:
         if text in self.members:
             return self.members[text]
-        if self.is_open or len(self.members) == 0:
+        if self.is_open or len(self.members) < (self.member_count or 1):
             try:
                 number = int(text, 10)
             except ValueError:

@@ -10,8 +10,8 @@ from unittest.mock import patch
 import wirely
 import wirely.compiler
 from wirely.compiler import program as program_compiler
-from wirely.program import InputSource, NativeProcedureEntry, RunStage, Variable, VariableBank, validate_program
-from wirely.program.loader import load_program
+from wirely.program import InputSource, NativeProcedureEntry, RunStage, SectionList, Variable, VariableBank, validate_program
+from wirely.program.loader import load_program, read_build_id
 from wirely.program.writer import write_program
 from wirely.program.program import procedure_instances
 from wirely.runtime.linking import link_native_signatures
@@ -205,7 +205,7 @@ connect service -> consumer.Service;
     resources = {variable.var_type.native_name: variable for variable in program.fixed_values.variables
                  if variable.is_resource}
     service, other = resources['TestLibrary.Service'], resources['TestLibrary.Other']
-    unknown = Variable(service.var_type, name='missing')
+    unknown = Variable(service.var_type)
 
     def with_source(variable):
         modified = replace(consumer, inputs=(InputSource(VariableBank.FIXED_VALUES, variable),))
@@ -344,9 +344,12 @@ state seen: boolean = false;
 connect first -> seen;
 ''')], add_std=True)
     assert graph is not None
-    data = write_program(program_compiler.compile_nocatch(graph))
+    full_data = write_program(program_compiler.compile_nocatch(graph))
+    container = SectionList.from_bytes(full_data)
+    container.sections = [section for section in container.sections if section.section_type < 0x10000]
+    data = container.to_bytes()
     loaded = load_program(data)
-    assert write_program(loaded) == data
+    assert read_build_id(data) == read_build_id(full_data)
     instances = procedure_instances(loaded)
     assert all(proc.name is None and proc.node is None for proc in instances)
     assert all(var.name is None for table in (loaded.state_variables, loaded.temporaries, loaded.fixed_values)
@@ -406,7 +409,9 @@ node second: TestLibrary.Probe {}
 ''')])
     assert graph is not None
     compiled = program_compiler.compile_nocatch(graph)
-    loaded = load_program(write_program(compiled))
+    container = SectionList.from_bytes(write_program(compiled))
+    container.sections = [section for section in container.sections if section.section_type < 0x10000]
+    loaded = load_program(container.to_bytes())
     first, second = loaded.procs[RunStage.DEFAULT]
     assert first is not second and first != second
     assert first.native is second.native and first.inputs == second.inputs == ()

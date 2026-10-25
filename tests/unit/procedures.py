@@ -141,7 +141,8 @@ def check_output_storage():
     }
     node split: Split {}
     ''')
-    assert any(var.name == 'split.run.value' for var in program.temporaries.variables)
+    assert len(next(proc for schedule in program.procs.values() for proc in schedule if proc.name == 'split.run').outputs) == 2
+    assert all(var.name is None for var in program.temporaries.variables)
     engine = test_engine(program)
     engine.step()
     engine.assert_value_is('split.Value', True)
@@ -232,7 +233,7 @@ def check_procedure_ports():
     node p: Ports {}
     connect source -> p;
     ''', add_std=True)
-    assert any(var.name == 'p.invert.inverted' for var in program.temporaries.variables)
+    assert all(var.name is None for var in program.temporaries.variables)
     engine = test_engine(program)
     assert engine.get_variable('p.named') is engine.get_variable('p.Twice')
     source = engine.get_native_state('source.create')

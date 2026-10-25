@@ -98,7 +98,7 @@ def check_container():
     container = SectionList.from_bytes(data)
     assert container.version == (0, 0)
     assert [section.section_type for section in container.sections] == list(fmt.SectionType)
-    expected_records = [0, 0, 1, 2, 0, 3, 3, 3, 3, 0, 4, 0, 5, 6, 7, 8, 9, 10, 0, 11, 12]
+    expected_records = [0, 0, 1, 2, 0, 3, 3, 3, 3, 0, 4, 0, 5, 6, 7, 8, 9, 10, 0, 11, 12, 0, 13, 14, 15, 15, 16]
     assert [section.record_type for section in container.sections] == expected_records
     offset = unpack_record(fmt.SectionEntry, data, record_size(fmt.Header)).offset
     zeroed = data[:offset] + bytes(64) + data[offset + 64:]
@@ -167,12 +167,12 @@ def check_types_and_constants():
 
 
 def check_variables_and_procedures():
-    small = Variable(types.uint8, name='small')
-    wide = Variable(types.uint64, name='wide')
-    empty = Variable(types.unit, name='empty')
-    temporary = Variable(types.uint8, name='temporary')
-    fixed = Variable(types.uint8, name='fixed')
-    resource = Variable(types.TypeResource('Resource', 'Test.Resource'), name='resource')
+    small = Variable(types.uint8)
+    wide = Variable(types.uint64)
+    empty = Variable(types.unit)
+    temporary = Variable(types.uint8)
+    fixed = Variable(types.uint8)
+    resource = Variable(types.TypeResource('Resource', 'Test.Resource'))
     init = Procedure((), (OutputTarget(VariableBank.FIXED_VALUES, resource),), name='z.create',
                      native=NativeProcedureEntry('Z:create', (), ('resource',), initializer=True))
     setup = Procedure((), (OutputTarget(VariableBank.FIXED_VALUES, fixed),), name='a.load',
@@ -350,8 +350,8 @@ def check_aliases():
     data = sections(program(procs=((RunStage.DEFAULT, (proc,)),), aliases={
         'alias': InputSource(VariableBank.CONST_VALUES, constant=alias),
         'immediate': InputSource(VariableBank.CONST_VALUES, constant=immediate)}))
-    assert not data[fmt.SectionType.ConstValues]
-    assert len(data[fmt.SectionType.ValueTypes]) == 32
+    assert len(records(data[fmt.SectionType.ConstValues], fmt.Variable)) == 2
+    assert len(data[fmt.SectionType.ValueTypes]) == 96
     bound = Procedure((InputSource(VariableBank.CONST_VALUES, constant=immediate),), (), name='bound.run',
                       native=NativeProcedureEntry('Bound:run', ('input',), ()))
     data = sections(program(procs=((RunStage.DEFAULT, (proc, bound)),)))
@@ -442,7 +442,7 @@ def check_compiled_programs():
         assert graph is not None, path
         prog = program_compiler.compile(graph)
         assert prog is not None, path
-        assert len(SectionList.from_bytes(write_program(prog)).sections) == 21, path
+        assert len(SectionList.from_bytes(write_program(prog)).sections) == 27, path
 
 
 def check_cli():
@@ -463,7 +463,7 @@ def check_cli():
         result = subprocess.run([sys.executable, '-m', 'wirely', 'compile', '--output', str(output), str(source)],
                                 cwd=root, capture_output=True, text=True)
         assert result.returncode == 0, result.stderr
-        assert len(SectionList.load(output).sections) == 21
+        assert len(SectionList.load(output).sections) == 27
         original = output.read_bytes()
         short_output = directory / 'short.wbc'
         result = run('-o', short_output, source)

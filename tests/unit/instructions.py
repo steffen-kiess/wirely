@@ -35,8 +35,8 @@ def instruction(opcode, *operands):
 
 
 def make_program(instructions, *, local_types=(), output_types=(types.boolean,), inputs=()):
-    state = tuple(Variable(value_type, name=f'input{index}') for index, (value_type, _) in enumerate(inputs))
-    outputs = tuple(Variable(value_type, name=f'output{index}') for index, value_type in enumerate(output_types))
+    state = tuple(Variable(value_type) for index, (value_type, _) in enumerate(inputs))
+    outputs = tuple(Variable(value_type) for index, value_type in enumerate(output_types))
     procedure = Procedure(
         name='test.run',
         inputs=tuple(InputSource(VariableBank.OLD_STATE, variable) for variable in state),
@@ -49,7 +49,7 @@ def make_program(instructions, *, local_types=(), output_types=(types.boolean,),
         initial_state={variable: value for variable, (_, value) in zip(state, inputs)},
         procs={RunStage.DEFAULT: (procedure,)},
         symbols=ProgramSymbols(variable_aliases={
-            variable.name: InputSource(VariableBank.TEMPORARIES, variable) for variable in outputs}),
+            f'output{index}': InputSource(VariableBank.TEMPORARIES, variable) for index, variable in enumerate(outputs)}),
     )
 
 

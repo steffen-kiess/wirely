@@ -433,8 +433,9 @@ async def _dump(client: ControlClient, args: argparse.Namespace) -> int:
                 _print_hex(data)
                 continue
             variable_table = variable_tables[bank]
-            for variable in sorted(variable_table.variables, key=variable_table.label):
-                name = variable_table.label(variable)
+            assert program is not None
+            for variable in sorted(variable_table.variables, key=program.variable_label):
+                name = program.variable_label(variable)
                 offset = variable_table.offsets[variable]
                 value = variable.var_type.deserialize(data[offset:offset + variable.var_type.data_size])
                 print(f'  {name}: {variable.var_type.to_text(value)}')

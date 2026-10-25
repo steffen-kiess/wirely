@@ -10,6 +10,7 @@ from wirely.program import (
     BranchTarget, Constant, ConstOperand, InputSource, Instruction, Opcode, Operand, OperandKind,
     Procedure, ProcedureBody, Program, RunStage, VariableBank, VariableTable, validate_program,
 )
+from wirely.program import SectionList
 from wirely.program.loader import load_program
 from wirely.program.writer import write_program
 from wirely.runtime import LoadFailure
@@ -127,7 +128,9 @@ def check_instances():
             Engine(program)
         assert caught.exception.node == owner
         assert 'example.source:case.wrl' in caught.exception.procedure
-        loaded = load_program(write_program(program))
+        container = SectionList.from_bytes(write_program(program))
+        container.sections = [section for section in container.sections if section.section_type < 0x10000]
+        loaded = load_program(container.to_bytes())
         with checks.assertRaises(LoadFailure) as caught:
             Engine(loaded)
         failure = caught.exception

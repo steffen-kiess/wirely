@@ -141,10 +141,7 @@ def lower_program(global_node_type: model.NodeType) -> Program:
             source = owner.node_type.value_nodes.get(var.name, owner.instantiation)
         if not isinstance(var_type, model.ResourceType):
             check_runtime_type(var_type, source)
-        name = model.InstanceNode.path_name(path)
-        # Port storage is named after its procedure: <path>.<procedure>.<port>.
-        variable_name = member_name(name, var.name)
-        v = Variable(var_type, name=variable_name)
+        v = Variable(var_type)
         fixed = isinstance(var_type, model.ResourceType) or model.connection_kind(var) == model.ConnectionKind.Fixed
         input_source = InputSource(VariableBank.FIXED_VALUES if fixed else VariableBank.TEMPORARIES, v)
         (fixed_variables if fixed else all_variables).append(v)

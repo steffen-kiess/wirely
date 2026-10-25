@@ -30,6 +30,7 @@ from wirely.control.server import ControlServer, serve_session
 from wirely.misc.state_directory import StateDirectoryLocked, lock_state_directory
 from wirely.program.program import procedure_instances
 from wirely.program.writer import program_build_id, write_program
+from wirely.program import SectionList
 from wirely.program.loader import load_program
 from wirely.runtime.engine import Engine
 
@@ -309,7 +310,9 @@ async def check_native_commands(server):
 
 
 async def check_unnamed_native_commands():
-    program = load_program(write_program(engine.program))
+    container = SectionList.from_bytes(write_program(engine.program))
+    container.sections = [section for section in container.sections if section.section_type < 0x10000]
+    program = load_program(container.to_bytes())
     runtime = Engine(program)
     controller = RuntimeController(runtime, program_build_id(program))
     value = instance_index('value.create')
@@ -564,7 +567,9 @@ async def check_cli(server):
     assert '2 steps' in await run_client_command(*serial, 'step', '--count', '2')
     output = await run_client_command('--unix-path', server.stream_path, '--program', program_path, 'dump')
     assert '  d: 42\n' in output
-    assert '  c.run.output: 42\n' in output
+    label = engine.program.variable_label(next(proc for proc in procedure_instances(engine.program)
+                                              if proc.name == 'c.run').outputs[0].variable)
+    assert f'  {label}: 42\n' in output
     output = await run_client_command(*serial, 'dump', '--bank', 'state')
     assert '  00000000  2a 00 00 00\n' in output
     # Program files must match the running program.

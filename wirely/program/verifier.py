@@ -640,6 +640,75 @@ class _Verifier:
     def bit(bitmap: bytearray, index: int) -> bool:
         return bool(bitmap[index // 8] & (1 << (index % 8)))
 
+    def symbols(self) -> None:
+        names = self.file.table(f.SectionType.SymbolNames, f.SymbolName)
+        for symbol_name in names:
+            self.file.string(symbol_name.name, f.SectionType.SymbolData)
+        for section, count in ((f.SectionType.StateVariableSymbols, len(self.variables[f.VariableBank.OldState])),
+                               (f.SectionType.ProcedureSymbols,
+                                len(self.file.table(f.SectionType.ProcedureInstances, f.ProcedureInstance)))):
+            previous = -1
+            for indexed in self.file.table(section, f.IndexedSymbol):
+                if indexed.index_.value <= previous or indexed.index_.value >= count:
+                    raise ValueError(f'{section.name} requires strictly sorted target indices in range')
+                previous = indexed.index_.value
+                self.file.string(indexed.name, f.SectionType.SymbolData)
+        previous = -1
+        for record in self.file.table(f.SectionType.TypeSymbols, f.TypeSymbol):
+            index = record.type.value
+            if index <= previous:
+                raise ValueError('TypeSymbols must be strictly sorted by type index')
+            previous = index
+            info = self.info(index)
+            if info.kind not in (f.TypeKind.Struct, f.TypeKind.OpenEnum, f.TypeKind.ClosedEnum):
+                raise ValueError('TypeSymbols entry must name a struct or enum')
+            self.file.optional_name(record.name, f.SectionType.SymbolData)
+            self.file.range(names, f.Range(record.names, record.count_), 'SymbolNames')
+            if not record.count_:
+                if record.numbers:
+                    raise ValueError('Empty symbol numbers must have offset zero')
+                continue
+            if f.SectionType.SymbolNames not in self.file.sections:
+                raise ValueError('Missing referenced section SymbolNames')
+            if info.kind == f.TypeKind.Struct:
+                size = alignment = 4
+                signed = False
+                maximum = len(info.fields) - 1
+            else:
+                underlying = self.info(info.record.underlying_type.value)
+                assert underlying.const is not None
+                size, alignment = underlying.const.size, underlying.const.alignment
+                signed = underlying.record.signed
+                maximum = ((1 << (size * 8 - int(signed))) - 1 if info.kind == f.TypeKind.OpenEnum
+                           else info.record.member_count - 1)
+            if record.numbers == UINT32_MAX:
+                if record.count_ - 1 > maximum:
+                    raise ValueError('Implicit symbol numbers exceed the member range')
+                continue
+            if f.SectionType.SymbolData not in self.file.sections:
+                raise ValueError('Missing referenced section SymbolData')
+            if record.numbers % alignment:
+                raise ValueError('Symbol numbers are not aligned')
+            data = slice_range(self.file.buffer(f.SectionType.SymbolData), record.numbers,
+                               checked(record.count_ * size), 'Symbol numbers')
+            self.charge(len(data) + record.count_)
+            previous_number = None
+            for offset in range(0, len(data), size):
+                number = int.from_bytes(data[offset:offset + size], 'little', signed=signed)
+                if (previous_number is not None and number <= previous_number) or number > maximum:
+                    raise ValueError('Symbol numbers must be strictly sorted and in range')
+                previous_number = number
+        previous_name = None
+        for alias in self.file.table(f.SectionType.VariableSymbolAliases, f.VariableSymbolAlias):
+            name = self.file.string(alias.name, f.SectionType.SymbolData).encode('utf-8')
+            self.charge(len(name) + 1)
+            if previous_name is not None and name <= previous_name:
+                raise ValueError('VariableSymbolAliases must be strictly sorted by name')
+            previous_name = name
+            if alias.bank not in self.variables:
+                raise ValueError('Unknown alias bank')
+            at(self.variables[alias.bank], alias.variable.value, 'Alias variable')
+
     def verify(self) -> None:
         # Parse every known record table, including unreferenced entries.
         for section, (_, record_class) in TABLES.items():
@@ -649,6 +718,7 @@ class _Verifier:
         self.variable_tables()
         self.names_and_bindings()
         self.instances()
+        self.symbols()
 
 
 def verified_file(data: bytes | bytearray | memoryview, max_steps: int) -> BinaryFile:
@@ -666,7 +736,7 @@ def verified_file(data: bytes | bytearray | memoryview, max_steps: int) -> Binar
 
 
 def verify_program(data: bytes | bytearray | memoryview, *, max_steps: int = 10_000_000) -> None:
-    """Verify ordinary sections without decoding a Program or invoking native code.
+    """Verify known sections without decoding a Program or invoking native code.
 
     The budget counts record and instruction visits and bytes, type edges,
     operands, value visits, and inspected string and padding bytes.

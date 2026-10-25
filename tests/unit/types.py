@@ -525,8 +525,8 @@ def check_unnamed_types():
     assert (closed.member_count, closed.to_text(2), closed.parse('2')) == (3, '2', 2)
     with checks.assertRaises(ValueError):
         closed.verify_value(3)
-    with checks.assertRaisesRegex(ValueError, 'all members or none'):
-        types.TypeEnum(None, {'First': 0}, is_open=False, underlying_type=types.uint8, member_count=2)
+    partial = types.TypeEnum(None, {'First': 0}, is_open=False, underlying_type=types.uint8, member_count=2)
+    assert partial.to_text(1) == '1' and partial.parse('1') == 1
     named = types.TypeEnum(None, {'Off': 0, 'On': 1}, is_open=False, underlying_type=types.uint8)
     assert (str(named), named.to_text(1)) == ('enum', 'On')
 
@@ -670,7 +670,7 @@ def check_runtime_limits():
             (members, members.make_value({str(i): empty.make_value({}) for i in range(127)})),
             (depth, None)):
         assert value_type.equals(value, value_type.deserialize(value_type.serialize(value)))
-        Variable(value_type, name='boundary')
+        Variable(value_type)
 
     # Representation support takes precedence; then depth, count, and storage.
     unsupported = types.TypeStruct('Unsupported', {'large': too_large, 'text': types.String})
@@ -685,7 +685,7 @@ def check_runtime_limits():
         reason = value_type.runtime_type_error()
         for operation in (lambda: value_type.size, lambda: value_type.data_size,
                           lambda: value_type.alignment, lambda: value_type.serialize(None),
-                          lambda: value_type.deserialize(b''), lambda: Variable(value_type, name='value')):
+                          lambda: value_type.deserialize(b''), lambda: Variable(value_type)):
             with checks.assertRaises(ValueError) as raised:
                 operation()
             assert reason in str(raised.exception)

@@ -55,6 +55,12 @@ open enum type SectionType: uint32 {
   JsonData = 19,
   JsonNames = 20,
   JsonTypes = 21,
+  SymbolData = 0x10000,
+  SymbolNames = 0x10001,
+  TypeSymbols = 0x10002,
+  StateVariableSymbols = 0x10003,
+  ProcedureSymbols = 0x10004,
+  VariableSymbolAliases = 0x10005,
 }
 
 // The layout of a section's contents, in SectionEntry.RecordType.
@@ -72,6 +78,10 @@ open enum type RecordType: uint32 {
   Stage = 10,
   JsonName = 11,
   JsonType = 12,
+  SymbolName = 13,
+  TypeSymbol = 14,
+  IndexedSymbol = 15,
+  VariableSymbolAlias = 16,
 }
 
 // An entry in the table named by the referring field's comment.
@@ -407,46 +417,43 @@ open enum type Opcode: uint8 {
   FAIL = 35,
 }
 
-// Symbols for the whole program. SymbolMetadata record.
-struct type SymbolMetadata {
-  // Program name in SymbolData.
-  ProgramName: StringRef,
-}
-
-// The name of a variable, procedure, or member.
-// StateVariableSymbols, TemporarySymbols, ProcedureSymbols, and
-// MemberSymbols tables.
-struct type Symbol {
-  // Name in SymbolData.
+// One name in a symbol name list. SymbolNames table.
+struct type SymbolName {
+  // Declared field or enum-member name in SymbolData.
   Name: StringRef,
 }
 
-// Symbols of one type. TypeSymbols table.
+// Sparse table, sorted by Type.
 struct type TypeSymbol {
-  // Qualified name in SymbolData, or none for unnamed types.
+  // Index into ValueTypes; a struct or enum.
+  Type: Ref,
+  // Qualified declared name in SymbolData, or none.
   Name: OptionalStringRef,
-  // Number of member symbols: one per member of a closed enum or field
-  // of a struct, or one per named number of an open enum; zero for
-  // other types.
+  // Number of paired names and numeric keys.
   Count: uint32,
-  // Index into MemberSymbols of the first of Count consecutive symbols;
-  // zero when Count is zero.
-  Members: Ref,
-  // Byte offset into SymbolData of the Count named numbers of an open
-  // enum, in ascending order; zero when Count is zero. 0xffffffff for
-  // other types.
+  // First entry in SymbolNames; zero when Count is zero.
+  Names: Ref,
+  // Byte offset into SymbolData of Count numeric keys.
+  // 0xffffffff means implicit keys 0 through Count - 1.
+  // Zero when Count is zero.
   Numbers: uint32,
 }
 
-// An alias referring to a state or temporary variable or a const value.
-// VariableAliases table.
-struct type VariableAlias {
-  // Alias name in SymbolData.
+// StateVariableSymbols and ProcedureSymbols tables.
+struct type IndexedSymbol {
+  // Index into StateVariables or ProcedureInstances, selected by section.
+  Index: Ref,
+  // Canonical name in SymbolData.
   Name: StringRef,
-  // Const values, temporaries, old state, or new state.
+}
+
+// Source-name lookup. VariableSymbolAliases table.
+struct type VariableSymbolAlias {
+  // Source access name in SymbolData.
+  Name: StringRef,
+  // Constants, fixed values, temporaries, old state, or new state.
   Bank: VariableBank,
-  // Index into ConstValues, Temporaries, or StateVariables, selected by
-  // Bank.
+  // Index into the table selected by Bank.
   Variable: Ref,
 }
 

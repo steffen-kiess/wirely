@@ -7,6 +7,7 @@ from unittest import TestCase
 import wirely
 from wirely.compiler import program as program_compiler
 import wirely.compiler
+from wirely.program import RunStage
 from wirely.runtime.engine import Engine
 from wirely.runtime.resources import ResourceValue
 from tests.infra.support import test_extension, test_contracts
@@ -295,8 +296,10 @@ with checks.assertRaisesRegex(ValueError, "Native initializer `TestLibrary.Incom
 
 # Resource outputs are typed ResourceValues; their objects are checked
 # against the Python type registered for the resource type.
-service_value = next(value for slot, value in native_resource_engine.resource_values.items()
-                     if slot.name == 'factory.source.create.service')
+initializer = next(proc for proc in native_resource_engine.program.procs[RunStage.LOAD]
+                   if proc.name == 'factory.source.create')
+service_slot = dict(initializer.named_outputs())['service'].variable
+service_value = native_resource_engine.resource_values[service_slot]
 assert isinstance(service_value, ResourceValue) and service_value.object is provider
 checks.assertEqual((service_value.type.name, service_value.type.python_type), ('TestLibrary.Service', Service))
 with checks.assertRaises(dataclasses.FrozenInstanceError):
@@ -400,8 +403,8 @@ assert alias_resource_engine.get_native_state('holder.child.create').service is 
 source_state = alias_resource_engine.get_native_state('composite.source.create')
 assert alias_resource_engine.get_native_state('composite.child.create').service is source_state
 read = next(proc for schedule in alias_program.procs.values() for proc in schedule if proc.node == 'composite')
-assert [(name, source.resource.name) for name, source in read.named_inputs()] == [
-    ('service', 'composite.source.create.service'),
+assert [(name, alias_resource_engine.resource_values[source.resource].object) for name, source in read.named_inputs()] == [
+    ('service', source_state),
 ]
 alias_resource_engine.step()
 assert alias_reads == [source_state]

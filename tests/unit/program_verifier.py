@@ -17,7 +17,7 @@ from wirely.program.loader import load_program
 from wirely.program.verifier import VerificationError, VerificationLimitError, verify_program
 from wirely.program.writer import write_program
 from tests.unit.program_writer import body_program, const, instruction, local, program, records
-from tests.unit.program_loader import change_section, replace_data, state_program
+from tests.unit.program_loader import change_section, replace_data, state_program, symbol_program
 
 
 checks = TestCase()
@@ -62,7 +62,7 @@ def check_structure():
     for section in f.SectionType:
         reject(change_section(data, section, lambda entry: replace(entry, record_type=0xffffffff)), 'record type')
     container = SectionList.from_bytes(data)
-    container.sections.pop()
+    container.sections = [section for section in container.sections if section.section_type != f.SectionType.JsonTypes]
     reject(container.to_bytes(), 'Missing section')
     reject(replace_data(data, f.SectionType.Stages, b'x'), 'truncated record')
     stages = records(next(section.data for section in SectionList.from_bytes(data).sections
@@ -159,7 +159,7 @@ def check_values():
         data = bound_constants(Constant(nested, value))
         verify_program(data)
         assert write_program(load_program(data)) == data
-    variable = Variable(types.TypeOption(types.uint64), name='state')
+    variable = Variable(types.TypeOption(types.uint64))
     data = write_program(state_program((variable,), {variable: types.Some(9)}))
     reject(change_section(data, f.SectionType.InitialState,
                           lambda section: replace(section, data=section.data[:-1] + b'\x01')), 'Padding')
@@ -203,8 +203,55 @@ def check_names_and_json():
     reject(replace_data(base, f.SectionType.NativeFunctions, b''.join(map(pack_record, functions))), 'unique')
 
 
+def check_symbols():
+    image = write_program(symbol_program())
+    container = SectionList.from_bytes(image)
+    sections = {section.section_type: section for section in container.sections}
+    for pool in (f.SectionType.SymbolData, f.SectionType.SymbolNames):
+        missing = SectionList([section for section in container.sections if section.section_type != pool], (0, 0))
+        reject(missing.to_bytes())
+    for section, cls in ((f.SectionType.StateVariableSymbols, f.IndexedSymbol),
+                         (f.SectionType.ProcedureSymbols, f.IndexedSymbol),
+                         (f.SectionType.TypeSymbols, f.TypeSymbol),
+                         (f.SectionType.VariableSymbolAliases, f.VariableSymbolAlias)):
+        entry = records(sections[section].data, cls)[0]
+        reject(replace_data(image, section, pack_record(entry) * 2), 'strictly sorted')
+    reject(table_change(image, f.SectionType.StateVariableSymbols, f.IndexedSymbol, 0, index_=f.Ref(100)), 'range')
+    reject(table_change(image, f.SectionType.ProcedureSymbols, f.IndexedSymbol, 0, index_=f.Ref(100)), 'range')
+    reject(table_change(image, f.SectionType.TypeSymbols, f.TypeSymbol, 0, type=f.Ref(100)), 'range')
+    reject(table_change(image, f.SectionType.VariableSymbolAliases, f.VariableSymbolAlias, 0, variable=f.Ref(100)), 'range')
+    reject(table_change(image, f.SectionType.VariableSymbolAliases, f.VariableSymbolAlias, 0,
+                        bank=f.VariableBank(100)), 'bank')
+    reject(table_change(image, f.SectionType.SymbolNames, f.SymbolName, 0, name=f.StringRef(len(sections[f.SectionType.SymbolData].data) + 1, 1)), 'bounds')
+    symbols = records(sections[f.SectionType.TypeSymbols].data, f.TypeSymbol)
+    # Pick the two-field struct, whose implicit keys are 0 and 1.
+    state_type = records(sections[f.SectionType.StateVariables].data, f.Variable)[0].value_type.value
+    target = next(index for index, entry in enumerate(symbols) if entry.type.value == state_type)
+    pool = sections[f.SectionType.SymbolData].data
+    offset = (len(pool) + 3) & ~3
+    explicit = replace_data(image, f.SectionType.SymbolData, pool + bytes(offset - len(pool)) + struct.pack('<II', 0, 2))
+    reject(table_change(explicit, f.SectionType.TypeSymbols, f.TypeSymbol, target, numbers=offset), 'range')
+    reject(table_change(explicit, f.SectionType.TypeSymbols, f.TypeSymbol, target, numbers=offset + 1), 'aligned')
+    unsorted = replace_data(explicit, f.SectionType.SymbolData,
+                            pool + bytes(offset - len(pool)) + struct.pack('<II', 1, 0))
+    reject(table_change(unsorted, f.SectionType.TypeSymbols, f.TypeSymbol, target, numbers=offset), 'strictly sorted')
+    reject(table_change(image, f.SectionType.TypeSymbols, f.TypeSymbol, target,
+                        count_=0, names=f.Ref(0), numbers=0xffffffff), 'Empty symbol numbers')
+    reject(table_change(image, f.SectionType.TypeSymbols, f.TypeSymbol, target,
+                        count_=0, names=f.Ref(1), numbers=0), 'Empty SymbolNames')
+    invalid_utf8 = replace_data(image, f.SectionType.SymbolData, pool + b'\xff')
+    reject(table_change(invalid_utf8, f.SectionType.StateVariableSymbols, f.IndexedSymbol, 0,
+                        name=f.StringRef(len(pool), 1)), 'UTF-8')
+    oversized = replace_data(image, f.SectionType.SymbolData, pool + b'x' * 20000)
+    oversized = table_change(oversized, f.SectionType.StateVariableSymbols, f.IndexedSymbol, 0,
+                              name=f.StringRef(len(pool), 20000))
+    with checks.assertRaises(VerificationLimitError):
+        verify_program(oversized, max_steps=10000)
+    verify_program(oversized)
+
+
 def check_assignment():
-    value = Variable(types.boolean, name='value')
+    value = Variable(types.boolean)
     reject(write_program(program(temporaries=(value,))), 'no output assignment')
     reject(write_program(program(state=(value,), initial={value: False})), 'no output assignment')
     native = NativeProcedureEntry('Test:write', (), ('value',))
@@ -359,7 +406,7 @@ def check_ignored_bytes():
                          if section.section_type == f.SectionType.JsonNames), f.JsonName)
     verify_program(replace_data(image, f.SectionType.JsonNames, pack_record(names[0]) * 2))
     # Variable offsets need not follow the producer's decreasing-alignment order.
-    flag, number = Variable(types.boolean, name='flag'), Variable(types.uint64, name='number')
+    flag, number = Variable(types.boolean), Variable(types.uint64)
     image = write_program(state_program((flag, number), {flag: True, number: 7}))
     state = records(next(section.data for section in SectionList.from_bytes(image).sections
                          if section.section_type == f.SectionType.StateVariables), f.Variable)
@@ -392,6 +439,7 @@ async def run_test():
     check_values()
     check_names_and_json()
     check_assignment()
+    check_symbols()
     check_code()
     check_fail()
     check_limits_and_independence()

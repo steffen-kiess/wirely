@@ -218,6 +218,10 @@ def validate_program(program: Program) -> None:
         except ValueError as error:
             raise ValueError(f'Function func.{index}: {error}') from error
 
+    for table in (program.temporaries, program.fixed_values):
+        if any(variable.name is not None for variable in table.variables):
+            raise ValueError('Only state variables have canonical names')
+
     for table in (program.state_variables, program.temporaries):
         for variable in table.variables:
             if variable.is_resource:
@@ -292,6 +296,8 @@ def validate_program(program: Program) -> None:
         raise ValueError('Every fixed value must be assigned once')
     for name, input_source in program.symbols.variable_aliases.items():
         try:
+            if not isinstance(name, str):
+                raise ValueError('Alias name must be a string')
             check_source(input_source)
             if input_source.constant is not None:
                 _runtime_type(input_source.constant.value_type)

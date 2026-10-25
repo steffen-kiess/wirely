@@ -15,7 +15,7 @@ from .procedures import (
     Instruction, Opcode, Operand, OperandKind, ProcedureBody,
 )
 from .program import (
-    InputSource, NativeProcedureEntry, OutputTarget, Procedure, Program,
+    InputSource, NativeProcedureEntry, OutputTarget, Procedure, Program, ProgramSymbols,
     RunStage, Variable, VariableBank, VariableTable,
 )
 from .records import unpack_record
@@ -46,6 +46,12 @@ class _Loader:
         self.type_lists = self.table(fmt.SectionType.TypeLists, fmt.TypeEntry)
         self.json_names = self.table(fmt.SectionType.JsonNames, fmt.JsonName)
         self.json_types = {record.type.value: record for record in self.table(fmt.SectionType.JsonTypes, fmt.JsonType)}
+        self.symbol_names = self.table(fmt.SectionType.SymbolNames, fmt.SymbolName)
+        self.symbol_types = {record.type.value: record for record in self.table(fmt.SectionType.TypeSymbols, fmt.TypeSymbol)}
+        self.state_names = {record.index_.value: self.string(record.name, fmt.SectionType.SymbolData)
+                            for record in self.table(fmt.SectionType.StateVariableSymbols, fmt.IndexedSymbol)}
+        self.procedure_names = {record.index_.value: self.string(record.name, fmt.SectionType.SymbolData)
+                                for record in self.table(fmt.SectionType.ProcedureSymbols, fmt.IndexedSymbol)}
         self.types: list[types.Type] = []
         self.read_types()
         reader = ConstDataReader(self.buffer(fmt.SectionType.ProgramData), self.type_at,
@@ -65,8 +71,9 @@ class _Loader:
                 (fmt.SectionType.Temporaries, (VariableBank.TEMPORARIES,), 'temporary'),
                 (fmt.SectionType.StateVariables, (VariableBank.OLD_STATE, VariableBank.NEW_STATE), 'state')):
             records = self.table(section, fmt.Variable)
-            variables = [Variable(self.type_at(record.value_type.value))
-                         for record in records]
+            variables = [Variable(self.type_at(record.value_type.value),
+                                  name=self.state_names.get(index) if section == fmt.SectionType.StateVariables else None)
+                         for index, record in enumerate(records)]
             self.variable_tables[section] = VariableTable(variables, name)
             self.variable_records[section] = records
             for bank in banks:
@@ -125,6 +132,18 @@ class _Loader:
             record: Any = unpack_record(layouts[kind], data, offset)
             self.types.append(self.make_type(offset // 32, kind, record))
 
+    def type_member_symbols(self, index: int, key_type: types.TypeInt) -> tuple[str | None, dict[int, str]]:
+        record = self.symbol_types.get(index)
+        if record is None:
+            return None, {}
+        name = self.file.optional_name(record.name, fmt.SectionType.SymbolData)
+        names = [self.string(item.name, fmt.SectionType.SymbolData)
+                 for item in self.range(self.symbol_names, fmt.Range(record.names, record.count_))]
+        numbers = (range(record.count_) if record.numbers == 0xffffffff else
+                   [key_type.deserialize(self.buffer(fmt.SectionType.SymbolData)[offset:offset + key_type.size])
+                    for offset in range(record.numbers, record.numbers + record.count_ * key_type.size, key_type.size)])
+        return name, dict(zip(numbers, names))
+
     def make_type(self, index: int, kind: fmt.TypeKind, record: Any) -> types.Type:
         primitives = {fmt.TypeKind.Unit: types.unit, fmt.TypeKind.Boolean: types.boolean,
                       fmt.TypeKind.String: types.String, fmt.TypeKind.Type: types.ValueType}
@@ -150,14 +169,20 @@ class _Loader:
                 else:
                     values = list(range(record.member_count))
                 json_names = dict(zip(values, names))
-            enum_type = types.TypeEnum(None, {}, is_open=kind == fmt.TypeKind.OpenEnum, underlying_type=underlying,
+            type_name, member_symbols = self.type_member_symbols(index, underlying)
+            enum_type = types.TypeEnum(type_name, {name: number for number, name in member_symbols.items()},
+                                       is_open=kind == fmt.TypeKind.OpenEnum, underlying_type=underlying,
                                        member_count=record.member_count if kind == fmt.TypeKind.ClosedEnum else None,
                                        native_name=self.optional_name(record.native_name), json_names=json_names)
             enum_type.is_json_serializable = json_record is not None
             return enum_type
         if kind == fmt.TypeKind.Struct:
-            return types.TypeStruct(None, self.type_list(record.fields), native_name=self.optional_name(record.native_name),
-                                    is_opaque=record.opaque, json_names=names)
+            type_name, member_symbols = self.type_member_symbols(index, types.uint32)
+            fields = self.type_list(record.fields)
+            field_names = (tuple(member_symbols.get(number) for number in range(len(fields)))
+                           if index in self.symbol_types or not fields else None)
+            return types.TypeStruct(type_name, fields, native_name=self.optional_name(record.native_name),
+                                    is_opaque=record.opaque, json_names=names, field_names=field_names)
         if kind == fmt.TypeKind.Resource:
             name = self.string(record.native_name)
             return types.TypeResource(name, name)
@@ -273,22 +298,26 @@ class _Loader:
         schedules = {}
         for stage, run_stage in zip(stages, RunStage):
             schedule = []
-            for instance in self.range(instances, stage.schedule):
+            for index, instance in enumerate(self.range(instances, stage.schedule), stage.schedule.first.value):
                 inputs = tuple(self.binding(binding) for binding in self.range(self.bindings, instance.inputs))
                 outputs = tuple(self.binding(binding, output=True) for binding in self.range(self.bindings, instance.outputs))
                 native = None if instance.native.value == 0xffffffff else self.natives[instance.native.value]
                 body = None if native is not None else self.body(instance.bytecode.value, inputs, outputs)
-                schedule.append(Procedure(inputs, outputs, native=native, body=body))
+                schedule.append(Procedure(inputs, outputs, name=self.procedure_names.get(index), native=native, body=body))
             schedules[run_stage] = tuple(schedule)
         # Decoding is independent of native implementations. Linking and opaque
         # value checks happen when Engine is constructed with the same registry.
         for value_type in self.types:
             if isinstance(value_type, types.TypeStruct):
                 value_type.native_types = self.native_types
+        aliases = {}
+        for alias in self.table(fmt.SectionType.VariableSymbolAliases, fmt.VariableSymbolAlias):
+            aliases[self.string(alias.name, fmt.SectionType.SymbolData)] = self.binding(
+                fmt.VariableRef(alias.bank, alias.variable))
         program = Program(state_variables=self.variable_tables[fmt.SectionType.StateVariables],
                           temporaries=self.variable_tables[fmt.SectionType.Temporaries],
                           fixed_values=self.variable_tables[fmt.SectionType.FixedValues],
-                          initial_state=initial, procs=schedules)
+                          initial_state=initial, procs=schedules, symbols=ProgramSymbols(variable_aliases=aliases))
         validate_program(program)
         return program
 

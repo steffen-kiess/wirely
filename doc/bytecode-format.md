@@ -1,8 +1,9 @@
 # Wirely program binary format
 
 This format represents `Program` definitions as indexed binary tables
-for desktop and embedded runtimes. The current format version is 0.0, an
-unstable development format.
+for desktop and embedded runtimes. Program files normally use the `.wbc`
+extension. The current format version is 0.0, an unstable development
+format.
 
 ## File identification
 
@@ -61,8 +62,7 @@ The directory contains `header.SectionCount` consecutive entries with
 strictly ascending `SectionType`, so each section type occurs at most once.
 Sections occupy disjoint byte ranges starting on 16-byte boundaries. Their
 offsets locate bytes independently of directory order. Section type zero
-is invalid. Symbol section IDs start at base `0x10000`; individual symbol
-and transition section IDs are not assigned yet.
+is invalid. Transition section IDs are not assigned yet.
 
 Each section holds a table, a record, or a buffer, depending on its
 layout. A table contains consecutive records of its record type, so its
@@ -104,14 +104,12 @@ their contents.
 | [`JsonData`](#jsondata) | `Buffer` | Buffer |
 | [`JsonNames`](#jsontypes-and-jsonnames) | `JsonName` | Table |
 | [`JsonTypes`](#jsontypes-and-jsonnames) | `JsonType` | Table |
-| [`SymbolMetadata`](#symbolmetadata) | `SymbolMetadata` | Record |
-| [`StateVariableSymbols`](#symbol-tables) | `Symbol` | Table |
-| [`TemporarySymbols`](#symbol-tables) | `Symbol` | Table |
-| [`ProcedureSymbols`](#symbol-tables) | `Symbol` | Table |
-| [`TypeSymbols`](#typesymbols-and-membersymbols) | `TypeSymbol` | Table |
-| [`MemberSymbols`](#typesymbols-and-membersymbols) | `Symbol` | Table |
-| [`VariableAliases`](#variablealiases) | `VariableAlias` | Table |
 | [`SymbolData`](#symboldata) | `Buffer` | Buffer |
+| [`SymbolNames`](#symbolnames) | `SymbolName` | Table |
+| [`TypeSymbols`](#typesymbols) | `TypeSymbol` | Table |
+| [`StateVariableSymbols`](#statevariablesymbols-and-proceduresymbols) | `IndexedSymbol` | Table |
+| [`ProcedureSymbols`](#statevariablesymbols-and-proceduresymbols) | `IndexedSymbol` | Table |
+| [`VariableSymbolAliases`](#variablesymbolaliases) | `VariableSymbolAlias` | Table |
 
 ```wirely
 // The purpose of a section, in SectionEntry.SectionType. 0 is not a valid
@@ -138,15 +136,21 @@ open enum type SectionType: uint32 {
   JsonData = 19,
   JsonNames = 20,
   JsonTypes = 21,
+  SymbolData = 0x10000,
+  SymbolNames = 0x10001,
+  TypeSymbols = 0x10002,
+  StateVariableSymbols = 0x10003,
+  ProcedureSymbols = 0x10004,
+  VariableSymbolAliases = 0x10005,
 }
 ```
 
-The sections from `SymbolMetadata` on are
+The sections from `SymbolData` on are
 [symbol sections](#symbol-sections); each of them is optional. All other
 sections are present.
 
 Record type IDs identify section layouts. IDs for records used only by
-symbols or transitions are not assigned yet.
+transitions are not assigned yet.
 
 ```wirely
 // The layout of a section's contents, in SectionEntry.RecordType.
@@ -164,6 +168,10 @@ open enum type RecordType: uint32 {
   Stage = 10,
   JsonName = 11,
   JsonType = 12,
+  SymbolName = 13,
+  TypeSymbol = 14,
+  IndexedSymbol = 15,
+  VariableSymbolAlias = 16,
 }
 ```
 
@@ -1120,42 +1128,96 @@ assigned.
 
 ## Symbol sections
 
-Symbol sections hold symbols and aliases. Their records reference ordinary
-tables and the `SymbolData` buffer; ordinary records never reference
-symbol sections. A tool can strip the symbol sections and retain the
-`BuildIDSHA512` section.
+Symbols provide declared identities for state variables, procedure
+instances, structs, and enums, and source access names for values. All
+symbol sections are optional. Ordinary records never reference them.
+Symbol tables reference ordinary tables and the `SymbolData` and
+`SymbolNames` pools, but do not depend on other symbol tables.
 
-### SymbolMetadata
+A tool can remove individual symbol tables or entries. It must retain
+`SymbolData` and `SymbolNames` while referenced. Unknown symbol sections
+may reference either pool, so removing a pool requires understanding all
+retained symbol sections or dropping unknown ones.
+
+Tools may append bytes to `SymbolData` or complete records to `SymbolNames`
+without understanding unknown sections, provided existing contents,
+offsets, and indices retain their meanings. Other changes to either pool,
+including compaction or reordering, require updating all retained symbol
+sections or dropping unknown ones. Relocating sections preserves their
+section-relative references. Stripping retains the original build ID.
+
+### SymbolData
+
+`SymbolData` holds UTF-8 strings and aligned numeric-key arrays. Strings
+and arrays can share bytes. Embedded consumers can read names on demand
+and stream string ranges without retaining them in RAM.
+
+### SymbolNames
 
 ```wirely
-// Symbols for the whole program. SymbolMetadata record.
-struct type SymbolMetadata {
-  // Program name in SymbolData.
-  ProgramName: StringRef,
-}
-```
-
-### Symbol tables
-
-```wirely
-// The name of a variable, procedure, or member.
-// StateVariableSymbols, TemporarySymbols, ProcedureSymbols, and
-// MemberSymbols tables.
-struct type Symbol {
-  // Name in SymbolData.
+// One name in a symbol name list. SymbolNames table.
+struct type SymbolName {
+  // Declared field or enum-member name in SymbolData.
   Name: StringRef,
 }
 ```
 
-Each symbol table except `MemberSymbols` has one entry per entry of its
-target table, in the same order:
+Name lists occupy consecutive ranges. Equal lists can share entries.
 
-| Table | Target table | Name |
-| --- | --- | --- |
-| `StateVariableSymbols` | `StateVariables` | Variable path, such as `a.b.count` |
-| `TemporarySymbols` | `Temporaries` | Procedure symbol and output port joined by `.`, such as `a.b.run.output` |
-| `ProcedureSymbols` | `ProcedureInstances` | Owning node path and procedure name joined by `.`, such as `a.b.run` |
-| `TypeSymbols` | `ValueTypes` | Qualified name of an enum or struct, such as `Example.State`; none for other types |
+### TypeSymbols
+
+```wirely
+// Sparse table, sorted by Type.
+struct type TypeSymbol {
+  // Index into ValueTypes; a struct or enum.
+  Type: Ref,
+  // Qualified declared name in SymbolData, or none.
+  Name: OptionalStringRef,
+  // Number of paired names and numeric keys.
+  Count: uint32,
+  // First entry in SymbolNames; zero when Count is zero.
+  Names: Ref,
+  // Byte offset into SymbolData of Count numeric keys.
+  // 0xffffffff means implicit keys 0 through Count - 1.
+  // Zero when Count is zero.
+  Numbers: uint32,
+}
+```
+
+Entries are strictly sorted by type index, without duplicates. Type names
+and member names are independently optional. Names are qualified declared
+type names, such as `Example.Mode`; member names are unqualified declared
+names. JSON names are separate and can differ.
+
+Each name corresponds to a numeric key at the same position. Struct keys
+are field indices, encoded as `uint32`; closed and open enum keys are
+member numbers, encoded using the underlying integer type's runtime binary
+representation. Explicit arrays are aligned for that type and strictly
+increasing by numeric value. Struct and closed enum keys fit their member
+counts. `Numbers = 0xffffffff` selects implicit keys `0` through
+`Count - 1` for any of these type kinds. An empty mapping has `Count`,
+`Names`, and `Numbers` zero.
+
+A mapping may omit individual fields or enum values. Missing enum names
+fall back to numbers; missing field names fall back to field indices.
+
+### StateVariableSymbols and ProcedureSymbols
+
+```wirely
+// StateVariableSymbols and ProcedureSymbols tables.
+struct type IndexedSymbol {
+  // Index into StateVariables or ProcedureInstances, selected by section.
+  Index: Ref,
+  // Canonical name in SymbolData.
+  Name: StringRef,
+}
+```
+
+Each table is strictly sorted by target index, without duplicates, and
+can omit targets. State names identify declared state variables;
+procedure symbols identify instances, including native initializers whose
+state may be retained in a transition. Temporaries and fixed values have
+no canonical names; source names for their values are aliases.
 
 Ordinary instance paths and their members use dots, such as `a.b.count`
 and `a.b.run`. Global members have no owner prefix. Singleton-owned symbols
@@ -1165,73 +1227,30 @@ itself is `Example.Shared:`. Instance symbols do not include multi-input
 counts. Source aliases can also reach singleton-owned values through
 ordinary instance paths.
 
-Symbols identify variables, procedures, and types in diagnostics and when
-building [state transitions](#state-transitions). Symbols and aliases for
-fixed values are not specified yet.
-
-### TypeSymbols and MemberSymbols
+### VariableSymbolAliases
 
 ```wirely
-// Symbols of one type. TypeSymbols table.
-struct type TypeSymbol {
-  // Qualified name in SymbolData, or none for unnamed types.
-  Name: OptionalStringRef,
-  // Number of member symbols: one per member of a closed enum or field
-  // of a struct, or one per named number of an open enum; zero for
-  // other types.
-  Count: uint32,
-  // Index into MemberSymbols of the first of Count consecutive symbols;
-  // zero when Count is zero.
-  Members: Ref,
-  // Byte offset into SymbolData of the Count named numbers of an open
-  // enum, in ascending order; zero when Count is zero. 0xffffffff for
-  // other types.
-  Numbers: uint32,
-}
-```
-
-Member symbols are the declared member and field names. They correspond to
-members, fields, and numbers like [JSON names](#jsontypes-and-jsonnames),
-and their numbers use the layout of the numbers in `JsonData`. Debug output
-shows these names and falls back to numbers when the symbols are stripped.
-
-### VariableAliases
-
-```wirely
-// An alias referring to a state or temporary variable or a const value.
-// VariableAliases table.
-struct type VariableAlias {
-  // Alias name in SymbolData.
+// Source-name lookup. VariableSymbolAliases table.
+struct type VariableSymbolAlias {
+  // Source access name in SymbolData.
   Name: StringRef,
-  // Const values, temporaries, old state, or new state.
+  // Constants, fixed values, temporaries, old state, or new state.
   Bank: VariableBank,
-  // Index into ConstValues, Temporaries, or StateVariables, selected by
-  // Bank.
+  // Index into the table selected by Bank.
   Variable: Ref,
 }
 ```
 
-Aliases map source names, including the inputs and outputs of nodes, to
-the variable or const value that supplies their value. They are sorted by
-UTF-8 name bytes. Multiple aliases can refer to one variable.
+Aliases map source access names, including node inputs, outputs, and
+forwarding bindings, to the value that supplies them. A default output can
+be named by its node path alone. Names are strictly sorted by UTF-8 bytes,
+without duplicates; several names can reference the same value. Fixed
+aliases can refer to resources as well as runtime values.
 
-### SymbolData
-
-`SymbolData` contains the UTF-8 bytes and open enum number arrays
-referenced by symbol records.
-
-An embedded reader reads the header and directory and links native code
-and functions using `NativeNames`. Symbol records and their data can be
-read on demand. To print a procedure name, read its `ProcedureSymbols`
-entry, then stream the referenced `SymbolData` byte range over UART.
-Numeric procedure and variable indices also serve as diagnostic
-identifiers.
-
-Const value entries locate value slots in `ProgramData`. Strings and
-lists identify payload ranges for deferred reads. Schedules and bindings
-can be retained in RAM or accessed directly from aligned flash. Lazy reads
-use seekable storage, a retained image, or a reopened source. Section byte
-ranges support independent reads.
+Without the required symbols, name-based lookup is unavailable. Execution,
+numeric inspection, and execution of an already generated transition need
+no symbols. Diagnostics retain numeric procedure, instruction, bank, and
+variable coordinates for host-side symbolication with the build ID.
 
 ## Mapping from Program
 
@@ -1250,9 +1269,9 @@ identities, orders, and banks of the ordinary tables, but no encoding:
 | `functions` | `NativeFunctions` and `TypeLists` |
 | `native_procedures` | `NativeProcedures` |
 | `json_names` of enums and structs | `JsonTypes`, `JsonNames`, and `JsonData` |
-| `Variable.name`, `Procedure.name` | `StateVariableSymbols`, `TemporarySymbols`, and `ProcedureSymbols` |
-| `type_name`, `field_names`, and `members` of types | `TypeSymbols` and `MemberSymbols` |
-| `symbols` | `SymbolMetadata` and `VariableAliases` |
+| State `Variable.name`, `Procedure.name` | `StateVariableSymbols` and `ProcedureSymbols` |
+| `type_name`, `field_names`, and `members` of types | `TypeSymbols` and `SymbolNames` |
+| `symbols` | `VariableSymbolAliases` |
 
 `constants`, `functions`, and `native_procedures` are derived from the
 procedures and aliases. A writer derives the remaining tables:
@@ -1264,7 +1283,8 @@ procedures and aliases. A writer derives the remaining tables:
   its first use as an input binding, `const` operand, or `FAIL` format.
   Procedures are visited in stage and schedule order, with input bindings
   before instructions. Immediate uses do not establish table order.
-  Alias-only constants are omitted without symbol sections.
+  Alias-only constants and aliased immediates are retained after ordinary
+  constant references, in alias-name order.
   `BytecodeProcedures` has one entry per `ProcedureBody` object.
 - Branch targets are instruction indices. Because branches only go
   forward, encoding the instructions from last to first gives each
@@ -1305,8 +1325,9 @@ The header has the expected magic and version, and `FileLength` is the
 file length. The directory and all sections lie within the file and start
 on 16-byte boundaries. Section types are strictly ascending, and each known
 section has its listed `RecordType` and a length that fits that record
-type. All ordinary sections are present. A missing symbol section counts
-as empty, so references into it fail. Unknown sections are only checked
+type. All ordinary sections are present. Missing symbol tables are empty.
+References require their target pools to be present, even for empty
+strings. Unknown sections are only checked
 to lie within the file.
 
 Bytes not referenced by any record are not checked. This includes bytes of
@@ -1333,10 +1354,10 @@ listed width, open enum underlying types are integers, opaque structs have
 a native name, and inner and field types are not resources. Closed enums
 have at least one member and an underlying type of `uint8`, `uint16`, or
 `uint32` large enough to represent `MemberCount - 1`. Each `JsonTypes`
-entry and each `TypeSymbols` entry of an enum or struct has one name per
-closed enum member or struct field, or strictly ascending numbers for an
-open enum. `Numbers` is `0xffffffff` exactly for types other than open
-enums.
+entry has one name per closed enum member or struct field,
+or strictly ascending numbers for an open enum. Its `Numbers` is
+`0xffffffff` exactly for types other than open enums. `TypeSymbols` follows
+the sparse mapping rules in its section.
 
 `ConstValues` have no resource types. Const slots and list elements
 contain valid values in the [const-data representation](#programdata),
@@ -1352,8 +1373,9 @@ and each slot starts at or after the end of the previous one. Comparing
 each entry with its predecessor therefore shows that slots do not overlap
 and gives the buffer size. `FixedValues` have load-time types. The types of
 `StateVariables`, `Temporaries`, locals, bytecode value operands of kind
-`const` or `immediate`, bytecode procedure inputs and outputs, aliases,
-and native function parameters and results are runtime types.
+`const` or `immediate`, bytecode procedure inputs and outputs, and native
+function parameters and results are runtime types. Aliases have the types
+of their selected banks.
 
 ### Names and bindings
 
@@ -1362,8 +1384,8 @@ applies to ranges into `InterfaceNames`, to `JsonTypes`,
 `NativeProcedures`, and `NativeFunctions`, and to aliases. The `Inputs`
 and `Outputs` ranges of native procedure calls have the length of the
 native procedure's `InputNames` and `OutputNames` ranges. Each value input
-binds one source. Each symbol table has as many entries as its target
-table.
+binds one source. Canonical symbol tables have strictly increasing target
+indices in range.
 
 ### Procedure instances and code
 

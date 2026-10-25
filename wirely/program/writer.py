@@ -1,6 +1,6 @@
 """Write resolved programs in the binary program format."""
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from hashlib import sha512
 from typing import Any
 
@@ -181,6 +181,10 @@ class _Writer:
                         used.setdefault(id(constant), constant)
                         if position not in immediates:
                             retained.setdefault(id(constant), constant)
+        for _, source in sorted(program.symbols.variable_aliases.items(), key=lambda item: item[0].encode('utf-8')):
+            if source.constant is not None:
+                used.setdefault(id(source.constant), source.constant)
+                retained.setdefault(id(source.constant), source.constant)
         self.constants = list(retained.values())
         self.constant_indices = {id(constant): index for index, constant in enumerate(self.constants)}
         self.function_indices = {function.name: index for index, function in enumerate(program.functions)}
@@ -245,6 +249,55 @@ class _Writer:
 
     def variables(self, table: VariableTable) -> list[fmt.Variable]:
         return [fmt.Variable(fmt.Ref(self.types.add(var.var_type)), offset) for var, offset in table.offsets.items()]
+
+    def symbols(self) -> list[Section]:
+        data = _Buffer()
+        names: list[fmt.SymbolName] = []
+        name_lists: dict[tuple[str, ...], int] = {}
+        types = []
+        encode: Callable[[int], bytes]
+        for index, value_type in enumerate(self.types.types):
+            if isinstance(value_type, TypeEnum):
+                members = sorted((number, name) for name, number in value_type.members.items())
+                underlying = value_type.underlying_type
+                alignment = underlying.alignment
+                encode = underlying.serialize
+            elif isinstance(value_type, TypeStruct):
+                members = [(number, name) for number, name in enumerate(value_type.field_names or ()) if name is not None]
+                alignment = 4
+                encode = lambda number: number.to_bytes(4, 'little')
+            else:
+                continue
+            if value_type.type_name is None and not members:
+                continue
+            numbers = [number for number, _ in members]
+            member_names = tuple(name for _, name in members)
+            if member_names not in name_lists:
+                name_lists[member_names] = len(names) if members else 0
+                names.extend(fmt.SymbolName(data.string(name)) for name in member_names)
+            numbers_offset = (0 if not members else 0xffffffff if numbers == list(range(len(numbers))) else
+                              data.add(b''.join(encode(number) for number in numbers), alignment))
+            types.append(fmt.TypeSymbol(fmt.Ref(index), data.optional_string(value_type.type_name), len(members),
+                                        fmt.Ref(name_lists[member_names]), numbers_offset))
+
+        state = [fmt.IndexedSymbol(fmt.Ref(index), data.string(var.name))
+                 for index, var in enumerate(self.program.state_variables.offsets) if var.name is not None]
+        procedures = [fmt.IndexedSymbol(fmt.Ref(index), data.string(proc.name))
+                      for index, proc in enumerate(self.procedures) if proc.name is not None]
+        aliases = []
+        for name, source in sorted(self.program.symbols.variable_aliases.items(), key=lambda item: item[0].encode('utf-8')):
+            binding = self.binding(source)
+            aliases.append(fmt.VariableSymbolAlias(data.string(name), binding.bank, binding.variable))
+
+        def table(section: fmt.SectionType, record_type: fmt.RecordType, records: Iterable[tuple[Any, ...]]) -> Section:
+            return Section(section, record_type, b''.join(pack_record(record) for record in records))
+
+        return [Section(fmt.SectionType.SymbolData, fmt.RecordType.Buffer, bytes(data.data)),
+                table(fmt.SectionType.SymbolNames, fmt.RecordType.SymbolName, names),
+                table(fmt.SectionType.TypeSymbols, fmt.RecordType.TypeSymbol, types),
+                table(fmt.SectionType.StateVariableSymbols, fmt.RecordType.IndexedSymbol, state),
+                table(fmt.SectionType.ProcedureSymbols, fmt.RecordType.IndexedSymbol, procedures),
+                table(fmt.SectionType.VariableSymbolAliases, fmt.RecordType.VariableSymbolAlias, aliases)]
 
     def sections(self) -> list[Section]:
         sections: list[Section] = []
@@ -346,11 +399,12 @@ class _Writer:
         sections.append(Section(fmt.SectionType.ValueTypes, fmt.RecordType.TypeRecord, b''.join(self.types.records)))
         table(fmt.SectionType.TypeLists, fmt.RecordType.TypeEntry, self.types.lists)
         buffer(fmt.SectionType.NativeNames, self.names.data)
+        sections.extend(self.symbols())
         return sections
 
 
 def write_program(program: Program) -> bytes:
-    """Encode a validated program, without symbols, including its SHA-512 build ID."""
+    """Encode a validated program and its available symbols, including its SHA-512 build ID."""
     container = _container(program)
     container.sections[0] = Section(fmt.SectionType.BuildIDSHA512, fmt.RecordType.Buffer,
                                     sha512(container.to_bytes()).digest())

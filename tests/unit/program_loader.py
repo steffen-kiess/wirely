@@ -15,14 +15,14 @@ from wirely.cli import run as run_command
 from wirely.program import (
     BranchTarget, Constant, ConstOperand, Function, InputSource, NativeProcedureEntry, Opcode, Operand, OperandKind,
     OutputTarget, Procedure, ProcedureBody, RunStage, Section, SectionList, Variable, VariableBank,
-    pack_record,
+    pack_record, record_size,
 )
 from wirely.program.const_data import ConstDataReader, ConstDataWriter
 from wirely.program.encoding import (
     decode_integer_parameter, decode_value_operand, encode_integer_parameter, encode_value_operand,
 )
 from wirely.program.generated import format as fmt
-from wirely.program.loader import load_program
+from wirely.program.loader import load_program, read_build_id
 from wirely.program.writer import write_program
 from wirely.runtime.engine import Engine
 from wirely.runtime.extensions import NativeTypes
@@ -50,12 +50,10 @@ def replace_data(data, section_type, content):
 def roundtrip(prog):
     data = write_program(prog)
     loaded = load_program(data)
-    assert loaded.graph is None and not loaded.symbols.node_aliases and not loaded.symbols.variable_aliases
+    assert loaded.graph is None and not loaded.symbols.node_aliases
     assert write_program(loaded) == data
     match_programs(prog, loaded)
-    assert all(var.name is None for table in (loaded.state_variables, loaded.temporaries, loaded.fixed_values)
-               for var in table.variables)
-    assert all(proc.name is None for schedule in loaded.procs.values() for proc in schedule)
+    assert all(var.name is None for table in (loaded.temporaries, loaded.fixed_values) for var in table.variables)
     return loaded
 
 
@@ -92,10 +90,10 @@ def check_constants_and_bindings():
     value = Constant(wrapper, (types.Some((option, types.TypeOption(other_mode), option)),))
     opaque = types.TypeStruct('Native', {'ticks': types.uint64}, native_name='Test.Native', is_opaque=True)
     constants = (value, Constant(opaque, (7,)), Constant(types.String, 'héllo'), Constant(types.String, ''))
-    fixed = Variable(types.uint8, name='fixed')
-    resource = Variable(types.TypeResource('Resource', 'Test.Resource'), name='resource')
-    state = Variable(types.uint8, name='state')
-    temporary = Variable(types.uint8, name='temporary')
+    fixed = Variable(types.uint8)
+    resource = Variable(types.TypeResource('Resource', 'Test.Resource'))
+    state = Variable(types.uint8)
+    temporary = Variable(types.uint8)
     init = Procedure((), (OutputTarget(VariableBank.FIXED_VALUES, resource),), name='init',
                      native=NativeProcedureEntry('Test:init', (), ('resource',), initializer=True))
     setup = Procedure((), (OutputTarget(VariableBank.FIXED_VALUES, fixed),), name='setup',
@@ -206,28 +204,150 @@ def check_stripped_types_and_state():
     signed = types.TypeEnum('Signed', {'Negative': -3}, is_open=True, underlying_type=types.int16)
     pair = types.TypeStruct('Pair', {'flag': types.boolean, 'mode': mode})
     other = types.TypeStruct('Pair', {'flag': types.boolean, 'mode': mode})
-    variables = (Variable(pair, name='pair'), Variable(other, name='other'), Variable(signed, name='signed'),
-                 Variable(types.TypeStruct('Empty', {}), name='empty'))
+    variables = (Variable(pair), Variable(other), Variable(signed),
+                 Variable(types.TypeStruct('Empty', {})))
     original = state_program(variables, dict(zip(variables, ((True, 1), (False, 0), -3, ()))))
     loaded = roundtrip(original)
     state = list(loaded.state_variables.offsets)
     assert list(loaded.initial_state.values()) == [original.initial_state[var] for var in original.state_variables.offsets]
-    by_name = dict(zip((old.name for old in original.state_variables.offsets), state))
+    by_original = dict(zip(original.state_variables.offsets, state))
+    by_name = {name: by_original[var] for name, var in zip(('pair', 'other', 'signed', 'empty'), variables)}
     loaded_pair = by_name['pair'].var_type
     assert loaded_pair is not by_name['other'].var_type
-    assert loaded_pair.type_name is None and loaded_pair.field_names is None
+    assert loaded_pair.type_name == 'Pair' and loaded_pair.field_names == ('flag', 'mode')
     assert loaded_pair.json_names == ('flag', 'mode')
     loaded_mode = loaded_pair.field_types[1]
     assert loaded_pair.field_types[0] is types.boolean
-    assert not loaded_mode.members and loaded_mode.type_name is None
+    assert dict(loaded_mode.members) == {'Off': 0, 'On': 1} and loaded_mode.type_name == 'Mode'
     assert dict(loaded_mode.json_names) == {0: 'Off', 1: 'On'}
     assert loaded_mode.underlying_type is types.uint8
     assert by_name['empty'].var_type.json_names == ()
 
 
+def symbol_program():
+    mode = types.TypeEnum('Example.Mode', {'Off': 0, 'On': 1}, is_open=False,
+                          underlying_type=types.uint8, json_names={0: 'off', 1: 'on'})
+    packet = types.TypeStruct('Example.Packet', {'mode': mode, 'value': types.uint8}, json_names=('m', 'v'))
+    wide = types.TypeEnum('Example.Wide', {'Negative': -2, 'Large': 1 << 90}, is_open=True,
+                          underlying_type=types.int128)
+    sparse = types.TypeStruct(None, (types.uint8, types.uint8, types.uint8),
+                              field_names=(None, 'middle', None))
+    state = Variable(packet, name='root.packet')
+    temporary = Variable(types.uint8)
+    resource = Variable(types.TypeResource('Service', 'Test.Service'))
+    init = Procedure((), (OutputTarget(VariableBank.FIXED_VALUES, resource),), name='bus.create',
+                     native=NativeProcedureEntry('Test:create', (), ('service',), initializer=True))
+    run = Procedure((), (OutputTarget(VariableBank.NEW_STATE, state),
+                         OutputTarget(VariableBank.TEMPORARIES, temporary)), name='root.run',
+                    native=NativeProcedureEntry('Test:run', (), ('state', 'temporary')))
+    aliases = {
+        'old': InputSource(VariableBank.OLD_STATE, state),
+        'new': InputSource(VariableBank.NEW_STATE, state),
+        'temporary': InputSource(VariableBank.TEMPORARIES, temporary),
+        'service': InputSource(VariableBank.FIXED_VALUES, resource),
+        'wide': InputSource(VariableBank.CONST_VALUES, constant=Constant(wide, 1 << 90)),
+        'open': InputSource(VariableBank.CONST_VALUES, constant=Constant(
+            types.TypeEnum('Example.Open', {'Zero': 0, 'One': 1}, is_open=True, underlying_type=types.uint8), 1)),
+        'é': InputSource(VariableBank.CONST_VALUES, constant=Constant(sparse, (1, 2, 3))),
+    }
+    return program(state=(state,), initial={state: (1, 7)}, temporaries=(temporary,), fixed=(resource,),
+                   procs=((RunStage.LOAD, (init,)), (RunStage.DEFAULT, (run,))), aliases=aliases)
+
+
+def check_symbols():
+    original = symbol_program()
+    loaded = roundtrip(original)
+    aliases = loaded.symbols.variable_aliases
+    state, = loaded.state_variables.variables
+    assert state.name == 'root.packet' and state.var_type.type_name == 'Example.Packet'
+    assert state.var_type.field_names == ('mode', 'value') and state.var_type.json_names == ('m', 'v')
+    assert aliases['old'].variable is aliases['new'].variable is state
+    assert aliases['old'].bank == VariableBank.OLD_STATE and aliases['new'].bank == VariableBank.NEW_STATE
+    assert aliases['temporary'].variable is loaded.temporaries.variables[0]
+    assert aliases['service'].variable is loaded.fixed_values.variables[0]
+    assert aliases['wide'].constant.value == 1 << 90
+    assert dict(aliases['wide'].value_type.members) == {'Negative': -2, 'Large': 1 << 90}
+    sparse = aliases['é'].value_type
+    assert sparse.type_name is None and sparse.field_names == (None, 'middle', None)
+    assert sparse.index('middle') == 1 and dict(sparse.fields) == {'middle': types.uint8}
+    assert sparse.to_text((1, 2, 3)) == 'struct { 0: 1, middle: 2, 2: 3 }'
+    assert sparse.json_names is None
+    with checks.assertRaisesRegex(ValueError, 'complete field names'):
+        sparse.make_value({'middle': 2})
+
+    data = write_program(original)
+    container = SectionList.from_bytes(data)
+    entries = {section.section_type: section for section in container.sections}
+    type_symbols = records(entries[fmt.SectionType.TypeSymbols].data, fmt.TypeSymbol)
+    assert any(record.numbers == 0xffffffff for record in type_symbols)
+    assert any(record.numbers != 0xffffffff and record.count_ for record in type_symbols)
+    assert read_build_id(data) == entries[fmt.SectionType.BuildIDSHA512].data
+
+    # A retained type name need not retain any field/member names.
+    name_only = [entry._replace(count_=0, names=fmt.Ref(0), numbers=0) for entry in type_symbols]
+    name_only_data = replace_data(data, fmt.SectionType.TypeSymbols, b''.join(map(pack_record, name_only)))
+    name_only_container = SectionList.from_bytes(name_only_data)
+    name_only_container.sections = [section for section in name_only_container.sections
+                                    if section.section_type != fmt.SectionType.SymbolNames]
+    name_only_type = load_program(name_only_container.to_bytes()).state_variables.variables[0].var_type
+    assert name_only_type.type_name == 'Example.Packet' and name_only_type.field_names is None
+    assert name_only_type.json_names == ('m', 'v')
+
+    # Closed enums retain their complete numeric range with only some names.
+    value_types = entries[fmt.SectionType.ValueTypes].data
+    mode_index = next(index for index in range(len(value_types) // 32)
+                      if value_types[index * 32] == fmt.TypeKind.ClosedEnum)
+    mode_symbol = next(entry for entry in type_symbols if entry.type.value == mode_index)
+    pool = entries[fmt.SectionType.SymbolData].data
+    partial_mode = mode_symbol._replace(count_=1, names=fmt.Ref(mode_symbol.names.value + 1), numbers=len(pool))
+    sparse_types = [partial_mode if entry.type.value == mode_index else entry for entry in type_symbols]
+    partial_data = replace_data(data, fmt.SectionType.TypeSymbols, b''.join(map(pack_record, sparse_types)))
+    partial_data = replace_data(partial_data, fmt.SectionType.SymbolData, pool + b'\x01')
+    partial = load_program(partial_data).state_variables.variables[0].var_type.field_types[0]
+    assert partial.member_count == 2 and dict(partial.members) == {'On': 1}
+    assert partial.to_text(0) == '0' and partial.parse('0') == 0
+    assert partial.json_encode(0, None) == 'off'
+
+    # Sections and individual entries can be omitted independently.
+    for omitted in (fmt.SectionType.StateVariableSymbols, fmt.SectionType.ProcedureSymbols,
+                    fmt.SectionType.TypeSymbols, fmt.SectionType.VariableSymbolAliases):
+        partial = SectionList([section for section in container.sections if section.section_type != omitted], (0, 0))
+        decoded = load_program(partial.to_bytes())
+        assert read_build_id(partial.to_bytes()) == read_build_id(data)
+        if omitted == fmt.SectionType.StateVariableSymbols:
+            assert decoded.state_variables.variables[0].name is None
+        elif omitted == fmt.SectionType.ProcedureSymbols:
+            assert all(proc.name is None for schedule in decoded.procs.values() for proc in schedule)
+        elif omitted == fmt.SectionType.TypeSymbols:
+            assert decoded.state_variables.variables[0].var_type.type_name is None
+            assert decoded.state_variables.variables[0].var_type.json_names == ('m', 'v')
+        else:
+            assert not decoded.symbols.variable_aliases
+    initializers = replace_data(data, fmt.SectionType.ProcedureSymbols,
+                               entries[fmt.SectionType.ProcedureSymbols].data[:record_size(fmt.IndexedSymbol)])
+    decoded = load_program(initializers)
+    assert decoded.procs[RunStage.LOAD][0].name == 'bus.create'
+    assert decoded.procs[RunStage.DEFAULT][0].name is None
+
+    stripped = SectionList([section for section in container.sections if section.section_type < 0x10000], (0, 0))
+    decoded = load_program(stripped.to_bytes())
+    match_programs(original, decoded, symbols=False)
+    assert decoded.state_variables.variables[0].name is None
+    assert not decoded.symbols.variable_aliases
+    assert decoded.state_variables.variables[0].var_type.field_names is None
+
+    # Pool extensions retain all existing references, including opaque future sections.
+    extended = SectionList(container.sections + [Section(0x10006, 0, b'future symbols')], (0, 0))
+    extended.sections = [replace(section, data=section.data + b'added') if section.section_type == fmt.SectionType.SymbolData
+                         else replace(section, data=section.data + pack_record(fmt.SymbolName(fmt.StringRef(0, 0))))
+                         if section.section_type == fmt.SectionType.SymbolNames else section for section in extended.sections]
+    match_programs(original, load_program(extended.to_bytes()))
+    assert read_build_id(extended.to_bytes()) == read_build_id(data)
+
+
 def check_json_presence():
     opened = types.TypeEnum('Numbers', {}, is_open=True, underlying_type=types.uint8)
-    variable = Variable(opened, name='value')
+    variable = Variable(opened)
     image = write_program(state_program((variable,), {variable: 7}))
     present = load_program(image)
     assert next(iter(present.state_variables.offsets)).var_type.is_json_serializable
@@ -242,7 +362,7 @@ def check_json_presence():
 
 
 def check_shared_bodies():
-    flag, number = Variable(types.boolean, name='flag'), Variable(types.int8, name='number')
+    flag, number = Variable(types.boolean), Variable(types.int8)
     first = Procedure((), (OutputTarget(VariableBank.TEMPORARIES, flag),), name='first.run', body=ProcedureBody((
         instruction(Opcode.COPY, Operand(OperandKind.OUTPUT, 0), const(types.boolean, True)), instruction(Opcode.RETURN))))
     second = Procedure((), (OutputTarget(VariableBank.TEMPORARIES, number),), name='second.run', body=ProcedureBody((
@@ -299,7 +419,7 @@ def check_budgets():
 def check_malformed():
     data = write_program(program())
     container = SectionList.from_bytes(data)
-    container.sections = container.sections[:-1]
+    container.sections = [section for section in container.sections if section.section_type != fmt.SectionType.JsonTypes]
     with checks.assertRaisesRegex(ValueError, 'Missing section JsonTypes'):
         load_program(container.to_bytes())
     with checks.assertRaisesRegex(ValueError, 'wrong record type'):
@@ -348,7 +468,7 @@ def check_malformed():
 
 def check_native_registry():
     opaque = types.TypeStruct('Native', {'value': types.uint8}, native_name='Custom.Native', is_opaque=True)
-    variable = Variable(opaque, name='value')
+    variable = Variable(opaque)
     image = write_program(state_program((variable,), {variable: (7,)}))
     factory = Mock(side_effect=AssertionError('Decoding must not load native implementations'))
     registry = NativeTypes(opaque_types={'Custom.Native': NativeOpaque((Int(8, False),), factory)})
@@ -423,6 +543,7 @@ async def run_test():
     check_code()
     check_stripped_types_and_state()
     check_json_presence()
+    check_symbols()
     check_shared_bodies()
     check_budgets()
     check_malformed()

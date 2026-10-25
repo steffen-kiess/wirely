@@ -11,7 +11,7 @@ from tests.infra.support import test_engine
 
 def make_program():
     pair = types.TypeStruct('Pair', {'flag': types.boolean, 'number': types.uint8})
-    variable = Variable(pair, name='source.Value')
+    variable = Variable(pair)
     value = Constant(pair, (True, 7))
     procedure = Procedure((), (OutputTarget(VariableBank.TEMPORARIES, variable),), name='source.run', body=ProcedureBody((
         Instruction(Opcode.COPY, (Operand(OperandKind.OUTPUT, 0), ConstOperand(value))),
@@ -29,7 +29,7 @@ def check_engine(original, engine):
     engine.step()
     variable, = engine.program.temporaries.offsets
     assert engine.cache[variable] == (True, 7)
-    assert variable.name == 'source.Value'
+    assert variable.name is None
     assert engine.program.graph is original.graph
     assert engine.program.symbols.name == 'probe'
     assert engine.program.symbols.node_aliases == {'alias': 'source'}

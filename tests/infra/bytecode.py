@@ -1,13 +1,12 @@
-"""Round-trip test programs, restoring debug names only after checking bytes."""
+"""Round-trip execution data and symbols, retaining source-only context."""
 
 from contextvars import ContextVar
 from dataclasses import dataclass, field, replace
-from types import MappingProxyType
 from typing import Any
 
 from wirely import types
 from wirely.program import (
-    BranchTarget, Constant, ConstOperand, Function, InputSource, OutputTarget, Procedure, Program, ProgramSymbols,
+    BranchTarget, Constant, ConstOperand, Function, InputSource, OutputTarget, Procedure, Program,
     RunStage, Variable, VariableTable,
 )
 from wirely.program.loader import load_program
@@ -33,7 +32,8 @@ _TYPE_KINDS: tuple[type[types.Type], ...] = (
 
 
 class _Matcher:
-    def __init__(self) -> None:
+    def __init__(self, symbols: bool = True) -> None:
+        self.symbols = symbols
         self.match = ProgramMatch()
         self._reverse: dict[int, types.Type] = {}
 
@@ -41,6 +41,14 @@ class _Matcher:
         if id(old) in self.match.type_pairs:
             assert self.match.type_pairs[id(old)][1] is new, f'{where}: `{old}` decodes to distinct types'
             return
+        if self.symbols and isinstance(old, types.TypeStruct):
+            assert isinstance(new, types.TypeStruct)
+            assert old.type_name == new.type_name, f'{where}: declared type name changed'
+            assert old.field_names == new.field_names, f'{where}: field names changed'
+        elif self.symbols and isinstance(old, types.TypeEnum):
+            assert isinstance(new, types.TypeEnum)
+            assert old.type_name == new.type_name, f'{where}: declared type name changed'
+            assert dict(old.members) == dict(new.members), f'{where}: enum member names changed'
         nominal = isinstance(old, (types.TypeEnum, types.TypeStruct, types.TypeResource))
         if nominal:
             # Distinct declared types stay distinct, and shared ones stay shared.
@@ -104,6 +112,10 @@ class _Matcher:
         assert len(old.offsets) == len(new.offsets), f'{where}: variable count changed'
         for index, ((old_var, old_offset), (new_var, new_offset)) in enumerate(zip(old.offsets.items(), new.offsets.items())):
             assert old_offset == new_offset, f'{where}[{index}]: offset changed'
+            if self.symbols:
+                assert old_var.name == new_var.name, f'{where}[{index}]: variable name changed'
+            if where != 'state':
+                assert old_var.name is None and new_var.name is None, f'{where}[{index}]: unexpected canonical name'
             self.type_pair(old_var.var_type, new_var.var_type, f'{where}[{index}]')
             self.match.variables[old_var] = new_var
 
@@ -117,6 +129,8 @@ class _Matcher:
             assert self.match.variables.get(old.variable) is new.variable, f'{where}: variable changed'
 
     def procedure(self, old: Procedure, new: Procedure, where: str) -> None:
+        if self.symbols:
+            assert old.name == new.name, f'{where}: procedure name changed'
         assert old.native == new.native, f'{where}: native procedure changed'
         assert (len(old.inputs), len(old.outputs)) == (len(new.inputs), len(new.outputs)), f'{where}: bindings changed'
         for index, (old_source, new_source) in enumerate(zip(old.inputs, new.inputs)):
@@ -170,56 +184,25 @@ class _Matcher:
             for index, (old_proc, new_proc) in enumerate(zip(old_schedule, new_schedule)):
                 self.procedure(old_proc, new_proc, f'{stage.name}[{index}]')
 
+        if self.symbols:
+            assert old.symbols.variable_aliases.keys() == new.symbols.variable_aliases.keys(), 'Value aliases changed'
+            for name, source in old.symbols.variable_aliases.items():
+                self.binding(source, new.symbols.variable_aliases[name], f'Alias {name}')
 
-def match_programs(original: Program, loaded: Program) -> ProgramMatch:
-    """Assert that a decoded program equals the original apart from debug metadata and constant identity."""
-    matcher = _Matcher()
+
+def match_programs(original: Program, loaded: Program, *, symbols: bool = True) -> ProgramMatch:
+    """Assert that decoded execution data and optional symbols match the original."""
+    matcher = _Matcher(symbols)
     matcher.program(original, loaded)
     return matcher.match
 
 
 def roundtrip_program(original: Program, native_types: NativeTypes) -> Program:
-    """Use decoded runtime data, with original debug metadata for test lookup."""
+    """Use decoded runtime data and symbols, retaining only source-only context."""
     data = write_program(original)
     loaded = load_program(data, native_types=native_types)
     assert write_program(loaded) == data, 'Bytecode write/load/write changed the bytes'
-    match = match_programs(original, loaded)
-    for old, new in match.type_pairs.values():
-        if isinstance(old, types.TypeStruct) and isinstance(new, types.TypeStruct):
-            new.name, new.type_name, new.field_names = old.name, old.type_name, old.field_names
-            new._fields = None if old.field_names is None else MappingProxyType(dict(zip(old.field_names, new.field_types)))
-        elif isinstance(old, types.TypeEnum) and isinstance(new, types.TypeEnum):
-            new.name, new.type_name, new.members, new._names = old.name, old.type_name, old.members, old._names
-        elif isinstance(old, types.TypeResource) and isinstance(new, types.TypeResource):
-            new.name = old.name
-
-    variables = {new: replace(new, name=old.name) for old, new in match.variables.items()}
-    tables = [VariableTable([variables[match.variables[var]] for var in old_table.variables], old_table.name)
-              for old_table in (original.state_variables, original.temporaries, original.fixed_values)]
-    schedules = {}
-    for stage in RunStage:
-        schedule = []
-        for old_proc, new_proc in zip(original.procs.get(stage, ()), loaded.procs.get(stage, ())):
-            inputs = tuple(replace(source, variable=variables[source.variable]) if source.variable is not None else source
-                           for source in new_proc.inputs)
-            outputs = tuple(replace(target, variable=variables[target.variable]) for target in new_proc.outputs)
-            schedule.append(replace(new_proc, name=old_proc.name, inputs=inputs, outputs=outputs))
-        schedules[stage] = tuple(schedule)
-    aliases = {}
-    for name, source in original.symbols.variable_aliases.items():
-        if source.variable is not None:
-            aliases[name] = replace(source, variable=variables[match.variables[source.variable]])
-        else:
-            constant = source.constant
-            assert constant is not None
-            # Alias-only constants have no file entry; they are debug data.
-            pair = match.type_pairs.get(id(constant.value_type))
-            mapped = match.constants.get(id(constant), Constant(pair[1] if pair else constant.value_type, constant.value))
-            aliases[name] = InputSource(source.bank, constant=mapped)
-    result = replace(loaded, state_variables=tables[0], temporaries=tables[1], fixed_values=tables[2],
-                     initial_state={variables[var]: value for var, value in loaded.initial_state.items()},
-                     procs=schedules, graph=original.graph,
-                     symbols=ProgramSymbols(name=original.symbols.name, node_aliases=original.symbols.node_aliases,
-                                            singleton_aliases=original.symbols.singleton_aliases, variable_aliases=aliases))
-    assert write_program(result) == data, 'Restoring debug metadata changed the bytes'
-    return result
+    match_programs(original, loaded)
+    return replace(loaded, graph=original.graph, symbols=replace(
+        loaded.symbols, name=original.symbols.name, node_aliases=original.symbols.node_aliases,
+        singleton_aliases=original.symbols.singleton_aliases))

@@ -48,10 +48,10 @@ __all__ = [
     'NativeFunction',
     'OperandKind',
     'Opcode',
-    'SymbolMetadata',
-    'Symbol',
+    'SymbolName',
     'TypeSymbol',
-    'VariableAlias',
+    'IndexedSymbol',
+    'VariableSymbolAlias',
     'TypeMapEntry',
     'NativeStateSource',
     'enum_types',
@@ -99,6 +99,12 @@ class SectionType(OpenIntEnum, minimum=0, maximum=4294967295):
     JsonData = 19
     JsonNames = 20
     JsonTypes = 21
+    SymbolData = 65536
+    SymbolNames = 65537
+    TypeSymbols = 65538
+    StateVariableSymbols = 65539
+    ProcedureSymbols = 65540
+    VariableSymbolAliases = 65541
 
 
 # RecordType in wirely/program/format.wrl
@@ -116,6 +122,10 @@ class RecordType(OpenIntEnum, minimum=0, maximum=4294967295):
     Stage = 10
     JsonName = 11
     JsonType = 12
+    SymbolName = 13
+    TypeSymbol = 14
+    IndexedSymbol = 15
+    VariableSymbolAlias = 16
 
 
 # Ref in wirely/program/format.wrl
@@ -376,26 +386,28 @@ class Opcode(OpenIntEnum, minimum=0, maximum=255):
     FAIL = 35
 
 
-# SymbolMetadata in wirely/program/format.wrl
-class SymbolMetadata(NamedTuple):
-    program_name: StringRef
-
-
-# Symbol in wirely/program/format.wrl
-class Symbol(NamedTuple):
+# SymbolName in wirely/program/format.wrl
+class SymbolName(NamedTuple):
     name: StringRef
 
 
 # TypeSymbol in wirely/program/format.wrl
 class TypeSymbol(NamedTuple):
+    type: Ref
     name: OptionalStringRef
     count_: int
-    members: Ref
+    names: Ref
     numbers: int
 
 
-# VariableAlias in wirely/program/format.wrl
-class VariableAlias(NamedTuple):
+# IndexedSymbol in wirely/program/format.wrl
+class IndexedSymbol(NamedTuple):
+    index_: Ref
+    name: StringRef
+
+
+# VariableSymbolAlias in wirely/program/format.wrl
+class VariableSymbolAlias(NamedTuple):
     name: StringRef
     bank: VariableBank
     variable: Ref
@@ -435,6 +447,12 @@ _enums['SectionType'] = TypeEnum('SectionType', {
     'JsonData': 19,
     'JsonNames': 20,
     'JsonTypes': 21,
+    'SymbolData': 65536,
+    'SymbolNames': 65537,
+    'TypeSymbols': 65538,
+    'StateVariableSymbols': 65539,
+    'ProcedureSymbols': 65540,
+    'VariableSymbolAliases': 65541,
 }, is_open=True, underlying_type=uint32)
 _enums['RecordType'] = TypeEnum('RecordType', {
     'Buffer': 0,
@@ -450,6 +468,10 @@ _enums['RecordType'] = TypeEnum('RecordType', {
     'Stage': 10,
     'JsonName': 11,
     'JsonType': 12,
+    'SymbolName': 13,
+    'TypeSymbol': 14,
+    'IndexedSymbol': 15,
+    'VariableSymbolAlias': 16,
 }, is_open=True, underlying_type=uint32)
 _enums['TypeKind'] = TypeEnum('TypeKind', {
     'Unit': 1,
@@ -657,19 +679,21 @@ _types['NativeFunction'] = TypeStruct('NativeFunction', {
     'Parameters': _types['Range'],
     'ReturnType': _types['Ref'],
 })
-_types['SymbolMetadata'] = TypeStruct('SymbolMetadata', {
-    'ProgramName': _types['StringRef'],
-})
-_types['Symbol'] = TypeStruct('Symbol', {
+_types['SymbolName'] = TypeStruct('SymbolName', {
     'Name': _types['StringRef'],
 })
 _types['TypeSymbol'] = TypeStruct('TypeSymbol', {
+    'Type': _types['Ref'],
     'Name': _types['OptionalStringRef'],
     'Count': uint32,
-    'Members': _types['Ref'],
+    'Names': _types['Ref'],
     'Numbers': uint32,
 })
-_types['VariableAlias'] = TypeStruct('VariableAlias', {
+_types['IndexedSymbol'] = TypeStruct('IndexedSymbol', {
+    'Index': _types['Ref'],
+    'Name': _types['StringRef'],
+})
+_types['VariableSymbolAlias'] = TypeStruct('VariableSymbolAlias', {
     'Name': _types['StringRef'],
     'Bank': _enums['VariableBank'],
     'Variable': _types['Ref'],
@@ -725,10 +749,10 @@ record_types: dict[type[tuple[Any, ...]], TypeStruct] = {
     VariableRef: _types['VariableRef'],
     BytecodeProcedure: _types['BytecodeProcedure'],
     NativeFunction: _types['NativeFunction'],
-    SymbolMetadata: _types['SymbolMetadata'],
-    Symbol: _types['Symbol'],
+    SymbolName: _types['SymbolName'],
     TypeSymbol: _types['TypeSymbol'],
-    VariableAlias: _types['VariableAlias'],
+    IndexedSymbol: _types['IndexedSymbol'],
+    VariableSymbolAlias: _types['VariableSymbolAlias'],
     TypeMapEntry: _types['TypeMapEntry'],
     NativeStateSource: _types['NativeStateSource'],
 }

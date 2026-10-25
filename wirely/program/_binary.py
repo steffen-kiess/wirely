@@ -75,6 +75,11 @@ TABLES: dict[f.SectionType, tuple[f.RecordType, type[tuple[Any, ...]]]] = {
     f.SectionType.Stages: (f.RecordType.Stage, f.Stage),
     f.SectionType.JsonNames: (f.RecordType.JsonName, f.JsonName),
     f.SectionType.JsonTypes: (f.RecordType.JsonType, f.JsonType),
+    f.SectionType.SymbolNames: (f.RecordType.SymbolName, f.SymbolName),
+    f.SectionType.TypeSymbols: (f.RecordType.TypeSymbol, f.TypeSymbol),
+    f.SectionType.StateVariableSymbols: (f.RecordType.IndexedSymbol, f.IndexedSymbol),
+    f.SectionType.ProcedureSymbols: (f.RecordType.IndexedSymbol, f.IndexedSymbol),
+    f.SectionType.VariableSymbolAliases: (f.RecordType.VariableSymbolAlias, f.VariableSymbolAlias),
 }
 
 
@@ -109,6 +114,8 @@ class BinaryFile:
             self.sections[entry.section_type] = BinarySection(entry.record_type, memoryview(payload))
         for section in f.SectionType:
             if section not in self.sections:
+                if section >= f.SectionType.SymbolData:
+                    continue
                 raise ValueError(f'Missing section {section.name}')
             expected = TABLES[section][0] if section in TABLES else (
                 f.RecordType.TypeRecord if section == f.SectionType.ValueTypes else f.RecordType.Buffer)
@@ -118,6 +125,8 @@ class BinaryFile:
             raise ValueError('BuildIDSHA512 must contain 64 bytes')
 
     def buffer(self, section: f.SectionType) -> memoryview:
+        if section not in self.sections and section >= f.SectionType.SymbolData:
+            return memoryview(b'')
         return self.sections[section].data
 
     def table(self, section: f.SectionType, record_class: type[R]) -> list[R]:
@@ -140,6 +149,8 @@ class BinaryFile:
         return slice_range(items, interval.first.value, interval.count_, what)
 
     def string(self, ref: f.StringRef | f.OptionalStringRef, section: f.SectionType = f.SectionType.NativeNames) -> str:
+        if section not in self.sections:
+            raise ValueError(f'Missing referenced section {section.name}')
         key = section, ref.offset, ref.length_bytes
         if key not in self._strings:
             if not ref.length_bytes and ref.offset:
@@ -152,8 +163,8 @@ class BinaryFile:
                 raise ValueError(f'Section {section.name} contains invalid UTF-8') from error
         return self._strings[key]
 
-    def optional_name(self, ref: f.OptionalStringRef) -> str | None:
-        return None if ref == f.OptionalStringRef(UINT32_MAX, UINT32_MAX) else self.string(ref)
+    def optional_name(self, ref: f.OptionalStringRef, section: f.SectionType = f.SectionType.NativeNames) -> str | None:
+        return None if ref == f.OptionalStringRef(UINT32_MAX, UINT32_MAX) else self.string(ref, section)
 
     def instructions(self, index: int) -> tuple[RawInstruction, ...]:
         if index in self._code:
