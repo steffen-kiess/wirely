@@ -6,6 +6,7 @@ import copy
 import shlex
 import ssl
 import sys
+import traceback
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, Never
 
@@ -210,6 +211,12 @@ async def _interactive(client: ControlClient, args: argparse.Namespace) -> int:
             return await _commands[command_args.client_command](client, command_args)
         except ControlError as error:
             print(f'Error: {error}', file=sys.stderr)
+            return 1
+        except (OSError, TimeoutError):
+            raise  # The connection is unusable.
+        except Exception:
+            # A bug, so the traceback helps; the session stays usable.
+            traceback.print_exc()
             return 1
 
     if not sys.stdin.isatty():

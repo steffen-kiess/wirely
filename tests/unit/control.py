@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import contextlib
+import dataclasses
 import datetime
 import io
 import os
@@ -17,6 +18,7 @@ from cryptography.x509.oid import NameOID
 import wirely.cli.client
 import wirely.compiler
 import wirely.misc.service
+import wirely.types
 from wirely.cli import service
 from wirely.compiler import program as program_compiler
 from wirely.control import node_commands
@@ -319,6 +321,8 @@ def check_node_commands():
         (lambda: node_commands.resolve(engine.program, 'c'), '`c` has no typed commands'),
         (lambda: node_commands.resolve(engine.program, 'missing'), 'Cannot find node `missing`'),
         (lambda: target.encode('x'), "Invalid `uint16` value 'x'"),
+        (lambda: dataclasses.replace(target, value_type=wirely.types.boolean).encode('2'),
+         "Invalid `boolean` value '2'"),
     ]:
         try:
             action()
@@ -543,6 +547,10 @@ async def check_cli(server):
     lines = output.splitlines()
     assert (lines[0], lines[2:]) == ('11', ['none', '6', 'Error: COMMAND_FAILED: An event is already queued (reason 1)'])
     await run_client_command(*serial, 'resume')
+    # Unexpected exceptions in a command print a traceback, as a failing command.
+    with unittest.mock.patch.object(node_commands, 'resolve', side_effect=RuntimeError('unexpected')):
+        output = await run_client_command(*serial, '--program', program_path, stdin='get value\n', status=1)
+    assert 'Traceback' in output and output.endswith('RuntimeError: unexpected\n'), output
     assert await run_client_command(*serial, 'get', 'value', status=1) == "Error: `get` requires the program's .wrl files\n"
 
     # Runtime options.
