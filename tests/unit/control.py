@@ -16,7 +16,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
 
 import wirely.cli.client
-import wirely.compiler
+import wirely.compiler.compilation
 import wirely.misc.service
 import wirely.program.types
 from wirely.cli import run as run_command
@@ -30,7 +30,7 @@ from wirely.control.server import ControlServer, serve_session
 from wirely.misc.state_directory import StateDirectoryLocked, lock_state_directory
 from wirely.program.program import procedure_instances
 from wirely.program.writer import program_build_id, write_program
-from wirely.program import SectionList
+from wirely.program.container import SectionList
 from wirely.program.loader import load_program
 from wirely.runtime.engine import Engine
 
@@ -369,7 +369,7 @@ def check_node_commands():
 
 def check_node_tree():
     """The node tree lists nested nodes in declaration order with their types."""
-    graph = wirely.compiler.compile_strs([('<tree>', '''
+    graph = wirely.compiler.compilation.compile_strs([('<tree>', '''
 node type Inner {
   default output: value boolean;
   node source: Std.DebugValueSource { Type: boolean, Initial: false }

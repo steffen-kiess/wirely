@@ -4,7 +4,8 @@ from unittest import TestCase
 
 from tests.infra.runner.diagnostics import negative_test_cases
 from tests.infra.runner.registry import negative_tests
-from wirely.compiler import ParseCache, model, standard_library_texts
+from wirely.compiler.sources import ParseCache, standard_library_texts
+from wirely.compiler import model
 from wirely.compiler import outline as outline_module
 from wirely.compiler.analysis import ConnectionCheck, ResolvedParameter, ResolvedPort, analyze
 from wirely.compiler.attributes import validate_files

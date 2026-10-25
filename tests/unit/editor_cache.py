@@ -1,7 +1,7 @@
 import os
 from unittest import TestCase
 
-from wirely.compiler import ParseCache, ParsedSource, standard_library_sources
+from wirely.compiler.sources import ParseCache, ParsedSource, standard_library_sources
 from wirely.compiler.analysis import analyze
 from wirely.compiler.editing import apply_edits
 from wirely.compiler.outline import Connection, Node, outline

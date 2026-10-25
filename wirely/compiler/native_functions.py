@@ -230,7 +230,7 @@ def invoke(function: model.CompiledFunction, values: Sequence[object], sources: 
 
 def runtime_implementation(function: model.CompiledFunction, call: model.ast.SourceElement) -> Callable[..., object]:
     if function.runtime_implementation is None:
-        from wirely.functions import bind_native_function
+        from wirely.runtime.linking import bind_native_function
         try:
             function.runtime_implementation = bind_native_function(
                 function.native_name, function.parameter_types, function.return_type,

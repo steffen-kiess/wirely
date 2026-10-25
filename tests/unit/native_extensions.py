@@ -7,7 +7,7 @@ from typing import NamedTuple
 from unittest import TestCase
 
 import wirely
-from wirely.compiler import compile_files, compile_strs
+from wirely.compiler.compilation import compile_files, compile_strs
 from wirely.compiler import program as program_compiler
 from wirely.compiler.extensions import (
     CompilerNativeExtension, NativeConstantFunction, resolve_compiler_extensions,

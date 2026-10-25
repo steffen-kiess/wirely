@@ -13,11 +13,14 @@ from unittest.mock import AsyncMock, mock_open, patch
 from wirely import Some, Unit
 from wirely.program import types
 from wirely.cli import run as run_command
-from wirely.program import (
-    BranchTarget, Constant, ConstOperand, Function, InputSource, NativeProcedureEntry, Opcode, Operand, OperandKind,
-    OutputTarget, Procedure, ProcedureBody, RunStage, Section, SectionList, Variable, VariableBank,
-    pack_record, record_size,
+from wirely.program.procedures import (
+    BranchTarget, Constant, ConstOperand, Function, Opcode, Operand, OperandKind, ProcedureBody,
 )
+from wirely.program.program import (
+    InputSource, NativeProcedureEntry, OutputTarget, Procedure, RunStage, Variable, VariableBank,
+)
+from wirely.program.container import Section, SectionList
+from wirely.program.records import pack_record, record_size
 from wirely.program.const_data import ConstDataReader, ConstDataWriter
 from wirely.program.encoding import (
     decode_integer_parameter, decode_value_operand, encode_integer_parameter, encode_value_operand,
@@ -486,7 +489,7 @@ async def check_service():
         args = argparse.Namespace(input_filename=[str(path)], verbose=False, debug=False,
                                   state_directory=None, control_tls_cert=None, control_tls_key=None,
                                   commands=None)
-        with patch.object(run_command.wirely.compiler, 'compile_files', side_effect=AssertionError('must not compile')):
+        with patch.object(run_command.wirely.compiler.compilation, 'compile_files', side_effect=AssertionError('must not compile')):
             with patch.object(run_command, 'run_engine', new_callable=AsyncMock, return_value=None) as run:
                 assert await run_command.async_run(args) is None
                 run.assert_awaited_once()
@@ -524,7 +527,7 @@ async def check_service():
                 run.assert_awaited_once()
         for prefix in (b'', magic[:1], magic[:2], magic[:3]):
             source.write_bytes(prefix)
-            with patch.object(run_command.wirely.compiler, 'compile_files', return_value=None) as compile_files:
+            with patch.object(run_command.wirely.compiler.compilation, 'compile_files', return_value=None) as compile_files:
                 with patch.object(run_command, 'load_program') as load:
                     assert await run_command.async_run(args) == 1
                     compile_files.assert_called_once_with([str(source)])

@@ -7,7 +7,8 @@ from wirely.generated import extension as builtin_extension
 from wirely.runtime.extensions import NativeTypes
 from wirely.runtime.signatures import Function as FunctionSignature, Int
 import wirely
-from wirely.compiler import compile_strs, standard_library_sources
+from wirely.compiler.compilation import compile_strs
+from wirely.compiler.sources import standard_library_sources
 from wirely.compiler import program as program_compiler
 from wirely.runtime.engine import Engine
 from tests.infra.support import test_extension, test_constant_function, test_contracts
@@ -246,7 +247,7 @@ def check_unknown_native_enum_values():
 
 def check_state_types():
     # Procedures of generic native state types require the state's type.
-    from wirely.native import check_state_type
+    from wirely.native.support import check_state_type
 
     check_state_type('node', wirely.value_types.uint8, wirely.value_types.uint8)
     with checks.assertRaisesRegex(ValueError, 'node: procedure type `string` does not match state type `uint8`'):

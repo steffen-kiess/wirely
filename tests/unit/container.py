@@ -6,7 +6,7 @@ import struct
 import tempfile
 
 from wirely.cli import objdump
-from wirely.program import ContainerError, Section, SectionList
+from wirely.program.container import ContainerError, Section, SectionList
 
 
 sections = [

@@ -6,7 +6,7 @@ import wirely
 from wirely import DynamicValue, Some, UInt16, ValueType
 from wirely.generated import knx as contracts
 from wirely.knx.value_types import get_value_type
-from wirely.native import check_state_type
+from wirely.native.support import check_state_type
 from wirely.generated.enums import KNXProtocol
 from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices
 from wirely.util import verbose_print

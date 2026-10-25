@@ -4,10 +4,10 @@ The compiler first builds graphs describing node types and their connections.
 It then uses those graphs to generate a runtime program. Use the Python API
 in two steps:
 
-- `wirely.compiler.compile_files()` reads `.wrl` files; `compile_strs()`
-  accepts filename/text pairs. Both return the graph of top-level
-  declarations, called the global graph, after resolving declarations,
-  connecting ports, and checking the graphs.
+- `wirely.compiler.compilation.compile_files()` reads `.wrl` files;
+  `compile_strs()` accepts filename/text pairs. Both return the graph of
+  top-level declarations, called the global graph, after resolving
+  declarations, connecting ports, and checking the graphs.
 - `wirely.compiler.program.compile()` takes that graph, evaluates each
   instance's parameters, and generates a runtime program.
 
@@ -33,9 +33,9 @@ on an instance's parameters or a cycle in procedure execution dependencies.
    attributes and native function name collisions.
 
 To parse a file once for several compilations, call
-`wirely.compiler.parse_file()` or `parse_source(filename, text)`. They
-return a `ParsedSource`, or raise `SourceError`, whose `diagnostics()` are
-those a compilation would report. Pass `ParsedSource` objects to
+`wirely.compiler.sources.parse_file()` or `parse_source(filename, text)`.
+They return a `ParsedSource`, or raise `SourceError`, whose `diagnostics()`
+are those a compilation would report. Pass `ParsedSource` objects to
 `compile_files()` and `compile_strs()` in place of a path or a
 filename/text pair, in any mix; the sources keep their order. Parsed
 sources are deeply immutable, including their syntax and source positions.

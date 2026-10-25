@@ -3,8 +3,7 @@
 
 from collections.abc import Callable
 
-from wirely.functions import FunctionImplementation
-from wirely.runtime.native_api import ProcedureImplementation, StateImplementation
+from wirely.runtime.native_api import FunctionImplementation, ProcedureImplementation, StateImplementation
 
 
 def _load_states_csv_value_writer_create() -> StateImplementation:

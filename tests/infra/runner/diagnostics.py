@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 import lark
 
 from wirely.compiler import model
+from wirely.compiler.sources import STANDARD_LIBRARY_NAMES
 
 if TYPE_CHECKING:
     from wirely.compiler.diagnostics import Diagnostic
@@ -83,7 +84,7 @@ def negative_test_libraries(lines: Sequence[str], *, start_line: int) -> tuple[s
         for name in names:
             if not re.fullmatch(r'[a-z][a-z0-9_]*', name):
                 raise AssertionError(f'Malformed library name {name!r} on line {line_number}')
-            if name not in model.compiler.STANDARD_LIBRARY_NAMES:
+            if name not in STANDARD_LIBRARY_NAMES:
                 raise AssertionError(f'Unknown library {name!r} on line {line_number}')
         if len(set(names)) != len(names):
             raise AssertionError(f'Duplicate library name on line {line_number}')

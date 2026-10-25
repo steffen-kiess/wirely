@@ -6,8 +6,8 @@ from unittest import TestCase
 
 import wirely
 from wirely.compiler import program as program_compiler
-import wirely.compiler
-from wirely.program import RunStage
+import wirely.compiler.compilation
+from wirely.program.program import RunStage
 from wirely.runtime.engine import Engine
 from wirely.runtime.resources import ResourceValue
 from tests.infra.support import test_extension, test_contracts
@@ -115,7 +115,7 @@ def make_engine(graph):
 
 
 def compile_resources(source):
-    graph = wirely.compiler.compile_strs([
+    graph = wirely.compiler.compilation.compile_strs([
         ('wirely/lib/std.wrl', Path('wirely/lib/std.wrl').read_text()),
         ('<native-resources>', source),
     ])
@@ -338,7 +338,7 @@ with checks.assertRaisesRegex(ValueError, "Cannot find native resource type `Tes
 # node can hand its state to a child, and a composite node can name a child's
 # resource.
 alias_reads = []
-alias_graph = wirely.compiler.compile_strs([('<resource-aliases>', '''
+alias_graph = wirely.compiler.compilation.compile_strs([('<resource-aliases>', '''
 namespace TestLibrary {
   resource type Service;
   node type AliasSource {

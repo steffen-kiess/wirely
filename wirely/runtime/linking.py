@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Mapping
+import functools
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any, NamedTuple
 
-from ..functions import bind_native_function
-from ..program import Constant, InputSource, Program, Variable, VariableBank, used_declared_types
+from ..program.procedures import Constant
+from ..program.program import InputSource, Program, Variable, VariableBank, used_declared_types
 from ..program.limits import is_runtime_type
-from ..program.types import Type, TypeEnum, TypeResource, TypeStruct
+from ..program.types import InternalValue, Type, TypeEnum, TypeResource, TypeStruct
 from .extensions import NativeTypes, RuntimeNativeExtension
-from .native_api import InitializerAdapter, NativeProcedure, NativeState, ProcedureAdapter
+from .native_api import FunctionBinding, InitializerAdapter, NativeProcedure, NativeState, ProcedureAdapter
 from .procedures import NativeFunction
 from .resources import ResourceType
 
@@ -234,6 +235,23 @@ def link_native_contracts(program: Program, extension: RuntimeNativeExtension
         procedures[reference] = LinkedProcedure(procedure.factory, procedure.adapter,
                                                 procedure_loader.signature)
     return states, procedures
+
+
+def bind_native_function(function_name: str, parameter_types: Sequence[Type],
+                         return_type: Type, *,
+                         extension: RuntimeNativeExtension) -> Callable[[Sequence[InternalValue]], InternalValue]:
+    """Return a function calling a native function's implementation with internal values.
+
+    Implementations must be total; exceptions propagate to the caller."""
+    entry = extension.functions.get(function_name)
+    if entry is None:
+        raise ValueError(f'Cannot find native function `{function_name}`')
+    from .signatures import validate_function
+    validate_function(function_name, entry.signature, parameter_types, return_type)
+    implementation = entry.load()
+    binding = FunctionBinding(native_types=extension.native_types, name=function_name,
+                              parameter_types=tuple(parameter_types), return_type=return_type)
+    return functools.partial(implementation.contract.call, implementation.implementation, binding)
 
 
 def link_native_functions(program: Program, extension: RuntimeNativeExtension) -> dict[str, NativeFunction]:

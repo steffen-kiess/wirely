@@ -9,7 +9,7 @@ from typing import Any, Literal
 import wirely
 from wirely import DynamicValue, Some, ValueType
 from wirely.generated import mqtt as contracts
-from wirely.native import check_state_type
+from wirely.native.support import check_state_type
 from wirely.generated.enums import MQTTFormat
 from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices
 from wirely.generated.structs import MQTTTemplateParts

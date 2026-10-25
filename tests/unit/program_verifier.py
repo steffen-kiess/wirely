@@ -8,11 +8,12 @@ from unittest.mock import patch
 
 from wirely import Some, Unit
 from wirely.program import types
-from wirely.program import (
-    Constant, InputSource, NativeProcedureEntry, Opcode,
-    OutputTarget, Procedure, ProcedureBody, RunStage, Section, SectionList, Variable, VariableBank,
-    pack_record, record_size,
+from wirely.program.procedures import Constant, Opcode, ProcedureBody
+from wirely.program.program import (
+    InputSource, NativeProcedureEntry, OutputTarget, Procedure, RunStage, Variable, VariableBank,
 )
+from wirely.program.container import Section, SectionList
+from wirely.program.records import pack_record, record_size
 from wirely.program.generated import format as f
 from wirely.program.loader import load_program
 from wirely.program.verifier import VerificationError, VerificationLimitError, verify_program

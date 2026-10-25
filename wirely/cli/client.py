@@ -14,7 +14,7 @@ from ..control.client import ControlClient
 from ..control.messages import BUILD_ID_PREFIX_LENGTH, Bank, ControlError, ErrorCode, Op, RunState
 
 if TYPE_CHECKING:
-    from ..program import Program
+    from ..program.program import Program
     from ..runtime.extensions import NativeTypes
 
 # Response bytes besides the data of a ReadSnapshot response: header, map, key, byte string header.
@@ -114,7 +114,7 @@ async def async_run(args: argparse.Namespace) -> int:
     args.compiled_program = None
     args.native_types = None  # Native implementations of the compiled program, for opaque value text.
     if args.program is not None:
-        from ..compiler import compile_files
+        from ..compiler.compilation import compile_files
         from ..compiler import program as program_compiler
 
         global_node_type = compile_files(args.program)

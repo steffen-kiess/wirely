@@ -8,7 +8,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import wirely
-from wirely.compiler import compile_strs, standard_library_sources
+from wirely.compiler.compilation import compile_strs
+from wirely.compiler.sources import standard_library_sources
 from wirely.compiler import program as program_compiler
 from wirely.runtime.engine import Engine
 from tests.infra.support import test_extension, test_contracts, test_engine

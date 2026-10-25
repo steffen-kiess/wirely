@@ -3,17 +3,18 @@
 from dataclasses import replace
 from unittest import TestCase
 
-import wirely.compiler
+import wirely.compiler.compilation
 from wirely.program import types
 from wirely.compiler import program as program_compiler
-from wirely.program import (
-    BranchTarget, Constant, ConstOperand, InputSource, Instruction, Opcode, Operand, OperandKind,
-    Procedure, ProcedureBody, Program, RunStage, VariableBank, VariableTable, validate_program,
+from wirely.program.procedures import (
+    BranchTarget, Constant, ConstOperand, Instruction, Opcode, Operand, OperandKind, ProcedureBody,
 )
-from wirely.program import SectionList
+from wirely.program.program import InputSource, Procedure, Program, RunStage, VariableBank, VariableTable
+from wirely.program.validation import validate_program
+from wirely.program.container import SectionList
 from wirely.program.loader import load_program
 from wirely.program.writer import write_program
-from wirely.runtime import LoadFailure
+from wirely.runtime.procedures import LoadFailure
 from wirely.runtime.engine import Engine
 from wirely.runtime.extensions import NativeTypes
 from tests.infra.support import test_contracts, test_extension
@@ -23,7 +24,7 @@ checks = TestCase()
 
 
 def compile_program(source, filename='<load-checks>'):
-    graph = wirely.compiler.compile_strs([(filename, source)])
+    graph = wirely.compiler.compilation.compile_strs([(filename, source)])
     assert graph is not None
     return graph, program_compiler.compile_nocatch(graph)
 

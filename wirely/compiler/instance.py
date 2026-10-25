@@ -15,7 +15,7 @@ from .attributes import copy_attributes
 from .stages import ResolutionState
 from wirely.compiler.parameters import ParameterValues, native_parameters
 from wirely.compiler.types import resolve_type, check_runtime_type
-from wirely.program import InputSource, Variable, VariableBank
+from wirely.program.program import InputSource, Variable, VariableBank
 from wirely.program.names import member_name
 
 # TODO: Probably InstanceInputPort, InstanceOutputPort, InstanceStateVariable etc. should only exist in NodeType

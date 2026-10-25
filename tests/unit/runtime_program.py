@@ -8,9 +8,11 @@ from unittest import TestCase
 from unittest.mock import patch
 
 import wirely
-import wirely.compiler
+import wirely.compiler.compilation
 from wirely.compiler import program as program_compiler
-from wirely.program import InputSource, NativeProcedureEntry, RunStage, SectionList, Variable, VariableBank, validate_program
+from wirely.program.program import InputSource, NativeProcedureEntry, RunStage, Variable, VariableBank
+from wirely.program.container import SectionList
+from wirely.program.validation import validate_program
 from wirely.program.loader import load_program, read_build_id
 from wirely.program.writer import write_program
 from wirely.program.program import procedure_instances
@@ -37,7 +39,7 @@ subprocess.run([sys.executable, '-c', dedent('''
     import pkgutil
     import sys
 
-    from wirely.program import Program
+    from wirely.program.program import Program
     from wirely.runtime.engine import Engine
     import wirely.native
 
@@ -59,7 +61,7 @@ node example: Uninstalled.Example {}
 '''
     with patch('wirely.runtime.linking.link_native_contracts',
                side_effect=AssertionError('Compilation looked up native code')):
-        graph = wirely.compiler.compile_strs([('<uninstalled>', source)])
+        graph = wirely.compiler.compilation.compile_strs([('<uninstalled>', source)])
         assert graph is not None
         program = program_compiler.compile_nocatch(graph)
     try:
@@ -71,7 +73,7 @@ node example: Uninstalled.Example {}
 
 
 def check_engine_isolation():
-    graph = wirely.compiler.compile_strs([('<engine-isolation>', '''node type Envelope {
+    graph = wirely.compiler.compilation.compile_strs([('<engine-isolation>', '''node type Envelope {
   default input: value boolean;
   default output: value boolean;
 
@@ -132,7 +134,7 @@ node alias: TestLibrary.Provider {}
 node consumer: TestLibrary.Consumer {}
 connect alias -> consumer.Service;
 '''
-    graph = wirely.compiler.compile_strs([('<resource-isolation>', source)])
+    graph = wirely.compiler.compilation.compile_strs([('<resource-isolation>', source)])
     assert graph is not None
     program = replace(program_compiler.compile_nocatch(graph), graph=None)
     with test_contracts(graph) as contracts:
@@ -177,7 +179,7 @@ connect alias -> consumer.Service;
 
 
 def check_resource_binding_validation():
-    graph = wirely.compiler.compile_strs([('<resource-validation>', '''namespace TestLibrary {
+    graph = wirely.compiler.compilation.compile_strs([('<resource-validation>', '''namespace TestLibrary {
   resource type Service;
   resource type Other;
   node type ServiceProvider {
@@ -241,7 +243,7 @@ node source: Renamed.Source {}
 node sink: Renamed.Sink {}
 connect source -> sink.Service;
 '''
-    graph = wirely.compiler.compile_strs([('<native-names>', source)])
+    graph = wirely.compiler.compilation.compile_strs([('<native-names>', source)])
     assert graph is not None
     program = program_compiler.compile_nocatch(graph)
     with test_contracts(graph) as contracts:
@@ -272,7 +274,7 @@ connect source -> sink.Service;
 
 
 def check_instance_names():
-    graph = wirely.compiler.compile_strs([('<instance-names>', '''
+    graph = wirely.compiler.compilation.compile_strs([('<instance-names>', '''
 node type Counter {
   state count: uint8 = 0;
   procedure run writes count { count = 1; }
@@ -337,7 +339,7 @@ procedure run writes count { count = true; }
 
 
 def check_unnamed_initializers():
-    graph = wirely.compiler.compile_strs([('<unnamed-initializers>', '''
+    graph = wirely.compiler.compilation.compile_strs([('<unnamed-initializers>', '''
 node first: Std.DebugValueSource { Type: boolean, Initial: false }
 node second: Std.DebugValueSource { Type: boolean, Initial: false }
 state seen: boolean = false;
@@ -398,7 +400,7 @@ connect first -> seen;
 
 
 def check_unnamed_scheduling():
-    graph = wirely.compiler.compile_strs([('<unnamed-scheduling>', '''
+    graph = wirely.compiler.compilation.compile_strs([('<unnamed-scheduling>', '''
 namespace TestLibrary {
   node type Probe {
     native procedure run;
@@ -458,7 +460,7 @@ node second: TestLibrary.Probe {}
 
 
 def check_monotonic_clock():
-    graph = wirely.compiler.compile_strs([('<clock>', '')], add_std=False)
+    graph = wirely.compiler.compilation.compile_strs([('<clock>', '')], add_std=False)
     program = program_compiler.compile_nocatch(graph)
     runtime = test_engine(program)
     other = test_engine(program)
@@ -506,7 +508,7 @@ def check_monotonic_clock():
 
 
 def check_wall_clock():
-    graph = wirely.compiler.compile_strs([('<wall-clock>', '')], add_std=False)
+    graph = wirely.compiler.compilation.compile_strs([('<wall-clock>', '')], add_std=False)
     program = program_compiler.compile_nocatch(graph)
     runtime = test_engine(program)
     other = test_engine(program)

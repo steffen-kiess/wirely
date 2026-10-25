@@ -12,9 +12,9 @@ import contextlib
 import datetime
 from collections.abc import Callable, Coroutine, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar, overload
+from typing import Any, ClassVar, Generic, TypeVar, overload
 
-from ..program import RunStage
+from ..program.program import RunStage
 from ..program.types import InternalValue, Type
 from ..types.time import MonotonicTime
 from . import signatures
@@ -23,9 +23,6 @@ from .native_values import from_native, to_native
 from .resources import ResourceType, ResourceValue
 from .time_snapshot import TimeSnapshot
 from .wall_clock import WallWakeup
-
-if TYPE_CHECKING:
-    from ..functions import FunctionImplementation
 
 K = TypeVar('K', bound=str)  # Python names of a native state's resource outputs.
 F = TypeVar('F', bound=Callable[..., object])
@@ -432,7 +429,6 @@ class FunctionContract(Generic[F]):
 
     def implementation(self, implementation: F) -> 'FunctionImplementation':
         """Bind a statically checked implementation to this contract."""
-        from ..functions import FunctionImplementation
         return FunctionImplementation(implementation, self)
 
     def __repr__(self) -> str:
@@ -449,3 +445,9 @@ class StateImplementation:
 class ProcedureImplementation:
     factory: Callable[[], NativeProcedure]
     adapter: ProcedureAdapter
+
+
+@dataclass(frozen=True, slots=True)
+class FunctionImplementation:
+    implementation: Callable[..., object]
+    contract: FunctionContract[Any]

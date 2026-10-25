@@ -2,7 +2,7 @@ import datetime
 
 import wirely
 from wirely.generated import schedule as contracts
-from wirely.program import RunStage
+from wirely.program.program import RunStage
 from wirely.runtime.native_api import PreparationServices, ProcedureServices
 from wirely.types.time import TICKS_PER_SECOND
 from wirely.types.time import TimeOfDay as TimeOfDay  # Implements the opaque struct Schedule.TimeOfDay.

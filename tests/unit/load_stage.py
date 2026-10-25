@@ -5,9 +5,10 @@ import contextlib
 from dataclasses import replace
 from unittest import TestCase
 
-import wirely.compiler
+import wirely.compiler.compilation
 from wirely.compiler import program as program_compiler
-from wirely.program import InputSource, RunStage, validate_program
+from wirely.program.program import InputSource, RunStage
+from wirely.program.validation import validate_program
 from wirely.runtime.engine import Engine
 from tests.infra.support import test_contracts, test_extension
 
@@ -80,7 +81,7 @@ node choose_duration: TestLibrary.Choose { Type: Std.Duration, First: true }
 connect Duration -> choose_duration.Left;
 connect Duration -> choose_duration.Right;
 '''
-graph = wirely.compiler.compile_strs([('<load-stage>', source)], add_std=True)
+graph = wirely.compiler.compilation.compile_strs([('<load-stage>', source)], add_std=True)
 assert graph is not None
 program = program_compiler.compile_nocatch(graph)
 calls = []

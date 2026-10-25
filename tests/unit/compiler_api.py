@@ -6,9 +6,9 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest import TestCase
 
-from wirely.compiler import (
-    ParseCache, SourceError, compile_files, compile_strs, parse_source, standard_library_cache,
-    standard_library_sources, standard_library_texts,
+from wirely.compiler.compilation import compile_files, compile_strs
+from wirely.compiler.sources import (
+    ParseCache, SourceError, parse_source, standard_library_cache, standard_library_sources, standard_library_texts,
 )
 from wirely.compiler import model, program
 from wirely.compiler.diagnostics import error_diagnostics

@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from wirely.generated import extension as builtin_extension
 import wirely
 from wirely.native.csv import MyCsvWriter, ValueWriterCreate, ValueWriterRun
-from wirely.program import RunStage
+from wirely.program.program import RunStage
 from wirely.runtime.native_api import ProcedureServices, StateServices
 
 

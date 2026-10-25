@@ -615,7 +615,7 @@ def check_default_values():
 def check_runtime_limits():
     from unittest.mock import patch
 
-    from wirely.program import Variable
+    from wirely.program.program import Variable
     from wirely.program.limits import MAX_NESTING_DEPTH, MAX_STORAGE_SIZE, MAX_TOTAL_MEMBER_COUNT, runtime_type_error
 
     assert (MAX_STORAGE_SIZE, MAX_NESTING_DEPTH, MAX_TOTAL_MEMBER_COUNT) == (128, 16, 128)

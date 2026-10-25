@@ -11,10 +11,11 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from wirely.compiler import model
+from wirely.compiler import compilation
 from wirely.compiler import program as program_compiler
 from wirely.compiler.diagnostics import print_diagnostic
 from wirely.compiler.function_implementations.test import TEST_RESOURCES_SERVICE
+from wirely.compiler.sources import standard_library_sources
 from tests.infra.support import test_engine
 from .diagnostics import (
     NegativeTestCase, diagnostic_items, expected_diagnostics, match_diagnostics, negative_test_cases,
@@ -24,7 +25,7 @@ from .services import TestResourceProvider, with_maybe_knxd, with_maybe_mqtt, wi
 
 if TYPE_CHECKING:
     from wirely.compiler.diagnostics import Diagnostic
-    from wirely.program import Program
+    from wirely.program.program import Program
     from wirely.runtime.engine import Engine
 
 
@@ -49,7 +50,7 @@ def compile_checked(fn: str, *, services: Mapping[str, object] | None = None) ->
     diagnostics: list[Diagnostic] = []
     from tests.infra.native_extension.generated import extension
     from tests.infra.native_extension.compiler.generated import extension as compiler_extension
-    global_node_type = model.compiler.compile_files([full_fn], services=services, on_diagnostic=diagnostics.append,
+    global_node_type = compilation.compile_files([full_fn], services=services, on_diagnostic=diagnostics.append,
                                                     extensions=[extension], compiler_extensions=[compiler_extension])
     prog = None if global_node_type is None else program_compiler.compile(global_node_type,
                                                                           on_diagnostic=diagnostics.append)
@@ -82,8 +83,8 @@ def compile_negative_case(full_fn: str, case: NegativeTestCase) -> None:
         expected = shuffled_expected
 
     diagnostics: list = []
-    sources = model.compiler.standard_library_sources(case.libraries)
-    graph = model.compiler.compile_strs(
+    sources = standard_library_sources(case.libraries)
+    graph = compilation.compile_strs(
         sources + [(full_fn, case.source)], add_std=False, on_diagnostic=diagnostics.append,
     )
     result = (program_compiler.compile(graph, on_diagnostic=diagnostics.append)

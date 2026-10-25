@@ -621,7 +621,7 @@ def _namespace(item: tuple[str, str, Any]) -> str:
 
 
 def compile_library() -> Any:
-    from wirely.compiler import standard_library_sources
+    from wirely.compiler.sources import standard_library_sources
 
     graph = compile_declarations(standard_library_sources())
     if graph is None:
@@ -635,7 +635,7 @@ def compile_declarations(sources: Sequence[Any]) -> Any:
     Generation needs declarations, not values, so literals of opaque structs, which need their
     implementations, parse to placeholder values.
     """
-    import wirely.compiler
+    import wirely.compiler.compilation
     from wirely.compiler.attributes import ParsedFile
     from wirely.runtime.extensions import RuntimeNativeExtension
 
@@ -643,7 +643,7 @@ def compile_declarations(sources: Sequence[Any]) -> Any:
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
             # Generated files follow declaration order, also in shuffle test runs.
-            graph = wirely.compiler.compile_strs(sources, shuffle_seed=None, include_builtin_extensions=False,
+            graph = wirely.compiler.compilation.compile_strs(sources, shuffle_seed=None, include_builtin_extensions=False,
                                                  extensions=extensions)
         if graph is None:
             raise ValueError(f'Compiling native declarations failed:\n{output.getvalue()}')
@@ -1021,7 +1021,7 @@ def generated_files(inputs: Iterable[Path] | None = None, *, package: str = 'wir
     if inputs is None:
         graph = compile_library()
     else:
-        from wirely.compiler import parse_sources, standard_library_sources
+        from wirely.compiler.sources import parse_sources, standard_library_sources
         sources = [(str(path), path.read_text(encoding='utf-8')) for path in inputs]
         source_paths = {name for name, _ in sources}
         graph = compile_declarations(standard_library_sources() + parse_sources(sources))
@@ -1100,7 +1100,7 @@ def generated_files(inputs: Iterable[Path] | None = None, *, package: str = 'wir
         # State/procedure implementations belong to the selected package; resource loaders already have locations.
         files[binding_path] = files[binding_path].replace('from wirely.native.', f'from {package}.native.')
     if inputs is None:
-        from wirely.compiler import parse_sources
+        from wirely.compiler.sources import parse_sources
         # Compiled without the standard library, so that top-level record names cannot clash.
         format_graph = compile_declarations(parse_sources(
             [(str(format_records_path), format_records_path.read_text(encoding='utf-8'))]))
@@ -1147,8 +1147,8 @@ def generate_bindings(interfaces: Interfaces, *,
                       resource_exports: Mapping[str, tuple[str, str]] | None = None) -> str:
     lines = [HEADER + '"""Typed, lazy loaders of native implementations."""', '',
              'from collections.abc import Callable', '',
-             'from wirely.functions import FunctionImplementation',
-             'from wirely.runtime.native_api import ProcedureImplementation, StateImplementation', '']
+             'from wirely.runtime.native_api import FunctionImplementation, ProcedureImplementation, StateImplementation',
+             '']
     kinds = (('states', 'initializer', interfaces[0], 'StateImplementation'),
              ('procedures', 'procedure', interfaces[1], 'ProcedureImplementation'),
              ('functions', 'function', interfaces[2], 'FunctionImplementation'))

@@ -12,8 +12,8 @@ from wirely.runtime.extensions import RuntimeNativeExtension
 from wirely.generated import extension as builtin_extension
 import wirely
 from wirely.compiler import program as program_compiler
-import wirely.compiler
-from wirely.program import RunStage
+import wirely.compiler.compilation
+from wirely.program.program import RunStage
 from wirely.runtime.engine import Engine
 from wirely.runtime.native_api import NativeProcedure
 from tests.infra.support import send_event_text, test_extension, test_contracts
@@ -34,7 +34,7 @@ class Raw(NamedTuple):
 
 
 def compile_program(sources, extensions=()):
-    graph = wirely.compiler.compile_strs(sources, extensions=extensions)
+    graph = wirely.compiler.compilation.compile_strs(sources, extensions=extensions)
     assert graph is not None
     program = program_compiler.compile(graph)
     assert program is not None
@@ -333,7 +333,7 @@ def check_triggers():
         native procedure run reads runner as "state";
         native procedure log reads runner as "state";
     '''
-    trigger_graph = wirely.compiler.compile_strs([('<native-triggers>', f'''
+    trigger_graph = wirely.compiler.compilation.compile_strs([('<native-triggers>', f'''
     namespace TestLibrary {{
       resource type ProbeState;
       resource type Service;

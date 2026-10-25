@@ -3,7 +3,7 @@ from unittest import TestCase
 from wirely.compiler.extensions import CompilerNativeExtension
 from wirely.runtime.signatures import Function as FunctionSignature, Int
 import wirely
-from wirely.compiler import compile_strs
+from wirely.compiler.compilation import compile_strs
 from wirely.compiler import program as program_compiler
 from tests.infra.support import test_constant_function
 

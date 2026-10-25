@@ -3,9 +3,10 @@
 import importlib
 from typing import TYPE_CHECKING, Any
 
-from wirely import Some, Unit, value_types, Type, ValueType
+from wirely import Some, Unit, value_types, ValueType
 from wirely.program import types
-from wirely.program import Program, RunStage, Variable, VariableTable, InputSource
+from wirely.program.types import Type
+from wirely.program.program import Program, RunStage, Variable, VariableTable, InputSource
 
 
 # Names exported lazily; add new names to the TYPE_CHECKING imports below too.
@@ -123,7 +124,6 @@ _exports = {
 _modules = {
     'ast': 'compiler.ast',
     'value': 'compiler.value',
-    'compiler': 'compiler',
     'parser': 'compiler.parser',
     'util': 'util',
 }
@@ -254,7 +254,7 @@ if TYPE_CHECKING:
     from wirely.compiler.node_type import (
         NodeType,
     )
-    from wirely import compiler, util
+    from wirely import util
     from wirely.compiler import ast, parser, value
 
 

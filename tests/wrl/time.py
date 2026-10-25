@@ -3,7 +3,7 @@ import datetime
 import contextlib
 
 import wirely
-from wirely.program import RunStage
+from wirely.program.program import RunStage
 from tests.infra.support import internal
 
 

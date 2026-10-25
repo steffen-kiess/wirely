@@ -10,7 +10,8 @@ import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Literal
 
-from wirely.compiler import ParseCache, editing
+from wirely.compiler.sources import ParseCache
+from wirely.compiler import editing
 from wirely.compiler import outline as _outline
 from wirely.compiler.analysis import ConnectionCheck, analyze
 from wirely.compiler.outline import Connection, NodeType

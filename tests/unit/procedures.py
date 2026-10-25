@@ -1,7 +1,7 @@
 import wirely
-import wirely.compiler
+import wirely.compiler.compilation
 from wirely.compiler import program as program_compiler
-from wirely.functions import FunctionImplementation
+from wirely.runtime.native_api import FunctionImplementation
 from wirely.runtime.engine import Engine
 from tests.infra.support import internal, test_extension, test_contracts, test_engine
 
@@ -71,7 +71,7 @@ def check_main_program():
 
 def compile_program(source, *, add_std=False):
     from tests.infra.native_extension.generated import extension as fixture
-    graph = wirely.compiler.compile_strs([('<procedures>', source)], add_std=add_std, extensions=[fixture])
+    graph = wirely.compiler.compilation.compile_strs([('<procedures>', source)], add_std=add_std, extensions=[fixture])
     assert graph is not None
     program = program_compiler.compile(graph)
     assert program is not None
@@ -545,7 +545,7 @@ node custom: CustomOperators {
     declarations, source = source.split('namespace Custom.Value {', 1)
     source = 'namespace Custom.Value {' + source
     from tests.infra.native_extension.generated import extension as fixture
-    graph = wirely.compiler.compile_strs([('<operator-types>', declarations), ('<operator-bindings>', source)],
+    graph = wirely.compiler.compilation.compile_strs([('<operator-types>', declarations), ('<operator-bindings>', source)],
                                         add_std=True, extensions=[fixture])
     assert graph is not None
     program = program_compiler.compile(graph)
@@ -656,7 +656,7 @@ def check_native_functions():
     # An exception from a runtime function is an internal error, not a program error.
     from tests.infra.native_extension.generated import extension as fixture
     diagnostics = []
-    graph = wirely.compiler.compile_strs([('<fail>', '''namespace TestLibrary {
+    graph = wirely.compiler.compilation.compile_strs([('<fail>', '''namespace TestLibrary {
       native function Fail(): boolean;
     }
     constant Value: boolean = TestLibrary.Fail();
@@ -786,7 +786,7 @@ def check_multi_procedures():
     # flattening order checked below follows declaration order, so do not shuffle.
     fixture = 'tests/compiler/multi_procedures.wrl'
     with open(fixture, encoding='utf-8') as file:
-        graph = wirely.compiler.compile_strs([(fixture, file.read())], add_std=True, shuffle_seed=None)
+        graph = wirely.compiler.compilation.compile_strs([(fixture, file.read())], add_std=True, shuffle_seed=None)
     machine = test_engine(program_compiler.compile(graph))
     machine.step()
     for name, expected in {'digits': 21354, 'sum': 12, 'empty': 0, 'single': 6}.items():

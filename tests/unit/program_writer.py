@@ -15,15 +15,17 @@ from unittest.mock import patch
 from wirely import Some, Unit
 from wirely.program import types
 from wirely.__main__ import main
-from wirely.compiler import compile_files, compile_strs
+from wirely.compiler.compilation import compile_files, compile_strs
 from wirely.compiler import program as program_compiler
 from wirely.cli import compile as compile_command
-from wirely.program import (
-    BranchTarget, Constant, ConstOperand, Function, InputSource, Instruction,
-    NativeProcedureEntry, Opcode, Operand, OperandKind, OutputTarget, Procedure,
-    ProcedureBody, Program, ProgramSymbols, RunStage, SectionList, Variable,
-    VariableBank, VariableTable, record_size, unpack_record,
+from wirely.program.procedures import (
+    BranchTarget, Constant, ConstOperand, Function, Instruction, Opcode, Operand, OperandKind, ProcedureBody,
 )
+from wirely.program.program import (
+    InputSource, NativeProcedureEntry, OutputTarget, Procedure, Program, ProgramSymbols, RunStage, Variable, VariableBank, VariableTable,
+)
+from wirely.program.container import SectionList
+from wirely.program.records import record_size, unpack_record
 from wirely.program.const_data import read_const
 from wirely.program.encoding import encode_integer_parameter, encode_value_operand, zigzag
 from wirely.program.generated import format as fmt

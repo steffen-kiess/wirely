@@ -3,7 +3,7 @@ import struct
 from unittest import TestCase
 
 from wirely.program import types
-from wirely.program import pack_record, record_size, unpack_record
+from wirely.program.records import pack_record, record_size, unpack_record
 from wirely.program.generated.format import (
     ClosedEnumType, CompositeType, Header, IntegerType, MonotonicTime, OpenEnumType, OptionalRef,
     ProcedureInstance, Range, Ref, ResourceType, RunStage, SectionEntry, SimpleType, Stage, StructType, TypeKind,

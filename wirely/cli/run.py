@@ -13,7 +13,7 @@ from pathlib import Path
 from wirely.compiler import program as program_compiler
 
 # TODO: Where should this import be done?
-import wirely.compiler
+import wirely.compiler.compilation
 
 import wirely.cli.client
 import wirely.misc.service
@@ -126,7 +126,7 @@ async def async_run(args: argparse.Namespace) -> int | None:
                 prog = load_program(data)
                 build_id = read_build_id(data)
             else:
-                global_node_type = wirely.compiler.compile_files(args.input_filename)
+                global_node_type = wirely.compiler.compilation.compile_files(args.input_filename)
                 if global_node_type is None:
                     return 1
                 compiled = program_compiler.compile(global_node_type)

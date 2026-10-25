@@ -5,7 +5,7 @@ import sys
 import time
 from pathlib import Path
 
-from ..compiler import compile_files
+from ..compiler.compilation import compile_files
 from ..compiler import program as program_compiler
 from ..runtime.engine import Engine
 from ..program.writer import write_program

@@ -3,8 +3,7 @@
 
 from collections.abc import Callable
 
-from wirely.functions import FunctionImplementation
-from wirely.runtime.native_api import ProcedureImplementation, StateImplementation
+from wirely.runtime.native_api import FunctionImplementation, ProcedureImplementation, StateImplementation
 
 
 states: dict[str, Callable[[], StateImplementation]] = {

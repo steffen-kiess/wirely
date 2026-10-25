@@ -4,11 +4,11 @@ from unittest import TestCase
 
 from wirely.generated import extension as builtin_extension
 import wirely
-import wirely.compiler
+import wirely.compiler.compilation
 from wirely.program import types as wirely_types
 from wirely.compiler import native_contracts
 from wirely.compiler.native_signatures import native_signatures
-from wirely.program import RunStage
+from wirely.program.program import RunStage
 from wirely.runtime.native_api import (
     FunctionBinding, InterfaceBinding, PreparationServices, ProcedureServices, StateServices,
 )
@@ -21,7 +21,7 @@ checks = TestCase()
 def compile_interfaces(source):
     # Unread resource outputs cause warnings, which these interfaces do not need to avoid.
     diagnostics = []
-    graph = wirely.compiler.compile_strs([('<contracts>', source)], shuffle_seed=None,
+    graph = wirely.compiler.compilation.compile_strs([('<contracts>', source)], shuffle_seed=None,
                                          on_diagnostic=diagnostics.append)
     assert graph is not None, diagnostics
     return native_signatures(graph, 'TestLibrary')

@@ -15,11 +15,10 @@ from .ast import SourcePosition, SourceElement, SyntaxElement, ProgramError, Val
 from .types import resolve_type, check_runtime_type
 from .operators import OperatorType, SYMBOLS, operator_function
 from .value import Value, ConstantValue, InputLengthValue, check_value_type
-from ..program import (
-    ARITHMETIC_OPCODES, CONVERSION_OPCODES,
-    BranchTarget, Constant, ConstOperand, Function, Instruction, Opcode, Operand, OperandKind, ProcedureBody as ProgramBody,
-    ValueOperand, Variable,
+from ..program.procedures import (
+    ARITHMETIC_OPCODES, CONVERSION_OPCODES, BranchTarget, Constant, ConstOperand, Function, Instruction, Opcode, Operand, OperandKind, ProcedureBody as ProgramBody, ValueOperand,
 )
+from ..program.program import Variable
 
 
 # Inputs are single names, multi input members, or old-state variables.

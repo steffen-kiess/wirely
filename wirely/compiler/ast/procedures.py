@@ -4,7 +4,7 @@ import dataclasses
 import typing
 from typing import Any
 
-from wirely.program import RunStage
+from wirely.program.program import RunStage
 from wirely.compiler import model
 from wirely.compiler.types import check_runtime_type
 

@@ -15,7 +15,7 @@ from wirely.runtime.engine import Engine
 from wirely.program.types import TypeStruct
 
 if TYPE_CHECKING:
-    from wirely.program import Program
+    from wirely.program.program import Program
 
 
 _test_contract_modules = itertools.count()
@@ -133,7 +133,8 @@ def send_event_text(source: Any, text: str) -> None:
 @functools.cache
 def library_type(name: str) -> TypeStruct:
     """Return a struct type declared by the standard libraries, such as Std.Duration."""
-    from wirely.compiler import compile_strs, standard_library_sources
+    from wirely.compiler.compilation import compile_strs
+    from wirely.compiler.sources import standard_library_sources
     graph = compile_strs(standard_library_sources(['std', 'schedule', 'timer']))
     assert graph is not None
     *namespaces, type_name = name.split('.')

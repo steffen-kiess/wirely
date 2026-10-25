@@ -5,10 +5,8 @@ from dataclasses import dataclass, field, replace
 from typing import Any
 
 from wirely.program import types
-from wirely.program import (
-    BranchTarget, Constant, ConstOperand, Function, InputSource, OutputTarget, Procedure, Program,
-    RunStage, Variable, VariableTable,
-)
+from wirely.program.procedures import BranchTarget, Constant, ConstOperand, Function
+from wirely.program.program import InputSource, OutputTarget, Procedure, Program, RunStage, Variable, VariableTable
 from wirely.program.loader import load_program
 from wirely.program.writer import write_program
 

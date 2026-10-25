@@ -1,7 +1,7 @@
 from unittest import TestCase
 
 import wirely
-from wirely.program import Variable, VariableTable
+from wirely.program.program import Variable, VariableTable
 from wirely.generated import extension as builtin_extension
 from wirely.runtime.contexts import VariableTableInstance
 from wirely.runtime.native_values import check_opaque_values

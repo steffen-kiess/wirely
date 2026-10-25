@@ -4,7 +4,7 @@ import datetime
 import os
 
 import wirely
-from wirely.program import RunStage
+from wirely.program.program import RunStage
 
 def assert_equals(value1, value2):
     if value1 != value2:

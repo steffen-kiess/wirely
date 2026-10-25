@@ -1,6 +1,7 @@
 from unittest import TestCase
 
-from wirely.compiler import compile_strs, parser
+from wirely.compiler.compilation import compile_strs
+from wirely.compiler import parser
 from wirely.compiler.editing import (
     TextEdit, add_attribute, add_declaration, apply_edits, connect, disconnect, format_constant,
     format_identifier, format_metadata, format_node, format_parameter, format_port, format_state,

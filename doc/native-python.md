@@ -93,7 +93,7 @@ function extensions to compilation:
 ```python
 from acme.generated import extension
 from acme.compiler.generated import extension as compiler_extension
-from wirely.compiler import compile_files
+from wirely.compiler.compilation import compile_files
 from wirely.compiler.program import compile_nocatch
 from wirely.runtime.engine import Engine
 
@@ -345,8 +345,8 @@ descriptors are available through compile-time reads. Each compiled program
 owns its enum and struct types; use values belonging to that program.
 
 To check that a procedure's type parameter matches its native state's,
-call `wirely.native.check_state_type(services.name, type, state_type)` in
-`prepare()`.
+call `check_state_type(services.name, type, state_type)` from
+`wirely.native.support` in `prepare()`.
 
 ## Native objects, resources, and tasks
 

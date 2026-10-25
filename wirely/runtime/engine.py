@@ -6,7 +6,8 @@ from collections.abc import Callable, Iterable, Mapping
 from typing import Any, cast
 
 import wirely
-from wirely.program import InputSource, Procedure, Program, RunStage, Variable, VariableBank, validate_program
+from wirely.program.program import InputSource, Procedure, Program, RunStage, Variable, VariableBank
+from wirely.program.validation import validate_program
 from wirely.program.program import procedure_instances
 from wirely.runtime.contexts import StepContext, VariableTableInstance
 from wirely.runtime.native_api import (

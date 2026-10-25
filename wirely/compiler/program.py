@@ -16,10 +16,9 @@ from wirely.program.limits import is_runtime_type
 from wirely.program.names import member_name
 from .expressions import compile_constant, compile_procedure
 from .stages import ResolutionState
-from wirely.program import (
-    Constant, Function, InputSource, Instruction, NativeProcedureEntry, Opcode, Operand, OperandKind,
-    OutputTarget, Procedure, ProcedureBody, Program, ProgramSymbols,
-    RunStage, Variable, VariableBank, VariableTable,
+from wirely.program.procedures import Constant, Function, Instruction, Opcode, Operand, OperandKind, ProcedureBody
+from wirely.program.program import (
+    InputSource, NativeProcedureEntry, OutputTarget, Procedure, Program, ProgramSymbols, RunStage, Variable, VariableBank, VariableTable,
 )
 
 # Body of a procedure storing a copied state: output.0 = input.0.

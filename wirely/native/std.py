@@ -3,7 +3,7 @@ from typing import Any, Literal
 import wirely
 from wirely import DynamicValue, Some, ValueType
 from wirely.generated import std as contracts
-from wirely.native import check_state_type
+from wirely.native.support import check_state_type
 from wirely.runtime.native_api import (
     InvalidCommandArgument, CommandFailed, PreparationServices, ProcedureServices, StateServices,
     control_command,

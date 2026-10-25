@@ -6,11 +6,13 @@ from wirely import Some, Unit
 from wirely.program import types
 from tests.infra.native_extension.generated import test_library as contracts
 from tests.infra.support import library_type, test_extension
-from wirely.program import (
-    BranchTarget, Constant, ConstOperand, Function, InputSource, Instruction,
-    Opcode, Operand, OperandKind, Procedure, ProcedureBody, Program, ProgramSymbols, OutputTarget,
-    RunStage, Variable, VariableBank, VariableTable, validate_program,
+from wirely.program.procedures import (
+    BranchTarget, Constant, ConstOperand, Function, Instruction, Opcode, Operand, OperandKind, ProcedureBody,
 )
+from wirely.program.program import (
+    InputSource, Procedure, Program, ProgramSymbols, OutputTarget, RunStage, Variable, VariableBank, VariableTable,
+)
+from wirely.program.validation import validate_program
 from wirely.runtime.engine import Engine
 from wirely.runtime.extensions import NativeTypes
 from wirely.runtime.procedures import execute_procedure

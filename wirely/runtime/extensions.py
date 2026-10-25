@@ -11,8 +11,7 @@ from ..types.value_types import NativeEnum, NativeOpaque, NativeStruct
 from . import signatures
 
 if TYPE_CHECKING:
-    from ..functions import FunctionImplementation
-    from .native_api import ProcedureImplementation, StateImplementation
+    from .native_api import FunctionImplementation, ProcedureImplementation, StateImplementation
 
 
 @dataclass(frozen=True, slots=True)

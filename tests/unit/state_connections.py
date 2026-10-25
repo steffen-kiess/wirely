@@ -4,7 +4,7 @@ from pathlib import Path
 from wirely.generated import extension as builtin_extension
 import wirely
 from wirely.compiler import program as program_compiler
-import wirely.compiler
+import wirely.compiler.compilation
 from wirely.runtime.engine import Engine
 from tests.infra.support import test_contracts, test_extension
 
@@ -154,7 +154,7 @@ std_source = Path('wirely/lib/std.wrl').read_text()
 
 
 def compile_graph(source):
-    return wirely.compiler.compile_strs([
+    return wirely.compiler.compilation.compile_strs([
         ('wirely/lib/std.wrl', std_source),
         ('<state-connections>', source),
     ])

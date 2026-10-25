@@ -1,9 +1,9 @@
 """A small execution probe for the test runner's bytecode mode."""
 
 from wirely.program import types
-from wirely.program import (
-    Constant, ConstOperand, InputSource, Instruction, Opcode, Operand, OperandKind, OutputTarget,
-    Procedure, ProcedureBody, Program, ProgramSymbols, RunStage, Variable, VariableBank, VariableTable,
+from wirely.program.procedures import Constant, ConstOperand, Instruction, Opcode, Operand, OperandKind, ProcedureBody
+from wirely.program.program import (
+    InputSource, OutputTarget, Procedure, Program, ProgramSymbols, RunStage, Variable, VariableBank, VariableTable,
 )
 from tests.infra.bytecode import bytecode_roundtrip_mode
 from tests.infra.support import test_engine

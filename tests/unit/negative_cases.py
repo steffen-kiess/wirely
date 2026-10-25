@@ -4,7 +4,8 @@ from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
 
-import wirely.compiler
+import wirely.compiler.compilation
+import wirely.compiler.diagnostics
 from wirely.compiler import program as program_compiler
 from tests.infra.runner.execution import compile_negative_test
 
@@ -121,17 +122,17 @@ assert 'first (line 3)' in message and 'second (line 5)' in message
 assert 'first mismatch' in message and 'second mismatch' in message
 
 # An internally failed case still allows later cases to run.
-original_compile = wirely.compiler.compile_strs
+original_compile = wirely.compiler.compilation.compile_strs
 
 
 def fail_first(sources, **kwargs):
     if '// E: simulated' in sources[-1][1]:
-        kwargs['on_diagnostic'](wirely.compiler.Diagnostic('internal_error', 'simulated failure'))
+        kwargs['on_diagnostic'](wirely.compiler.diagnostics.Diagnostic('internal_error', 'simulated failure'))
         return None
     return original_compile(sources, **kwargs)
 
 
-with patch('wirely.compiler.compile_strs', side_effect=fail_first):
+with patch('wirely.compiler.compilation.compile_strs', side_effect=fail_first):
     with checks.assertRaises(AssertionError) as error:
         run_fixture_with_std('''// TEST: internal failure
 node bad: Missing {} // E: simulated
@@ -143,14 +144,14 @@ assert 'compiler failed internally' in message and 'later case' in message
 
 # Default library loading remains opt-in for source compilation.
 diagnostics = []
-assert wirely.compiler.compile_strs([
+assert wirely.compiler.compilation.compile_strs([
     ('<no-libraries>', 'node value: Std.Constant { Type: uint8, Value: 1 }'),
 ], on_diagnostic=diagnostics.append) is None
 assert len(diagnostics) == 1
 assert diagnostics[0].kind == 'error'
 assert diagnostics[0].filename == '<no-libraries>' and diagnostics[0].line == 1
 assert 'Cannot find node type `Std.Constant`' in diagnostics[0].message
-compiled = wirely.compiler.compile_strs([
+compiled = wirely.compiler.compilation.compile_strs([
     ('<with-libraries>', 'node value: Std.Constant { Type: uint8, Value: 1 }'),
 ], add_std=True)
 assert compiled is not None
@@ -214,12 +215,12 @@ def run_diagnostics(source, diagnostics):
     def compile_case(sources, *, on_diagnostic, **kwargs):
         filename = sources[-1][0]
         for kind, line, message, other_file in diagnostics:
-            on_diagnostic(wirely.compiler.Diagnostic(
+            on_diagnostic(wirely.compiler.diagnostics.Diagnostic(
                 kind, message, filename=other_file or filename, line=line,
             ))
         return None
 
-    with patch('wirely.compiler.compile_strs', side_effect=compile_case):
+    with patch('wirely.compiler.compilation.compile_strs', side_effect=compile_case):
         run_fixture(source)
 
 

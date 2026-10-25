@@ -2,7 +2,7 @@
 
 from collections.abc import Callable
 
-from ..program import Constant
+from ..program.procedures import Constant
 from . import model
 from .expressions import compile_constant
 from .types import resolve_type

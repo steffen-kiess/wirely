@@ -8,12 +8,13 @@ from unittest import TestCase
 from zoneinfo import ZoneInfo
 
 import wirely
-from wirely.compiler import compile_strs, standard_library_sources
+from wirely.compiler.compilation import compile_strs
+from wirely.compiler.sources import standard_library_sources
 from wirely.compiler.program import compile_nocatch
 from wirely.generated import extension
 from wirely.generated import schedule as contracts
 from wirely.native.schedule import IsInDailyIntervalRun, TimeOfDayMinuteGetValue
-from wirely.program import RunStage
+from wirely.program.program import RunStage
 from wirely.runtime.engine import Engine
 from wirely.runtime.native_api import ProcedureServices
 from wirely.runtime.wall_clock import TimerFD, WallClockWaiter

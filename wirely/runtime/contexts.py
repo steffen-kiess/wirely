@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime
 from typing import TYPE_CHECKING
 
-from ..program import RunStage, Variable, VariableTable
+from ..program.program import RunStage, Variable, VariableTable
 from ..types.time import MonotonicTime
 from .time_snapshot import TimeSnapshot
 
