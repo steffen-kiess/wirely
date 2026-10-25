@@ -38,6 +38,8 @@ python_only_tests = [
     'unit/program_writer',
     'unit/program_loader',
     'unit/program_verifier',
+    'unit/test_runner',
+    'unit/bytecode_roundtrip',
     'unit/monotonic_timestamp',
 ]
 
@@ -191,5 +193,6 @@ exclusive_tests = [
     'unit/program_writer',
     'unit/program_loader',
     'unit/program_verifier',
+    'unit/test_runner',
     'wrl/event_bindings',
 ]

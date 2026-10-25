@@ -13,6 +13,7 @@ from unittest import TestCase
 from unittest.mock import patch
 
 from wirely import types
+from wirely.__main__ import main
 from wirely.compiler import compile_files, compile_strs
 from wirely.compiler import program as program_compiler
 from wirely.cli import compile_command
@@ -284,13 +285,12 @@ def check_code():
         1, 0x43, 3, 1, 0x44, 1, 32, 1, 3, 33, 0, 0, 34,
     ])
     assert len(records(data[fmt.SectionType.ConstValues], fmt.Variable)) == 4
-    # Operand index forms in a real stream, including an extended uint32.
-    indices = (28, 29, 255, 256, 65535, 65536)
+    # Short and extended operand forms in a real stream; helpers cover uint32 boundaries.
+    indices = (28, 29, 255, 256)
     prog = body_program(tuple(instruction(Opcode.SET_DEFAULT, local(index)) for index in indices)
-                        + (instruction(Opcode.RETURN),), (types.unit,) * 65537)
+                        + (instruction(Opcode.RETURN),), (types.unit,) * 257)
     assert sections(prog)[fmt.SectionType.ProcedureCode] == bytes([
-        2, 0x5c, 2, 0x5d, 29, 2, 0x5d, 255, 2, 0x5e, 0, 1,
-        2, 0x5e, 255, 255, 2, 0x5f, 0, 0, 1, 0, 34])
+        2, 0x5c, 2, 0x5d, 29, 2, 0x5d, 255, 2, 0x5e, 0, 1, 34])
     for count, prefix in ((126, b'\x1f\xfc'), (127, b'\x1f\xfe\xfe\x00')):
         prog = body_program((instruction(Opcode.JUMP, BranchTarget(count + 1)),)
                             + (instruction(Opcode.SET_DEFAULT, local(0)),) * count
@@ -447,15 +447,21 @@ def check_compiled_programs():
 
 def check_cli():
     def run(*args):
-        return subprocess.run([sys.executable, '-m', 'wirely', 'compile', *map(str, args)],
-                              cwd=root, capture_output=True, text=True)
+        argv = ['wirely', 'compile', *map(str, args)]
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with patch.object(sys, 'argv', argv), contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            with checks.assertRaises(SystemExit) as exit:
+                main()
+        return subprocess.CompletedProcess(argv, exit.exception.code or 0, stdout.getvalue(), stderr.getvalue())
 
     with tempfile.TemporaryDirectory() as directory:
         directory = Path(directory)
         source = directory / 'source.wrl'
         source.write_text('', encoding='utf-8')
         output = directory / 'program.wbc'
-        result = run('--output', output, source)
+        # Keep one real process to cover the public module entry point.
+        result = subprocess.run([sys.executable, '-m', 'wirely', 'compile', '--output', str(output), str(source)],
+                                cwd=root, capture_output=True, text=True)
         assert result.returncode == 0, result.stderr
         assert len(SectionList.load(output).sections) == 21
         original = output.read_bytes()

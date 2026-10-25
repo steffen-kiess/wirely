@@ -4,10 +4,7 @@ import argparse
 import contextlib
 import io
 import struct
-import subprocess
-import sys
 import tempfile
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
 from unittest import TestCase
@@ -16,7 +13,7 @@ from unittest.mock import AsyncMock, Mock, mock_open, patch
 from wirely import types
 from wirely.cli import service
 from wirely.program import (
-    Constant, InputSource, NativeProcedureEntry, Opcode, Operand, OperandKind,
+    BranchTarget, Constant, ConstOperand, Function, InputSource, NativeProcedureEntry, Opcode, Operand, OperandKind,
     OutputTarget, Procedure, ProcedureBody, RunStage, Section, SectionList, Variable, VariableBank,
     pack_record,
 )
@@ -28,18 +25,14 @@ from wirely.program.generated import format as fmt
 from wirely.program.loader import load_program
 from wirely.program.writer import write_program
 from wirely.runtime.engine import Engine
-from wirely.runtime.extensions import NativeTypes, resolve_extensions
+from wirely.runtime.extensions import NativeTypes
 from wirely.runtime.procedures import LoadFailure
 from wirely.runtime.signatures import Int
 from wirely.types.value_types import NativeOpaque
-from tests.infra.bytecode import bytecode_roundtrip_mode, roundtrip_program
-from tests.infra.runner.execution import run_named_test
-from tests.unit import program_writer as writer_cases
 from tests.unit.program_writer import body_program, const, instruction, local, program, records
 
 
 checks = TestCase()
-root = Path(__file__).resolve().parents[2]
 
 
 def change_section(data, section_type, transform):
@@ -86,24 +79,121 @@ def check_helpers():
         decode_value_operand(b'\xe0')
 
 
-def check_writer_images():
-    def write_reloaded(prog):
-        data = write_program(prog)
-        reloaded = write_program(load_program(data))
-        assert reloaded == data
-        return reloaded
+def check_constants_and_bindings():
+    mode = types.TypeEnum('Mode', {'Off': 0, 'On': 1}, is_open=False, underlying_type=types.uint8)
+    other_mode = types.TypeEnum('Mode', {'Off': 0, 'On': 1}, is_open=False, underlying_type=types.uint8)
+    option = types.TypeOption(mode)
+    wrapper = types.TypeStruct('Types', {'values': types.TypeOption(types.TypeList(types.ValueType))})
+    value = Constant(wrapper, (types.Some((option, types.TypeOption(other_mode), option)),))
+    opaque = types.TypeStruct('Native', {'ticks': types.uint64}, native_name='Test.Native', is_opaque=True)
+    constants = (value, Constant(opaque, (7,)), Constant(types.String, 'héllo'), Constant(types.String, ''))
+    fixed = Variable('fixed', types.uint8)
+    resource = Variable('resource', types.TypeResource('Resource', 'Test.Resource'))
+    state = Variable('state', types.uint8)
+    temporary = Variable('temporary', types.uint8)
+    init = Procedure('init', (), (OutputTarget(VariableBank.FIXED_VALUES, resource),),
+                     native=NativeProcedureEntry('Test:init', (), ('resource',), initializer=True))
+    setup = Procedure('setup', (), (OutputTarget(VariableBank.FIXED_VALUES, fixed),),
+                      native=NativeProcedureEntry('Test:setup', (), ('fixed',)))
+    inputs = (InputSource(VariableBank.FIXED_VALUES, resource), InputSource(VariableBank.FIXED_VALUES, fixed),
+              InputSource(VariableBank.OLD_STATE, state))
+    run = Procedure('run', inputs, (OutputTarget(VariableBank.NEW_STATE, state),
+                                    OutputTarget(VariableBank.TEMPORARIES, temporary)),
+                    native=NativeProcedureEntry('Test:run', ('resource', 'fixed', 'old'), ('state', 'temporary')))
+    consume = Procedure('consume', (InputSource(VariableBank.NEW_STATE, state),
+                                    InputSource(VariableBank.TEMPORARIES, temporary)) + tuple(
+                                        InputSource(VariableBank.CONST_VALUES, constant=item) for item in constants), (),
+                        native=NativeProcedureEntry('Test:consume', ('new', 'temporary', 'types', 'opaque', 'text', 'empty'), ()))
+    loaded = roundtrip(program(state=(state,), initial={state: 9}, fixed=(fixed, resource), temporaries=(temporary,),
+                               procs=((RunStage.LOAD, (init, setup)), (RunStage.INPUT, (run,)),
+                                      (RunStage.OUTPUT, (consume,)))))
+    loaded_init, loaded_setup = loaded.procs[RunStage.LOAD]
+    assert loaded_init.native.initializer and not loaded_setup.native.initializer
+    loaded_run, = loaded.procs[RunStage.INPUT]
+    assert loaded_run.native == run.native
+    assert loaded_run.inputs[0].variable.var_type.native_name == 'Test.Resource'
+    assert loaded_run.inputs[1].variable is loaded_setup.outputs[0].variable
+    assert loaded_run.inputs[2].variable is loaded_run.outputs[0].variable
+    assert loaded.initial_state[loaded_run.outputs[0].variable] == 9
+    loaded_consume, = loaded.procs[RunStage.OUTPUT]
+    assert loaded_consume.inputs[0].variable is loaded_run.outputs[0].variable
+    assert loaded_consume.inputs[1].variable is loaded_run.outputs[1].variable
+    nested, opaque_value, text, empty = (source.constant for source in loaded_consume.inputs[2:])
+    first, second, repeated = nested.value[0].value
+    assert first is repeated and first is not second and first.inner_type is not second.inner_type
+    assert first.inner_type.member_count == second.inner_type.member_count == 2
+    assert opaque_value.value_type.is_opaque and opaque_value.value_type.native_name == 'Test.Native'
+    assert opaque_value.value == (7,) and text.value == 'héllo' and empty.value == ''
 
-    # Reuse the writer's independent byte/table assertions on reloaded images.
-    with patch.object(writer_cases, 'write_program', side_effect=write_reloaded):
-        writer_cases.check_container()
-        writer_cases.check_types_and_constants()
-        writer_cases.check_variables_and_procedures()
-        writer_cases.check_nested_type_values()
-        writer_cases.check_code()
-        writer_cases.check_scalar_immediates()
-        writer_cases.check_aliases()
-        writer_cases.check_constant_order()
-        writer_cases.check_stage_order()
+
+def check_code():
+    signed = types.TypeEnum('Signed', {}, is_open=True, underlying_type=types.int16)
+    closed = types.TypeEnum('Closed', {'Off': 0, 'On': 1}, is_open=False, underlying_type=types.uint8)
+    function = Function('Test:function', (types.uint8,), types.uint8)
+    instructions = (
+        instruction(Opcode.COPY, local(0), const(types.int32, -3)),
+        instruction(Opcode.EQUAL, local(1), const(types.int32, 1), const(types.int32, 2)),
+        instruction(Opcode.LESS, local(1), const(types.int32, 3), const(types.int32, 4)),
+        instruction(Opcode.SHIFT_LEFT, local(0), const(types.int32, -1), const(types.uint32, 2)),
+        instruction(Opcode.CONVERT_WRAPPING, local(0), const(types.uint64, 9)),
+        instruction(Opcode.COPY, local(2), const(types.uint64, 1 << 40)),
+        instruction(Opcode.COPY, local(3), const(signed, -2)),
+        instruction(Opcode.COPY, local(4), const(closed, 1)),
+        instruction(Opcode.CALL, local(5), function, 1, const(types.uint8, 7)),
+        instruction(Opcode.NOT, local(1), const(types.boolean, True)),
+        instruction(Opcode.MAKE_SOME, local(6), const(types.uint8, 5)),
+        instruction(Opcode.SET_FIELD, local(7), const(types.uint8, 6), 0),
+        instruction(Opcode.JUMP_IF_TRUE, const(types.boolean, True), BranchTarget(14)),
+        instruction(Opcode.JUMP_IF_FALSE, const(types.boolean, False), BranchTarget(14)),
+        instruction(Opcode.RETURN),
+    )
+    local_types = (types.int32, types.boolean, types.uint64, signed, closed, types.uint8,
+                   types.TypeOption(types.uint8), types.TypeStruct('S', {'value': types.uint8}))
+    loaded = roundtrip(body_program(instructions, local_types))
+    body = loaded.procs[RunStage.DEFAULT][0].body
+    assert [item.opcode for item in body.instructions] == [item.opcode for item in instructions]
+    assert body.instructions[0].operands[1].constant.value == -3
+    assert body.instructions[4].operands[1].constant.value_type is types.uint64
+    assert body.instructions[5].operands[1].constant.value == 1 << 40
+    assert body.instructions[6].operands[1].constant.value_type is body.local_types[3]
+    assert body.instructions[7].operands[1].constant.value_type is body.local_types[4]
+    assert body.instructions[8].operands[1] == function
+    assert body.instructions[9].operands[1].constant.value is True
+    assert body.instructions[12].operands[1] == BranchTarget(14)
+    shared = Constant(types.uint64, 1)
+    distinct = Constant(types.uint64, 1)
+    code = (
+        instruction(Opcode.CONVERT_WRAPPING, local(0), const(types.int64, -(1 << 31))),
+        instruction(Opcode.CONVERT_WRAPPING, local(0), const(types.int64, -(1 << 31) - 1)),
+        instruction(Opcode.CONVERT_WRAPPING, local(0), ConstOperand(shared)),
+        instruction(Opcode.CONVERT_WRAPPING, local(0), ConstOperand(distinct)),
+        instruction(Opcode.CONVERT_WRAPPING, local(0), ConstOperand(shared)),
+        instruction(Opcode.AND, local(1), const(types.boolean, True), const(types.boolean, False)),
+        instruction(Opcode.OR, local(1), const(types.boolean, False), const(types.boolean, True)),
+        instruction(Opcode.XOR, local(1), const(types.boolean, True), const(types.boolean, True)),
+        instruction(Opcode.ADD_WRAPPING, local(0), const(types.int64, 3), const(types.int64, 4)),
+        instruction(Opcode.RETURN),
+    )
+    loaded = roundtrip(body_program(code, (types.int64, types.boolean)))
+    operands = [item.operands[1].constant for item in loaded.procs[RunStage.DEFAULT][0].body.instructions[:5]]
+    assert [item.value for item in operands] == [-(1 << 31), -(1 << 31) - 1, 1, 1, 1]
+    assert operands[2] is operands[4] and operands[2] is not operands[3]
+    # Extended local operands need only 257 local types.
+    code = (instruction(Opcode.JUMP, BranchTarget(128)),) + tuple(
+        instruction(Opcode.SET_DEFAULT, local(index)) for index in (28, 29, 255, 256)) + (
+        instruction(Opcode.SET_DEFAULT, local(0)),) * 123 + (instruction(Opcode.RETURN),)
+    loaded = roundtrip(body_program(code, (types.unit,) * 257))
+    assert loaded.procs[RunStage.DEFAULT][0].body.instructions == code
+    # The exact displacement boundary does not need a large local table.
+    code = (instruction(Opcode.JUMP, BranchTarget(128)),) + (
+        instruction(Opcode.SET_DEFAULT, local(0)),) * 127 + (instruction(Opcode.RETURN),)
+    loaded = roundtrip(body_program(code, (types.unit,)))
+    assert loaded.procs[RunStage.DEFAULT][0].body.instructions == code
+    failure = Constant(types.TypeList(types.String), ('value: ', '', ''))
+    loaded = roundtrip(body_program((instruction(Opcode.FAIL, failure, 1, const(types.uint8, 3)),), stage=RunStage.LOAD))
+    fail = loaded.procs[RunStage.LOAD][0].body.instructions[0]
+    assert fail.operands[0].value == failure.value
+    assert fail.operands[2].constant.value_type is types.uint8 and fail.operands[2].constant.value == 3
 
 
 def check_stripped_types_and_state():
@@ -264,52 +354,6 @@ def check_native_registry():
         Engine(loaded)
 
 
-def check_test_metadata():
-    from wirely.compiler import compile_strs
-    from wirely.compiler import program as program_compiler
-    source = '''struct type Pair { flag: boolean, number: uint8, }
-node type Source {
-  output Value: value Pair;
-  procedure run writes Value { Value = Pair { flag: true, number: 7 }; }
-}
-node source: Source {}
-'''
-    graph = compile_strs([('<loader>', source)])
-    assert graph is not None
-    original = program_compiler.compile(graph)
-    assert original is not None
-    restored = roundtrip_program(original, resolve_extensions().native_types)
-    assert restored.graph is original.graph
-    original_vars = list(original.temporaries.offsets)
-    restored_vars = list(restored.temporaries.offsets)
-    assert restored_vars[0] is not original_vars[0]
-    assert restored_vars[0].name == original_vars[0].name
-    assert list(restored_vars[0].var_type.fields) == ['flag', 'number']
-    initial_mode = bytecode_roundtrip_mode.get()
-
-    def check_mode(enabled):
-        with patch('tests.infra.runner.execution._run_named_test') as run:
-            run.side_effect = lambda name: checks.assertEqual(bytecode_roundtrip_mode.get(), enabled)
-            run_named_test('test', bytecode_roundtrip=enabled)
-        assert bytecode_roundtrip_mode.get() == initial_mode
-
-    check_mode(True)
-    check_mode(False)
-    with patch('tests.infra.runner.execution._run_named_test', side_effect=ValueError('test failure')):
-        with checks.assertRaisesRegex(ValueError, 'test failure'):
-            run_named_test('test', bytecode_roundtrip=not initial_mode)
-    assert bytecode_roundtrip_mode.get() == initial_mode
-    # Context values stay local to each thread without changing process state.
-    def thread_mode(enabled):
-        token = bytecode_roundtrip_mode.set(enabled)
-        try:
-            return bytecode_roundtrip_mode.get()
-        finally:
-            bytecode_roundtrip_mode.reset(token)
-    with ThreadPoolExecutor(2) as pool:
-        assert list(pool.map(thread_mode, (True, False))) == [True, False]
-
-
 async def check_service():
     magic = SectionList.MAGIC.to_bytes(4, 'little')
     with patch('wirely.cli.service.open', mock_open(read_data=magic + b'ignored')) as opened:
@@ -367,23 +411,14 @@ async def check_service():
                     load.assert_not_called()
 
 
-def check_runner_processes():
-    for executable in ([sys.executable, 'tools/run-tests'], [sys.executable, '-m', 'tests.infra.runner']):
-        result = subprocess.run([*executable, '--bytecode-roundtrip', '--processes', '2', '--threads', '2',
-                                 'compiler/simple', 'wrl/equality'], cwd=root, capture_output=True, text=True)
-        assert result.returncode == 0, result.stdout + result.stderr
-        assert 'Done running test wrl/equality' in result.stdout
-
-
 async def run_test():
     check_helpers()
-    check_writer_images()
+    check_constants_and_bindings()
+    check_code()
     check_stripped_types_and_state()
     check_json_presence()
     check_shared_bodies()
     check_budgets()
     check_malformed()
     check_native_registry()
-    check_test_metadata()
     await check_service()
-    check_runner_processes()
