@@ -29,6 +29,7 @@ from wirely.runtime.extensions import NativeTypes
 from wirely.runtime.procedures import LoadFailure
 from wirely.runtime.signatures import Int
 from wirely.types.value_types import NativeOpaque
+from tests.infra.bytecode import match_programs
 from tests.unit.program_writer import body_program, const, instruction, local, program, records
 
 
@@ -51,6 +52,7 @@ def roundtrip(prog):
     loaded = load_program(data)
     assert loaded.graph is None and not loaded.symbols.node_aliases and not loaded.symbols.variable_aliases
     assert write_program(loaded) == data
+    match_programs(prog, loaded)
     return loaded
 
 

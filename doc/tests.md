@@ -10,8 +10,9 @@ tools/run-tests compiler
 ```
 
 Add `--bytecode-roundtrip` to write and reload programs before creating
-test engines. This checks identical output bytes and runs the decoded
-programs, with debug names restored from the compilation for test lookup.
+test engines. This checks identical output bytes and that decoded programs
+match the originals apart from debug names. It runs the decoded programs,
+with debug names restored from the compilation for test lookup.
 
 The launcher uses `venv/bin/python`, or the current interpreter when no venv
 exists. `--python PATH` selects another interpreter. The runner stops at the
