@@ -358,6 +358,11 @@ wirely client --unix-path DIR/control dump --program program.wrl
 wirely client --unix-path DIR/control-serial --protocol serial pause
 ```
 
+Without a command, `wirely client` reads commands with the same syntax,
+one per line, until `quit` or end of input. On a terminal, it offers line
+editing, history, and completion; otherwise it stops at the first failing
+command.
+
 Use `--tls` for TLS connections, with `--tls-ca` and `--tls-server-name`
 to verify the certificate.
 

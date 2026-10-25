@@ -6,6 +6,7 @@ import io
 import os
 import ssl
 import tempfile
+import unittest.mock
 import zlib
 
 from cryptography import x509
@@ -190,12 +191,13 @@ async def check_serial(server):
         writer.close()
 
 
-async def run_client_command(*arguments):
+async def run_client_command(*arguments, stdin='', status=0):
     parser = argparse.ArgumentParser()
     wirely.cli.client.add_arguments(parser)
     output = io.StringIO()
-    with contextlib.redirect_stdout(output):
-        assert await wirely.cli.client.async_run(parser.parse_args(arguments)) == 0
+    with (contextlib.redirect_stdout(output), contextlib.redirect_stderr(output),
+          unittest.mock.patch('sys.stdin', io.StringIO(stdin))):
+        assert await wirely.cli.client.async_run(parser.parse_args(arguments)) == status
     return output.getvalue()
 
 
@@ -209,6 +211,13 @@ async def check_cli(server):
     output = await run_client_command(*serial, 'dump', '--bank', 'state')
     assert '  00000000  2a 00 00 00\n' in output
     assert 'running' in await run_client_command(*serial, 'resume')
+
+    # Without a command, commands are read from stdin.
+    output = await run_client_command(*serial, stdin='pause\nstep --count 2\nresume\n')
+    assert 'paused' in output and '2 steps' in output and 'running' in output
+    # Input that is not a terminal stops at the first failing command.
+    output = await run_client_command(*serial, stdin='step\nstatus\n', status=1)
+    assert output == 'Error: WRONG_STATE: Runtime is not paused\n'
 
 
 async def run_test():
