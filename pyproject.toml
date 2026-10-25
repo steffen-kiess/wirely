@@ -17,7 +17,7 @@ dependencies = [
     "lark>=1.1.5",
     "sdnotify>=0.3.0",
     "cbor2>=5.4.5",
-    "prompt_toolkit>=3.0",
+    "prompt_toolkit>=3.0.6",  # The first release with type information.
 ]
 
 [project.urls]
