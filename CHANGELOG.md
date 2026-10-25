@@ -25,9 +25,14 @@ Replace `native node type` with `node type`, and name initializers, as in
 
 Replace the port kind `resource T` with `fixed T`.
 
+#### Debug value sources
+
+Give each `Std.DebugValueSource` an `Initial` value, as in
+`Std.DebugValueSource { Type: boolean, Initial: false }`.
+
 #### Commands
 
-Replace `wirely run-service` with `wirely run`.
+Replace `wirely run-service` with `wirely run -i`.
 
 `wirely show-graph` and the `graphviz` extra are removed; use
 `wirely edit` or `wirely export-image` to view diagrams.
