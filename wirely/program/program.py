@@ -10,6 +10,7 @@ from typing import TextIO
 
 from ..util import immutable_enum
 from ..types import Type, TypeEnum, TypeList, TypeOption, TypeResource, TypeStruct
+from .names import member_owner
 from .procedures import Constant, ConstOperand, Function, Instruction, Opcode, ProcedureBody
 
 
@@ -165,7 +166,7 @@ class NativeProcedureEntry:
 class Procedure:
     """A scheduled instance of a native or bytecode procedure with its bindings."""
 
-    name: str  # Owning node path and procedure name, such as 'a.b:run'.
+    name: str  # Owning node path and procedure name, such as 'a.b.run'.
     inputs: tuple[InputSource, ...]  # Native: one per input name; bytecode: operands input.N.
     outputs: tuple[OutputTarget, ...]  # Native: one per output name; bytecode: operands output.N.
     native: NativeProcedureEntry | None = None  # None for a bytecode procedure.
@@ -178,7 +179,7 @@ class Procedure:
     @property
     def node(self) -> str:
         """The path of the owning node."""
-        return self.name.partition(':')[0]
+        return member_owner(self.name)
 
     @property
     def initializer(self) -> bool:

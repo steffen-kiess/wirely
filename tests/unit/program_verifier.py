@@ -44,7 +44,7 @@ def code_image(code, *, local_types=(types.boolean,)):
 
 
 def bound_constants(*constants):
-    proc = Procedure('test:read', tuple(InputSource(VariableBank.CONST_VALUES, constant=value) for value in constants), (),
+    proc = Procedure('test.read', tuple(InputSource(VariableBank.CONST_VALUES, constant=value) for value in constants), (),
                      native=NativeProcedureEntry('Test:read', tuple(f'value{index:08}' for index in range(len(constants))), ()))
     return write_program(program(procs=((RunStage.LOAD, (proc,)),)))
 
@@ -208,10 +208,10 @@ def check_assignment():
     reject(write_program(program(temporaries=(value,))), 'no output assignment')
     reject(write_program(program(state=(value,), initial={value: False})), 'no output assignment')
     native = NativeProcedureEntry('Test:write', (), ('value',))
-    write = Procedure('write:run', (), (OutputTarget(VariableBank.TEMPORARIES, value),), native=native)
+    write = Procedure('write.run', (), (OutputTarget(VariableBank.TEMPORARIES, value),), native=native)
     data = write_program(program(temporaries=(value,), procs=((RunStage.DEFAULT, (write, write)),)))
     reject(data, 'more than once')
-    read = Procedure('read:run', (InputSource(VariableBank.TEMPORARIES, value),), (),
+    read = Procedure('read.run', (InputSource(VariableBank.TEMPORARIES, value),), (),
                      native=NativeProcedureEntry('Test:read', ('value',), ()))
     reject(write_program(program(temporaries=(value,), procs=((RunStage.DEFAULT, (read, write)),))), 'before assignment')
     verify_program(write_program(program(temporaries=(value,), procs=((RunStage.DEFAULT, (write, read)),))))

@@ -148,8 +148,8 @@ async def check_type_conversions(knx):
             self.expose = xknx.devices.ExposeSensor(knx, name=self.prefix, group_address=f'0/{index}/21', value_type=dpt)
             self.value_monitor = MessageReceiver(knx, self.prefix + '_value', f'0/{index}/22', dpt)
             self.event_monitor = MessageReceiver(knx, self.prefix + '_event', f'0/{index}/24', dpt)
-            self.receiver = engine.get_native_state(self.prefix + '.value_receiver')
-            self.event_receiver = engine.get_native_state(self.prefix + '.event_receiver')
+            self.receiver = engine.get_native_state((self.prefix + '.value_receiver') + '.create')
+            self.event_receiver = engine.get_native_state((self.prefix + '.event_receiver') + '.create')
 
         def received(self, value):
             current = self.receiver.current_value
@@ -180,12 +180,12 @@ async def check_type_conversions(knx):
             engine.assert_value_is(case.prefix + '.event_receiver', None)
 
         for case, value in active:
-            engine.get_native_state(case.prefix + '.value_input').set_value(wirely.Some(value))
+            engine.get_native_state((case.prefix + '.value_input') + '.create').set_value(wirely.Some(value))
         engine.step()
         await asyncio.gather(*(case.value_monitor.expect(value) for case, value in active))
 
         for case, value in active:
-            engine.get_native_state(case.prefix + '.event_input').send_event(wirely.Some(value))
+            engine.get_native_state((case.prefix + '.event_input') + '.create').send_event(wirely.Some(value))
         engine.step()
         await asyncio.gather(*(case.event_monitor.expect(value) for case, value in active))
 
@@ -201,12 +201,12 @@ async def run_test():
         await engine.start_tasks_async(tg, async_exit_stack)
 
         print('a', flush=True)
-        knx = create_xknx(engine.get_native_state('bus').connection_config)
+        knx = create_xknx(engine.get_native_state('bus.create').connection_config)
         async with knx:
             print('b', flush=True)
-            print(engine.get_native_state('bus').knx.current_address, knx.current_address)
+            print(engine.get_native_state('bus.create').knx.current_address, knx.current_address)
 
-            engine.get_native_state('provider_input').set_value(False)
+            engine.get_native_state('provider_input.create').set_value(False)
 
             # status = xknx.devices.Sensor(knx, name="Sensor", group_address_state="0/6/7", value_type="binary")
             status = xknx.devices.BinarySensor(knx, name="Sensor", group_address_state="0/6/7")
@@ -264,7 +264,7 @@ async def run_test():
 
             assert_state(False)
 
-            engine.get_native_state('provider_input').set_value(True)
+            engine.get_native_state('provider_input.create').set_value(True)
             engine.step()
             # TODO: How long should this sleep?
             await asyncio.sleep(0.01)
@@ -275,7 +275,7 @@ async def run_test():
             await asyncio.sleep(0.01)
             assert_state(True)
 
-            engine.get_native_state('provider_input').set_value(False)
+            engine.get_native_state('provider_input.create').set_value(False)
             engine.step()
             # TODO: How long should this sleep?
             await asyncio.sleep(0.01)
@@ -459,8 +459,8 @@ async def run_test():
             xknx.tools.group_value_write(knx, "0/3/3", False)
             xknx.tools.group_value_response(knx, "0/3/4", 5, "4byte_signed")
             xknx.tools.group_value_write(knx, "0/3/4", 7, "4byte_signed")
-            await wait_for(lambda: engine.get_native_state('event_receiver').received_values
-                           and engine.get_native_state('int_event_receiver').received_values)
+            await wait_for(lambda: engine.get_native_state('event_receiver.create').received_values
+                           and engine.get_native_state('int_event_receiver.create').received_values)
 
             engine.step()
             engine.assert_value_is('event_receiver', wirely.Some(False))
@@ -474,34 +474,34 @@ async def run_test():
 
             event_sensor_recv = MessageReceiver(knx, 'event_sensor', "0/3/1", "binary")
 
-            engine.get_native_state('event_sender_input').send_event(None)
+            engine.get_native_state('event_sender_input.create').send_event(None)
             await event_sensor_recv.expect()
 
             engine.step()
             await event_sensor_recv.expect()
 
-            engine.get_native_state('event_sender_input').send_event(wirely.Some(True))
-            await event_sensor_recv.expect()
-
-            engine.step()
-            await event_sensor_recv.expect(True)
-
-            engine.get_native_state('event_sender_input').send_event(wirely.Some(True))
+            engine.get_native_state('event_sender_input.create').send_event(wirely.Some(True))
             await event_sensor_recv.expect()
 
             engine.step()
             await event_sensor_recv.expect(True)
 
+            engine.get_native_state('event_sender_input.create').send_event(wirely.Some(True))
+            await event_sensor_recv.expect()
+
+            engine.step()
+            await event_sensor_recv.expect(True)
+
             engine.step()
             await event_sensor_recv.expect()
 
-            engine.get_native_state('event_sender_input').send_event(wirely.Some(False))
+            engine.get_native_state('event_sender_input.create').send_event(wirely.Some(False))
             await event_sensor_recv.expect()
 
             engine.step()
             await event_sensor_recv.expect(False)
 
-            engine.get_native_state('event_sender_input').send_event(None)
+            engine.get_native_state('event_sender_input.create').send_event(None)
             await event_sensor_recv.expect()
 
             engine.step()
@@ -511,34 +511,34 @@ async def run_test():
 
             event_sensor_recv = MessageReceiver(knx, 'event_sensor', "0/3/2", "2byte_signed")
 
-            engine.get_native_state('int_event_sender_input').send_event(None)
+            engine.get_native_state('int_event_sender_input.create').send_event(None)
             await event_sensor_recv.expect()
 
             engine.step()
             await event_sensor_recv.expect()
 
-            engine.get_native_state('int_event_sender_input').send_event(wirely.Some(55))
-            await event_sensor_recv.expect()
-
-            engine.step()
-            await event_sensor_recv.expect(55)
-
-            engine.get_native_state('int_event_sender_input').send_event(wirely.Some(55))
+            engine.get_native_state('int_event_sender_input.create').send_event(wirely.Some(55))
             await event_sensor_recv.expect()
 
             engine.step()
             await event_sensor_recv.expect(55)
 
+            engine.get_native_state('int_event_sender_input.create').send_event(wirely.Some(55))
+            await event_sensor_recv.expect()
+
+            engine.step()
+            await event_sensor_recv.expect(55)
+
             engine.step()
             await event_sensor_recv.expect()
 
-            engine.get_native_state('int_event_sender_input').send_event(wirely.Some(-10000))
+            engine.get_native_state('int_event_sender_input.create').send_event(wirely.Some(-10000))
             await event_sensor_recv.expect()
 
             engine.step()
             await event_sensor_recv.expect(-10000)
 
-            engine.get_native_state('int_event_sender_input').send_event(None)
+            engine.get_native_state('int_event_sender_input.create').send_event(None)
             await event_sensor_recv.expect()
 
             engine.step()

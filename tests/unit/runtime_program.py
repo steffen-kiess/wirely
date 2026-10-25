@@ -92,8 +92,8 @@ node shared_again: Shared {}
     program = replace(program_compiler.compile_nocatch(graph), graph=None)
     first = test_engine(program, graph)
     second = test_engine(program, graph)
-    first.get_native_state('source').set_value(True)
-    second.get_native_state('source').set_value(False)
+    first.get_native_state('source.create').set_value(True)
+    second.get_native_state('source.create').set_value(False)
     first.step()
     second.step()
     first.assert_value_is('envelope', False)
@@ -158,12 +158,14 @@ connect alias -> consumer.Service;
         first = Engine(program, override_extensions=[bindings, resource_bindings])
         second = Engine(program, override_extensions=[bindings, resource_bindings])
     for runtime in (first, second):
-        provider = runtime.get_native_state('provider')
-        assert provider is runtime.get_native_state('alias')
-        assert runtime.get_native_state('consumer').service is provider
-    assert first.get_native_state('provider') is not second.get_native_state('provider')
+        provider = runtime.get_native_state('TestLibrary.Provider:create')
+        aliases = runtime.program.symbols.node_aliases
+        assert aliases['provider'] == aliases['alias']
+        assert runtime.get_native_state('consumer.create').service is provider
+    assert (first.get_native_state('TestLibrary.Provider:create')
+            is not second.get_native_state('TestLibrary.Provider:create'))
     first.step()
-    first.trigger('consumer', 'run')
+    first.trigger('consumer.run')
     first.step()
     first.assert_value_is('consumer', 2)
     second.step()
@@ -195,7 +197,7 @@ connect service -> consumer.Service;
     assert graph is not None
     program = program_compiler.compile_nocatch(graph)
     schedule = program.procs[RunStage.LOAD]
-    consumer = next(proc for proc in schedule if proc.name == 'consumer:create')
+    consumer = next(proc for proc in schedule if proc.name == 'consumer.create')
     resources = {variable.var_type.native_name: variable for variable in program.fixed_values.variables.values()
                  if variable.is_resource}
     service, other = resources['TestLibrary.Service'], resources['TestLibrary.Other']
@@ -263,6 +265,71 @@ connect source -> sink.Service;
     )
     engine.step()
     engine.assert_value_is('sink', 7)
+
+
+def check_instance_names():
+    graph = wirely.compiler.compile_strs([('<instance-names>', '''
+node type Counter {
+  state count: uint8 = 0;
+  procedure run writes count { count = 1; }
+}
+node type Container {
+  node child: Counter {}
+}
+namespace First {
+  singleton node type Shared {
+    state count: boolean = false;
+    default output: value boolean;
+    binding value: value boolean;
+    node source: Std.DebugValueSource { Type: boolean, Initial: false }
+    node child: Counter {}
+    connect source -> value;
+    connect value -> default output;
+    procedure run writes count { count = true; }
+  }
+}
+namespace Second {
+  singleton node type Shared {
+    node source: Std.DebugValueSource { Type: boolean, Initial: false }
+  }
+}
+node ordinary: Container {}
+node first: First.Shared {}
+node repeated: First.Shared {}
+node second: Second.Shared {}
+state count: boolean = false;
+procedure run writes count { count = true; }
+''')], add_std=True)
+    assert graph is not None
+    program = program_compiler.compile_nocatch(graph)
+    runtime = test_engine(program, graph)
+    first = runtime.get_native_state('First.Shared:source.create')
+    second = runtime.get_native_state('Second.Shared:source.create')
+    assert first is not second
+    assert first.services.name == 'First.Shared:source'
+    for alias in ('first.source', 'repeated.source', 'First.Shared:source'):
+        assert runtime.get_variable(alias) is runtime.get_variable('First.Shared:value')
+    assert runtime.get_variable('ordinary.child.count').name == 'ordinary.child.count'
+    assert runtime.get_variable('First.Shared:count').name == 'First.Shared:count'
+    assert runtime.get_variable('first.child.count').name == 'First.Shared:child.count'
+    assert runtime.get_variable('count').name == 'count'
+    for name in ('first.source.create', 'ordinary.child.run', 'missing'):
+        with checks.assertRaisesRegex(ValueError, 'Unknown initializer name'):
+            runtime.get_native_state(name)
+    for name in ('First.Shared:source.create', 'ordinary:child:run', 'missing'):
+        with checks.assertRaisesRegex(ValueError, 'Unknown procedure name'):
+            runtime.trigger(name)
+    first.set_value(True)
+    runtime.step()
+    runtime.assert_value_is('repeated.value', True)
+    runtime.assert_value_is('First.Shared:value', True)
+    for name in ('run', 'ordinary.child.run', 'First.Shared:run', 'First.Shared:child.run'):
+        runtime.trigger(name)
+    assert runtime.step()[0] == 4
+    runtime.assert_value_is('count', True)
+    runtime.assert_value_is('ordinary.child.count', 1)
+    runtime.assert_value_is('first.count', True)
+    runtime.assert_value_is('First.Shared:child.count', 1)
 
 
 def check_monotonic_clock():
@@ -359,6 +426,7 @@ check_engine_isolation()
 check_resource_isolation()
 check_resource_binding_validation()
 check_native_names()
+check_instance_names()
 check_monotonic_clock()
 check_wall_clock()
 

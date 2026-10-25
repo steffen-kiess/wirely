@@ -4,8 +4,8 @@ import io
 import wirely
 from tests.infra.support import send_event_text
 
-engine.get_native_state('in').set_value(False)
-engine.get_native_state('initial_true').set_value(True)
+engine.get_native_state('in.create').set_value(False)
+engine.get_native_state('initial_true.create').set_value(True)
 
 # Std.Constant
 
@@ -24,7 +24,7 @@ for name in ('edge', 'rising', 'both', 'initial_falling', 'initial_rising', 'ini
 
 # Std.DebugValueSource outputs Initial until a value is set.
 engine.assert_value_is('initial', 7)
-engine.get_native_state('initial').set_value(3)
+engine.get_native_state('initial.create').set_value(3)
 engine.step()
 engine.assert_value_is('initial', 3)
 
@@ -34,7 +34,7 @@ check(True, 1000)
 # Std.DetectEdge
 
 def check_edges(source_name, names, cases):
-    source = engine.get_native_state(source_name)
+    source = engine.get_native_state(source_name + '.create')
     for value, expected, settle in cases:
         source.set_value(value)
         engine.step()
@@ -74,21 +74,21 @@ def step_output():
         engine.step()
     return output.getvalue()
 
-engine.get_native_state('unit_events').send_event(wirely.Some(wirely.Unit()))
-engine.get_native_state('bool_events').send_event(wirely.Some(True))
+engine.get_native_state('unit_events.create').send_event(wirely.Some(wirely.Unit()))
+engine.get_native_state('bool_events.create').send_event(wirely.Some(True))
 assert sorted(step_output().splitlines()) == ['Warning: [w_bool]: Bool warning true!', 'Warning: [w_unit]: Unit warning']
 assert step_output() == ''
 engine.assert_is_idle()
 
 # An identical event in the next step produces another warning.
-engine.get_native_state('bool_events').send_event(wirely.Some(True))
+engine.get_native_state('bool_events.create').send_event(wirely.Some(True))
 assert step_output() == 'Warning: [w_bool]: Bool warning true!\n'
-engine.get_native_state('bool_events').send_event(wirely.Some(True))
+engine.get_native_state('bool_events.create').send_event(wirely.Some(True))
 assert step_output() == 'Warning: [w_bool]: Bool warning true!\n'
 assert step_output() == ''
 engine.assert_is_idle()
 
-send_event_text(engine.get_native_state('edge_events'), 'Falling')
+send_event_text(engine.get_native_state('edge_events.create'), 'Falling')
 assert step_output() == 'Warning: [w_edge]: Edge Std.EdgeType.Falling\n'
 assert step_output() == ''
 engine.assert_is_idle()

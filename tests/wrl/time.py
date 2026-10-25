@@ -18,9 +18,9 @@ async def run_test():
     async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
         await engine.start_tasks_async(tg, async_exit_stack)
 
-        engine.get_native_state('delay_input').set_value(4)
-        engine.get_native_state('reached_input').set_value(None)
-        engine.get_native_state('elapsed_input').set_value(None)
+        engine.get_native_state('delay_input.create').set_value(4)
+        engine.get_native_state('reached_input.create').set_value(None)
+        engine.get_native_state('elapsed_input.create').set_value(None)
 
         engine.step()
 
@@ -318,7 +318,7 @@ async def run_test():
 
         # Test MonotonicTimestamp before advancing fake time.
         engine.assert_value_is('timestamp', None)
-        engine.get_native_state('timestamp_input').send_event(wirely.Some(wirely.Unit()))
+        engine.get_native_state('timestamp_input.create').send_event(wirely.Some(wirely.Unit()))
         _, _, step_info = engine.step()
         timestamp = engine.get_value('timestamp')
         assert isinstance(timestamp, wirely.Some)
@@ -335,7 +335,7 @@ async def run_test():
 
         engine.assert_value_is('delay', 4)
 
-        engine.get_native_state('delay_input').set_value(5)
+        engine.get_native_state('delay_input.create').set_value(5)
         engine.step()
         engine.assert_value_is('delay', 4)
 
@@ -347,7 +347,7 @@ async def run_test():
         engine.step()
         engine.assert_value_is('delay', 5)
 
-        engine.get_native_state('delay_input').set_value(17)
+        engine.get_native_state('delay_input.create').set_value(17)
         engine.step()
         engine.assert_value_is('delay', 5)
 
@@ -355,7 +355,7 @@ async def run_test():
         engine.step()
         engine.assert_value_is('delay', 5)
 
-        engine.get_native_state('delay_input').set_value(18)
+        engine.get_native_state('delay_input.create').set_value(18)
         engine.step()
         engine.assert_value_is('delay', 5)
 
@@ -370,7 +370,7 @@ async def run_test():
         # TODO: Add test for generation change?
 
         # MonotonicTimeReached: None and non-comparable times give None.
-        reached_input = engine.get_native_state('reached_input')
+        reached_input = engine.get_native_state('reached_input.create')
         now = wirely.MonotonicTime.current_time()
         for time, expected in [(None, None), (wirely.Some(now + wirely.Duration.parse('PT1H')), wirely.Some(False)),
                                (wirely.Some(wirely.MonotonicTime(generation=now.generation, ticks=0)), wirely.Some(True)),
@@ -380,7 +380,7 @@ async def run_test():
             engine.assert_value_is('reached', expected)
 
         # DurationElapsed preserves absence and rejects lost clock generations.
-        elapsed_input = engine.get_native_state('elapsed_input')
+        elapsed_input = engine.get_native_state('elapsed_input.create')
         for start in (None, wirely.Some(wirely.MonotonicTime(generation=0, ticks=0))):
             elapsed_input.set_value(internal(start))
             engine.step()

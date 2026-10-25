@@ -97,9 +97,9 @@ def check_event_payloads():
                 runtime.assert_value_is(target, None)
                 runtime.set_fake_wall_time(datetime.datetime(2026, 1, 1, 12, tzinfo=datetime.timezone.utc))
             else:
-                runtime.get_native_state('feedback').set_value(wirely.Some(False))
+                runtime.get_native_state('feedback.create').set_value(wirely.Some(False))
                 runtime.step()
-                runtime.get_native_state('input').send_event(wirely.Some(True))
+                runtime.get_native_state('input.create').send_event(wirely.Some(True))
             runtime.step()
             runtime.assert_value_is(target, wirely.Some(expected))
             runtime.step()
@@ -154,9 +154,9 @@ def check_trigger_unknown_time():
 def check_delayed_event():
     program, target = node_program('Memory.ToggleFlipFlopTrigger', 'boolean', 'false', forward=True)
     runtime = test_engine(program)
-    runtime.get_native_state('feedback').set_value(wirely.Some(False))
+    runtime.get_native_state('feedback.create').set_value(wirely.Some(False))
     runtime.step()
-    source = runtime.get_native_state('input')
+    source = runtime.get_native_state('input.create')
     source.send_event(wirely.Some(True))
     runtime.step()
     runtime.assert_value_is(target, wirely.Some(False))
@@ -183,10 +183,10 @@ def check_flipflop_behavior():
         return runtime, target
 
     def command(value):
-        runtime.get_native_state('input').send_event(wirely.Some(value))
+        runtime.get_native_state('input.create').send_event(wirely.Some(value))
 
     def feedback(value):
-        runtime.get_native_state('feedback').set_value(value)
+        runtime.get_native_state('feedback.create').set_value(value)
 
     def step(*, fire=False, settle=True):
         runtime.step()
@@ -302,7 +302,7 @@ node wrapper: Wrapper { Span: "PT2S" }
 connect input -> wrapper;
 ''')
     runtime = test_engine(program)
-    source = runtime.get_native_state('input')
+    source = runtime.get_native_state('input.create')
     source.set_value(1)
     runtime.step()
     runtime.assert_value_is('wrapper', 1)
@@ -344,7 +344,7 @@ connect input -> wrapper;
 
     # Fix the clock so expiration and generation changes are deterministic.
     runtime = make_runtime()
-    source = runtime.get_native_state('input')
+    source = runtime.get_native_state('input.create')
     source.set_value(1)
     step(1)
     source.set_value(2)
@@ -391,7 +391,7 @@ connect input -> wrapper;
     step(6)
 
     runtime = make_runtime(duration='PT0S')
-    source = runtime.get_native_state('input')
+    source = runtime.get_native_state('input.create')
     source.set_value(1)
     step(1)
     source.set_value(2)
@@ -400,7 +400,7 @@ connect input -> wrapper;
 
     # An absent Option payload is a value, distinct from no pending change.
     runtime = make_runtime('Option[boolean]', 'PT2S', 'None')
-    source = runtime.get_native_state('input')
+    source = runtime.get_native_state('input.create')
     source.set_value(None)
     step(None)
     source.set_value(wirely.Some(False))
@@ -443,7 +443,7 @@ def check_key_state():
         return runtime
 
     def event(pressed):
-        runtime.get_native_state('wrapper.child.key_event').handler({
+        runtime.get_native_state('wrapper.child.key_event.create').handler({
             'event': 'KeyPressed' if pressed else 'KeyReleased',
             'params': {'key': '%2'},
         })
@@ -529,7 +529,7 @@ def check_codes_and_tracing():
     for code in ('', '123456789012345'):
         program = code_program('CodeEnteredEvent', 'Code', code)
         runtime = settings_engine(program)
-        runtime.get_native_state('wrapper.child').handler({'event': 'CodeEntered', 'params': {'code': code}})
+        runtime.get_native_state('wrapper.child.create').handler({'event': 'CodeEntered', 'params': {'code': code}})
         runtime.step()
         runtime.assert_value_is('wrapper.child', wirely.Some(wirely.Unit()))
         runtime.step()

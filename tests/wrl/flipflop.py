@@ -11,8 +11,8 @@ async def run_test():
     async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
         await engine.start_tasks_async(tg, async_exit_stack)
 
-        inp = engine.get_native_state('in')
-        feedback = engine.get_native_state('feedback')
+        inp = engine.get_native_state('in.create')
+        feedback = engine.get_native_state('feedback.create')
 
         def tst(exp, cmd=None, fdbck=()):
             if exp is not None:

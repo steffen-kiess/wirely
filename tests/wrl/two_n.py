@@ -312,7 +312,7 @@ async def run_test():
         assert_port_is('led_secured', False)
         engine.assert_value_is('led_feedback', False)
 
-        engine.get_native_state('output_debug').send_event(wirely.Some(True))
+        engine.get_native_state('output_debug.create').send_event(wirely.Some(True))
 
         engine.step()
         # Run send_value() again
@@ -330,7 +330,7 @@ async def run_test():
         assert_port_is('led_secured', True)
         engine.assert_value_is('led_feedback', True)
 
-        engine.get_native_state('output_debug').send_event(wirely.Some(False))
+        engine.get_native_state('output_debug.create').send_event(wirely.Some(False))
 
         engine.step()
         # Run send_value() again

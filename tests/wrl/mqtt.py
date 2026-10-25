@@ -18,7 +18,7 @@ async def run_test():
         aiomqtt = wirely.native.mqtt.get_aiomqtt()
 
         print('a', flush=True)
-        client = engine.get_native_state('server').create_client()
+        client = engine.get_native_state('server.create').create_client()
         async with client:
             await client.subscribe('#')
             print('b', flush=True)
@@ -47,8 +47,8 @@ async def run_test():
 
             # Test ValueProvider
 
-            engine.get_native_state('provider_input').set_value(False)
-            engine.get_native_state('template_provider_input').set_value(False)
+            engine.get_native_state('provider_input.create').set_value(False)
+            engine.get_native_state('template_provider_input.create').set_value(False)
             await expect_msgs()
 
             engine.step()
@@ -58,13 +58,13 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('provider_input').set_value(False)
+            engine.get_native_state('provider_input.create').set_value(False)
             await expect_msgs()
 
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('provider_input').set_value(True)
+            engine.get_native_state('provider_input.create').set_value(True)
             await expect_msgs()
 
             engine.step()
@@ -75,7 +75,7 @@ async def run_test():
 
             # Test TemplateValueProvider
 
-            engine.get_native_state('template_provider_input').set_value(False)
+            engine.get_native_state('template_provider_input.create').set_value(False)
             await expect_msgs()
 
             engine.step()
@@ -84,13 +84,13 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('template_provider_input').set_value(False)
+            engine.get_native_state('template_provider_input.create').set_value(False)
             await expect_msgs()
 
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('template_provider_input').set_value(True)
+            engine.get_native_state('template_provider_input.create').set_value(True)
             await expect_msgs()
 
             engine.step()
@@ -101,13 +101,13 @@ async def run_test():
 
             # Test ValueOptionProvider
 
-            engine.get_native_state('option_provider_input').set_value(None)
+            engine.get_native_state('option_provider_input.create').set_value(None)
             await expect_msgs()
 
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('option_provider_input').set_value(wirely.Some(True))
+            engine.get_native_state('option_provider_input.create').set_value(wirely.Some(True))
             await expect_msgs()
 
             engine.step()
@@ -116,13 +116,13 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('option_provider_input').set_value(wirely.Some(True))
+            engine.get_native_state('option_provider_input.create').set_value(wirely.Some(True))
             await expect_msgs()
 
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('option_provider_input').set_value(wirely.Some(False))
+            engine.get_native_state('option_provider_input.create').set_value(wirely.Some(False))
             await expect_msgs()
 
             engine.step()
@@ -131,7 +131,7 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('option_provider_input').set_value(None)
+            engine.get_native_state('option_provider_input.create').set_value(None)
             await expect_msgs()
 
             engine.step()
@@ -142,34 +142,34 @@ async def run_test():
 
             # Test EventSender
 
-            engine.get_native_state('event_source').send_event(None)
+            engine.get_native_state('event_source.create').send_event(None)
             await expect_msgs()
 
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('event_source').send_event(wirely.Some(True))
-            await expect_msgs()
-
-            engine.step()
-            await expect_msgs(('test/t3', b'true'))
-
-            engine.get_native_state('event_source').send_event(wirely.Some(True))
+            engine.get_native_state('event_source.create').send_event(wirely.Some(True))
             await expect_msgs()
 
             engine.step()
             await expect_msgs(('test/t3', b'true'))
 
+            engine.get_native_state('event_source.create').send_event(wirely.Some(True))
+            await expect_msgs()
+
+            engine.step()
+            await expect_msgs(('test/t3', b'true'))
+
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('event_source').send_event(wirely.Some(False))
+            engine.get_native_state('event_source.create').send_event(wirely.Some(False))
             await expect_msgs()
 
             engine.step()
             await expect_msgs(('test/t3', b'false'))
 
-            engine.get_native_state('event_source').send_event(None)
+            engine.get_native_state('event_source.create').send_event(None)
             await expect_msgs()
 
             engine.step()
@@ -177,34 +177,34 @@ async def run_test():
 
             # Test NumberEventSender
 
-            engine.get_native_state('number_event_source').send_event(None)
+            engine.get_native_state('number_event_source.create').send_event(None)
             await expect_msgs()
 
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('number_event_source').send_event(wirely.Some(17))
-            await expect_msgs()
-
-            engine.step()
-            await expect_msgs(('test/t4', b'17'))
-
-            engine.get_native_state('number_event_source').send_event(wirely.Some(17))
+            engine.get_native_state('number_event_source.create').send_event(wirely.Some(17))
             await expect_msgs()
 
             engine.step()
             await expect_msgs(('test/t4', b'17'))
 
+            engine.get_native_state('number_event_source.create').send_event(wirely.Some(17))
+            await expect_msgs()
+
+            engine.step()
+            await expect_msgs(('test/t4', b'17'))
+
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('number_event_source').send_event(wirely.Some(23))
+            engine.get_native_state('number_event_source.create').send_event(wirely.Some(23))
             await expect_msgs()
 
             engine.step()
             await expect_msgs(('test/t4', b'23'))
 
-            engine.get_native_state('number_event_source').send_event(None)
+            engine.get_native_state('number_event_source.create').send_event(None)
             await expect_msgs()
 
             engine.step()
@@ -212,34 +212,34 @@ async def run_test():
 
             # Test EnumEventSender
 
-            engine.get_native_state('enum_event_source').send_event(None)
+            engine.get_native_state('enum_event_source.create').send_event(None)
             await expect_msgs()
 
             engine.step()
             await expect_msgs()
 
-            send_event_text(engine.get_native_state('enum_event_source'), 'Off')
-            await expect_msgs()
-
-            engine.step()
-            await expect_msgs(('test/t5', b'"off"'))
-
-            send_event_text(engine.get_native_state('enum_event_source'), 'Off')
+            send_event_text(engine.get_native_state('enum_event_source.create'), 'Off')
             await expect_msgs()
 
             engine.step()
             await expect_msgs(('test/t5', b'"off"'))
 
+            send_event_text(engine.get_native_state('enum_event_source.create'), 'Off')
+            await expect_msgs()
+
+            engine.step()
+            await expect_msgs(('test/t5', b'"off"'))
+
             engine.step()
             await expect_msgs()
 
-            send_event_text(engine.get_native_state('enum_event_source'), 'EmergencyHeat')
+            send_event_text(engine.get_native_state('enum_event_source.create'), 'EmergencyHeat')
             await expect_msgs()
 
             engine.step()
             await expect_msgs(('test/t5', b'"emergency_heat"'))
 
-            engine.get_native_state('enum_event_source').send_event(None)
+            engine.get_native_state('enum_event_source.create').send_event(None)
             await expect_msgs()
 
             engine.step()
@@ -247,34 +247,34 @@ async def run_test():
 
             # Test TemplateEventSender
 
-            engine.get_native_state('template_event_source').send_event(None)
+            engine.get_native_state('template_event_source.create').send_event(None)
             await expect_msgs()
 
             engine.step()
             await expect_msgs()
 
-            send_event_text(engine.get_native_state('template_event_source'), 'Off')
-            await expect_msgs()
-
-            engine.step()
-            await expect_msgs(('test/t5', b'{"value": "off", "other": "%s"}'))
-
-            send_event_text(engine.get_native_state('template_event_source'), 'Off')
+            send_event_text(engine.get_native_state('template_event_source.create'), 'Off')
             await expect_msgs()
 
             engine.step()
             await expect_msgs(('test/t5', b'{"value": "off", "other": "%s"}'))
 
+            send_event_text(engine.get_native_state('template_event_source.create'), 'Off')
+            await expect_msgs()
+
+            engine.step()
+            await expect_msgs(('test/t5', b'{"value": "off", "other": "%s"}'))
+
             engine.step()
             await expect_msgs()
 
-            send_event_text(engine.get_native_state('template_event_source'), 'EmergencyHeat')
+            send_event_text(engine.get_native_state('template_event_source.create'), 'EmergencyHeat')
             await expect_msgs()
 
             engine.step()
             await expect_msgs(('test/t5', b'{"value": "emergency_heat", "other": "%s"}'))
 
-            engine.get_native_state('template_event_source').send_event(None)
+            engine.get_native_state('template_event_source.create').send_event(None)
             await expect_msgs()
 
             engine.step()

@@ -136,8 +136,8 @@ with test_contracts(graph) as contracts:
         resources={'TestLibrary.Handle': Handle}, contracts=contracts,
     )
     engine = Engine(program, override_extensions=[extension])
-    first = engine.get_native_state('provider', 'first')
-    second = engine.get_native_state('provider', 'second')
+    first = engine.get_native_state('provider.first')
+    second = engine.get_native_state('provider.second')
     assert second.first is first
     assert calls.index(('first', 'provider')) < calls.index(('second', first))
     assert calls[-1] == ('prepare', first, True)
@@ -156,7 +156,7 @@ with test_contracts(graph) as contracts:
     assert second.services is not first.services
     # Each engine loads independently and owns distinct resource objects.
     other = Engine(program, override_extensions=[extension])
-    assert other.get_native_state('provider', 'first') is not first
+    assert other.get_native_state('provider.first') is not first
 
 # The runtime rejects malformed load schedules before executing native code.
 load = program.procs[RunStage.LOAD]
@@ -167,7 +167,7 @@ with checks.assertRaisesRegex(ValueError, 'read before assignment'):
 with checks.assertRaisesRegex(ValueError, 'must be assigned once'):
     validate_program(replace(program, procs={RunStage.LOAD: ()}))
 with checks.assertRaisesRegex(ValueError, 'Unknown procedure name'):
-    engine.trigger('choose_handle', 'choose')
+    engine.trigger('choose_handle.choose')
 
 
 async def run_test():

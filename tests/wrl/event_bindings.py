@@ -4,7 +4,7 @@ import io
 import wirely
 
 
-sources = {name: engine.get_native_state(name) for name in ('number', 'unit', 'nested')}
+sources = {name: engine.get_native_state(name + '.create') for name in ('number', 'unit', 'nested')}
 
 
 def step(events):

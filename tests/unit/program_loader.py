@@ -59,7 +59,7 @@ def roundtrip(prog):
 def state_program(variables, initial):
     outputs = tuple(OutputTarget(VariableBank.NEW_STATE, variable) for variable in variables)
     names = tuple(f'value{index:08}' for index in range(len(outputs)))
-    proc = Procedure('test:state', (), outputs, native=NativeProcedureEntry('Test:state', (), names))
+    proc = Procedure('test.state', (), outputs, native=NativeProcedureEntry('Test:state', (), names))
     return program(state=variables, initial=initial, procs=((RunStage.DEFAULT, (proc,)),))
 
 
@@ -240,9 +240,9 @@ def check_json_presence():
 
 def check_shared_bodies():
     flag, number = Variable('flag', types.boolean), Variable('number', types.int8)
-    first = Procedure('first:run', (), (OutputTarget(VariableBank.TEMPORARIES, flag),), body=ProcedureBody((
+    first = Procedure('first.run', (), (OutputTarget(VariableBank.TEMPORARIES, flag),), body=ProcedureBody((
         instruction(Opcode.COPY, Operand(OperandKind.OUTPUT, 0), const(types.boolean, True)), instruction(Opcode.RETURN))))
-    second = Procedure('second:run', (), (OutputTarget(VariableBank.TEMPORARIES, number),), body=ProcedureBody((
+    second = Procedure('second.run', (), (OutputTarget(VariableBank.TEMPORARIES, number),), body=ProcedureBody((
         instruction(Opcode.COPY, Operand(OperandKind.OUTPUT, 0), const(types.int8, -1)), instruction(Opcode.RETURN))))
     data = write_program(program(temporaries=(flag, number), procs=((RunStage.DEFAULT, (first, second)),)))
 
@@ -279,7 +279,7 @@ def check_budgets():
     with checks.assertRaisesRegex(ValueError, 'budget'):
         reader.read(offset, value_type)
     constant = Constant(value_type, (types.Unit(),) * 3)
-    proc = Procedure('test:run', (InputSource(VariableBank.CONST_VALUES, constant=constant),), (),
+    proc = Procedure('test.run', (InputSource(VariableBank.CONST_VALUES, constant=constant),), (),
                      native=NativeProcedureEntry('Test:run', ('value',), ()))
     data = write_program(program(procs=((RunStage.LOAD, (proc,)),)))
     assert load_program(data, max_decoded_values=4)
@@ -329,7 +329,7 @@ def check_malformed():
     with checks.assertRaisesRegex(ValueError, 'instruction 0'):
         load_program(oversized_image)
     # The verifier checks a type-valued constant's reference.
-    proc = Procedure('test:run', (InputSource(VariableBank.CONST_VALUES, constant=Constant(types.ValueType, types.uint8)),), (),
+    proc = Procedure('test.run', (InputSource(VariableBank.CONST_VALUES, constant=Constant(types.ValueType, types.uint8)),), (),
                      native=NativeProcedureEntry('Test:run', ('type',), ()))
     image = write_program(program(procs=((RunStage.LOAD, (proc,)),)))
     with checks.assertRaisesRegex(ValueError, 'ValueTypes index'):
@@ -377,7 +377,7 @@ async def check_service():
                                        ([str(path), str(path)], 2)):
                 with contextlib.redirect_stderr(io.StringIO()):
                     assert await run_command.async_run(argparse.Namespace(**{**vars(args), 'input_filename': filenames})) == status
-            for error in (ValueError('link failure'), LoadFailure(Procedure('test:load', (), ()), 0, 'load failure', ())):
+            for error in (ValueError('link failure'), LoadFailure(Procedure('test.load', (), ()), 0, 'load failure', ())):
                 with patch.object(run_command, 'Engine', side_effect=error), patch.object(run_command, 'run_engine', new_callable=AsyncMock, return_value=None) as run:
                     output = io.StringIO()
                     with contextlib.redirect_stderr(output):

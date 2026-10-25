@@ -226,13 +226,13 @@ class Engine:
         async_exit_stack.callback(start_task_cleanup)
 
     # TODO: Threading?
-    def trigger(self, node_id: str, proc_name: str) -> None:
-        key = f'{node_id}:{proc_name}'
-        if not isinstance(proc_name, str) or not any(
-            proc.name == key for stage, schedule in self.program.procs.items() if stage != RunStage.LOAD for proc in schedule
+    def trigger(self, name: str) -> None:
+        """Request execution of a runtime procedure by its full instance name."""
+        if not isinstance(name, str) or not any(
+            proc.name == name for stage, schedule in self.program.procs.items() if stage != RunStage.LOAD for proc in schedule
         ):
-            raise ValueError(f'Unknown procedure name `{proc_name}` on {node_id}')
-        self._trigger_key(key)
+            raise ValueError(f'Unknown procedure name `{name}`')
+        self._trigger_key(name)
 
     def _trigger_output(self, initializer: str, output: str) -> None:
         slot = self._initializer_outputs[initializer].get(output)
@@ -439,34 +439,12 @@ class Engine:
         for listener in tuple(self.status_listeners):
             listener()
 
-    def get_node_path_list(self, name_parts: Iterable[str]) -> str:
-        return self.get_node_path('.'.join(name_parts))
-
-    def get_node_path(self, name: str) -> str:
+    def get_native_state(self, name: str) -> NativeState:
+        """Return the state created by the named initializer instance."""
         try:
-            return self.program.symbols.node_aliases[name]
+            return self.native_states[name]
         except KeyError:
-            raise ValueError(f'Cannot find node `{name}`') from None
-
-    def get_node_path_singleton(self, name: str) -> str:
-        try:
-            return self.program.symbols.singleton_aliases[name]
-        except KeyError:
-            raise ValueError(f'Cannot find singleton `{name}`') from None
-
-    def _get_native_state(self, node_id: str, initializer: str | None) -> NativeState | None:
-        if initializer is not None:
-            return self.native_states.get(f'{node_id}:{initializer}')
-        states = [state for key, state in self.native_states.items() if key.partition(':')[0] == node_id]
-        if len(states) > 1:
-            raise ValueError(f'Node `{node_id}` has several initializers; specify an initializer name')
-        return states[0] if states else None
-
-    def get_native_state(self, name: str, initializer: str | None = None) -> NativeState | None:
-        return self._get_native_state(self.get_node_path(name), initializer)
-
-    def get_native_state_singleton(self, name: str, initializer: str | None = None) -> NativeState | None:
-        return self._get_native_state(self.get_node_path_singleton(name), initializer)
+            raise ValueError(f'Unknown initializer name `{name}`') from None
 
     def get_variable(self, name: str) -> Variable:
         variable = self._get_source(name).variable

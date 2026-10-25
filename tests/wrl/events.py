@@ -1,6 +1,6 @@
 import wirely
 
-sources = {name: engine.get_native_state(name) for name in ('press', 'number', 'first', 'second')}
+sources = {name: engine.get_native_state(name + '.create') for name in ('press', 'number', 'first', 'second')}
 
 
 def check(events, **expected):

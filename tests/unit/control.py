@@ -264,8 +264,8 @@ def instance_index(name):
 
 
 async def check_native_commands(server):
-    value = instance_index('value:create')
-    events = instance_index('events:create')
+    value = instance_index('value.create')
+    events = instance_index('events.create')
     client = await ControlClient.connect_unix(server.stream_path)
 
     def command(index, number, *argument):
@@ -275,7 +275,7 @@ async def check_native_commands(server):
         await expect_error(ErrorCode.NOT_BOUND, command(value, 0))
         await client.request(Op.BIND_PROGRAM)
         # Negative command numbers are valid integers, but these targets do not have them.
-        for index, number in [(value, 9), (value, -1), (instance_index('c:run'), 0),
+        for index, number in [(value, 9), (value, -1), (instance_index('c.run'), 0),
                               (len(procedure_instances(engine.program)), 0)]:
             await expect_error(ErrorCode.NOT_FOUND, command(index, number))
 
@@ -310,7 +310,7 @@ async def check_native_commands(server):
 def check_node_commands():
     """Typed commands find nodes by name and encode values with their node type's types."""
     target = node_commands.resolve(engine.program, 'value')
-    assert (target.instance, target.node_type) == (instance_index('value:create'), 'Std.DebugValueSource')
+    assert (target.instance, target.node_type) == (instance_index('value.create'), 'Std.DebugValueSource')
     assert target.encode('9') == {1: b'\x09\x00'} and target.decode({1: b'\x09\x00'}) == '9'
     events = node_commands.resolve(engine.program, 'events')
     assert str(events.value_type) == 'uint8' and events.decode({}) is None
@@ -341,6 +341,9 @@ node type Inner {
   connect source -> default output;
 }
 namespace Lib {
+  singleton node type Shared {
+    node source: Std.DebugValueSource { Type: boolean, Initial: false }
+  }
   node type Outer {
     node inner: Inner {}
     node count: Std.DebugValueSource { Type: uint8, Initial: 3 }
@@ -349,6 +352,8 @@ namespace Lib {
   }
 }
 node top: Lib.Outer {}
+node shared: Lib.Shared {}
+node repeated: Lib.Shared {}
 state seen: boolean = false;
 connect top -> seen;
 ''')], add_std=True)
@@ -358,9 +363,21 @@ connect top -> seen;
     assert tree == [(0, 'top', 'top', 'Lib.Outer', False),
                     (1, 'inner', 'top.inner', 'Inner', False),
                     (2, 'source', 'top.inner.source', 'Std.DebugValueSource', True),
-                    (1, 'count', 'top.count', 'Std.DebugValueSource', True)]
+                    (1, 'count', 'top.count', 'Std.DebugValueSource', True),
+                    (0, 'shared', 'shared', 'Lib.Shared', False),
+                    (1, 'source', 'shared.source', 'Std.DebugValueSource', True),
+                    (0, 'repeated', 'repeated', 'Lib.Shared', False),
+                    (1, 'source', 'repeated.source', 'Std.DebugValueSource', True)]
     assert [(node.depth, node.path) for node in node_commands.node_tree(program, 'top.inner')] == [
         (0, 'top.inner'), (1, 'top.inner.source')]
+
+    assert [(node.depth, node.path) for node in node_commands.node_tree(program, 'shared')] == [
+        (0, 'shared'), (1, 'shared.source')]
+    first = node_commands.resolve(program, 'shared.source')
+    repeated = node_commands.resolve(program, 'repeated.source')
+    canonical = node_commands.resolve(program, 'Lib.Shared:source')
+    assert first.instance == repeated.instance == canonical.instance
+    assert {'shared.source', 'repeated.source'} <= node_commands.command_targets(program)['set']
 
 
 async def check_options(server):
@@ -516,7 +533,7 @@ async def check_cli(server):
     assert '2 steps' in await run_client_command(*serial, 'step', '--count', '2')
     output = await run_client_command('--unix-path', server.stream_path, '--program', program_path, 'dump')
     assert '  d: 42\n' in output
-    assert '  c:run.output: 42\n' in output
+    assert '  c.run.output: 42\n' in output
     output = await run_client_command(*serial, 'dump', '--bank', 'state')
     assert '  00000000  2a 00 00 00\n' in output
     # Program files must match the running program.
@@ -530,8 +547,8 @@ async def check_cli(server):
     assert 'running' in await run_client_command(*serial, 'resume')
 
     # Native commands take and print CBOR diagnostic notation.
-    value = str(instance_index('value:create'))
-    events = str(instance_index('events:create'))
+    value = str(instance_index('value.create'))
+    events = str(instance_index('events.create'))
     assert await run_client_command(*serial, 'call', value, '1', "{1: h'0900'}") == '{}\n'
     assert await run_client_command(*serial, '--program', program_path, 'call', value, '0') == "{1: h'0900'}\n"
     # While paused, the first event stays queued.

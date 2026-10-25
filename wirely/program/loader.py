@@ -278,7 +278,7 @@ class _Loader:
                 outputs = tuple(self.binding(binding, output=True) for binding in self.range(self.bindings, instance.outputs))
                 native = None if instance.native.value == 0xffffffff else self.natives[instance.native.value]
                 body = None if native is not None else self.body(instance.bytecode.value, inputs, outputs)
-                schedule.append(Procedure(f'procedure{index}:run', inputs, outputs, native=native, body=body))
+                schedule.append(Procedure(f'procedure{index}.run', inputs, outputs, native=native, body=body))
             schedules[run_stage] = tuple(schedule)
         # Decoding is independent of native implementations. Linking and opaque
         # value checks happen when Engine is constructed with the same registry.

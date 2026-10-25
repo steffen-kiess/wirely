@@ -3,9 +3,9 @@ from wirely.runtime.engine import Engine
 
 
 def check(runtime, value, previous, *, event=False):
-    runtime.get_native_state('value').set_value(value)
+    runtime.get_native_state('value.create').set_value(value)
     if event:
-        runtime.get_native_state('event').send_event(wirely.Some(wirely.Unit()))
+        runtime.get_native_state('event.create').send_event(wirely.Some(wirely.Unit()))
     runtime.step()
     changed = value != previous
     payload = wirely.Some(value) if changed else None

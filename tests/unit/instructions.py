@@ -38,7 +38,7 @@ def make_program(instructions, *, local_types=(), output_types=(types.boolean,),
     state = tuple(Variable(f'input{index}', value_type) for index, (value_type, _) in enumerate(inputs))
     outputs = tuple(Variable(f'output{index}', value_type) for index, value_type in enumerate(output_types))
     procedure = Procedure(
-        name='test:run',
+        name='test.run',
         inputs=tuple(InputSource(VariableBank.OLD_STATE, variable) for variable in state),
         outputs=tuple(OutputTarget(VariableBank.TEMPORARIES, variable) for variable in outputs),
         body=ProcedureBody(instructions, local_types),

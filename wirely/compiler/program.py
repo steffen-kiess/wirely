@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 from wirely.compiler import model
 from wirely.compiler.diagnostics import Diagnostic, error_diagnostics, print_diagnostic
 from wirely.compiler.types import resolve_type, check_runtime_type
+from wirely.program.names import member_name
 from .expressions import compile_constant, compile_procedure
 from .stages import ResolutionState
 from wirely.program import (
@@ -140,12 +141,9 @@ def lower_program(global_node_type: model.NodeType) -> Program:
             source = owner.node_type.value_nodes.get(var.name, owner.instantiation)
         if not isinstance(var_type, model.ResourceType):
             check_runtime_type(var_type, source)
-        # TODO: Clean up name?
-        # name = '.'.join([node.name for node in path])
         name = model.InstanceNode.path_name(path)
-        # Port storage is named after its procedure: <path>:<procedure>.<port>.
-        separator = ':' if getattr(var, 'port', None) is not None else '.'
-        variable_name = name + separator + var.name if name else var.name
+        # Port storage is named after its procedure: <path>.<procedure>.<port>.
+        variable_name = member_name(name, var.name)
         v = Variable(variable_name, var_type)
         fixed = isinstance(var_type, model.ResourceType) or model.connection_kind(var) == model.ConnectionKind.Fixed
         input_source = InputSource(VariableBank.FIXED_VALUES if fixed else VariableBank.TEMPORARIES, v)
@@ -454,7 +452,7 @@ def lower_program(global_node_type: model.NodeType) -> Program:
                 inputs = [(name, named_inputs[name]) for name in native.input_names]
                 outputs = [(name, named_outputs[name]) for name in native.output_names]
             schedule.append(Procedure(
-                name=f'{node_ids[path]}:{declaration.name.id_str}',
+                name=member_name(node_ids[path], declaration.name.id_str),
                 inputs=tuple(source for _, source in inputs),
                 outputs=tuple(target for _, target in outputs),
                 native=native, body=bodies.get((path, proc)),
@@ -470,7 +468,7 @@ def lower_program(global_node_type: model.NodeType) -> Program:
             if state.copy_source is None:
                 continue
             copies.append(Procedure(
-                name=f'{node_ids[path]}:<state {state.name}>',
+                name=member_name(node_ids[path], f'<state {state.name}>'),
                 inputs=(resolve_source(path, state.copy_source),),
                 outputs=(OutputTarget(VariableBank.NEW_STATE, state_map[path, state]),),
                 body=COPY_BODY,
@@ -484,29 +482,38 @@ def lower_program(global_node_type: model.NodeType) -> Program:
         return [item for item in items
                 if item.name != '' and getattr(item, 'port', None) is None]
 
+    def add_value_aliases(owner: model.InstanceNode, path: NodePath, alias: str) -> None:
+        items = owner.input_ports + owner.output_ports + owner.state_variables + owner.temporaries
+        for item in aliased_items(items):
+            input_source = variable_map.get((path, item.var_identifier))
+            if input_source is not None:
+                variables.setdefault(member_name(alias, item.name), input_source)
+        output = owner.output_ports_byname.get('')
+        if output is not None:
+            input_source = variable_map.get((path, output.var_identifier))
+            if input_source is not None:
+                variables.setdefault(alias, input_source)
+
     def add_aliases(scope: model.NodeType, path: NodePath = (), prefix: str = '') -> None:
         for name, node in scope.instance_nodes.items():
             child_path = model.path_resolve_singleton(path + (node,))
-            alias = prefix + name
+            alias = member_name(prefix, name)
             node_aliases[alias] = node_ids[child_path]
             owner = node.node_type.singleton_instance if node.node_type.is_singleton else node
-            items = owner.input_ports + owner.output_ports + owner.state_variables + owner.temporaries
-            for item in aliased_items(items):
-                input_source = variable_map.get((child_path, item.var_identifier))
-                if input_source is not None:
-                    variables.setdefault(alias + '.' + item.name, input_source)
-            output = owner.output_ports_byname.get('')
-            if output is not None:
-                input_source = variable_map.get((child_path, output.var_identifier))
-                if input_source is not None:
-                    variables.setdefault(alias, input_source)
-            add_aliases(node.node_type, child_path, alias + '.')
+            add_value_aliases(owner, child_path, alias)
+            add_aliases(node.node_type, child_path, alias)
 
     root_path = (root,) if root is not None else ()
     add_aliases(graph, root_path)
     if root is not None:
         for item in aliased_items(root.temporaries + root.state_variables):
             variables[item.name] = variable_map[root_path, item.var_identifier]
+    for path, instance in instances.items():
+        if instance.is_singleton:
+            alias = node_ids[path]
+            owner = instance.node_type.singleton_instance
+            add_value_aliases(owner, path, alias)
+            add_aliases(instance.node_type, path, alias)
     singleton_aliases = {
         instance.node_type.fullname: node_ids[path]
         for path, instance in instances.items() if instance.is_singleton

@@ -1,7 +1,7 @@
 import wirely
 
 inp_count = 2
-inp = [engine.get_native_state('inp{}'.format(i)) for i in range(inp_count)]
+inp = [engine.get_native_state(('inp{}'.format(i)) + '.create') for i in range(inp_count)]
 
 
 def set(*args):

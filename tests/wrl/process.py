@@ -19,7 +19,7 @@ async def run_test():
             if actual != expected:
                 raise Exception(f'Expected file content {expected!r}, got {actual!r}')
 
-        prog1 = engine.get_native_state('prog1')
+        prog1 = engine.get_native_state('prog1.create')
         prog1.shell_command = cmd
 
         async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
@@ -32,7 +32,7 @@ async def run_test():
 
             check_content('A\n')
 
-            engine.get_native_state('evsrc').send_event(wirely.Some(wirely.Unit()))
+            engine.get_native_state('evsrc.create').send_event(wirely.Some(wirely.Unit()))
             engine.step()
             engine.step()
             engine.assert_is_idle()
@@ -43,7 +43,7 @@ async def run_test():
             check_content('A\nx\n')
 
             # Send an event
-            engine.get_native_state('evsrc').send_event(wirely.Some(wirely.Unit()))
+            engine.get_native_state('evsrc.create').send_event(wirely.Some(wirely.Unit()))
             engine.step()
             engine.step()
             engine.assert_is_idle()
@@ -52,7 +52,7 @@ async def run_test():
             await asyncio.sleep(0.03)
 
             # Send an another event
-            engine.get_native_state('evsrc').send_event(wirely.Some(wirely.Unit()))
+            engine.get_native_state('evsrc.create').send_event(wirely.Some(wirely.Unit()))
             engine.step()
             engine.step()
             engine.assert_is_idle()
@@ -61,7 +61,7 @@ async def run_test():
             await asyncio.sleep(0.03)
 
             # Send an another event, which should be ignored
-            engine.get_native_state('evsrc').send_event(wirely.Some(wirely.Unit()))
+            engine.get_native_state('evsrc.create').send_event(wirely.Some(wirely.Unit()))
             engine.step()
             engine.step()
             engine.assert_is_idle()

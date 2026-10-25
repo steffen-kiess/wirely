@@ -58,7 +58,7 @@ def check_equality():
     # Initialize every source so the shared engine can run all comparators.
     for name, values in cases.items():
         for side, value in zip(('left', 'right'), values[0][:2]):
-            engine.get_native_state(f'{name}_{side}').set_value(value)
+            engine.get_native_state(f'{name}_{side}.create').set_value(value)
     engine.step()
     engine.assert_value_is('LiteralEqual', True)
     engine.assert_value_is('LiteralUnequal', True)
@@ -72,8 +72,8 @@ def check_equality():
             transitions = [(left, right, False), (right, right, True),
                            (right, left, False), (left, left, True)]
         for left, right, equal in values + transitions:
-            engine.get_native_state(f'{name}_left').set_value(left)
-            engine.get_native_state(f'{name}_right').set_value(right)
+            engine.get_native_state(f'{name}_left.create').set_value(left)
+            engine.get_native_state(f'{name}_right.create').set_value(right)
             engine.step()
             engine.assert_value_is(f'{name}.Equal', equal)
             engine.assert_value_is(f'{name}.Unequal', not equal)

@@ -19,7 +19,7 @@ def assert_content_is(fn, value):
 async def check_repeat_boundaries(filename):
     with open(filename, 'rb') as file:
         expected = file.read().decode('utf-8')
-    source = engine.get_native_state('test_option_input')
+    source = engine.get_native_state('test_option_input.create')
 
     def step(row=None):
         nonlocal expected
@@ -72,8 +72,8 @@ async def check_repeat_boundaries(filename):
 async def run_test():
     engine.set_fake_wall_time(datetime.datetime(
         2026, 1, 1, 14, tzinfo=datetime.timezone(datetime.timedelta(hours=2))))
-    fn = engine.get_native_state('test_value_writer').filename
-    fn2 = engine.get_native_state('test_option_value_writer').filename
+    fn = engine.get_native_state('test_value_writer.create').filename
+    fn2 = engine.get_native_state('test_option_value_writer.create').filename
 
     # TODO: Move some of this code to test infrastructure
     async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
@@ -83,16 +83,16 @@ async def run_test():
         assert_equals(os.path.getsize(fn), 0)
         expected = ''
 
-        engine.get_native_state('test_input').set_value(False)
+        engine.get_native_state('test_input.create').set_value(False)
         _, _, step_info = engine.step()
         expected += '2026-01-01T14:00:00+02:00,,false\r\n'
         assert_content_is(fn, expected)
 
-        engine.get_native_state('test_input').set_value(False)
+        engine.get_native_state('test_input.create').set_value(False)
         _, _, step_info = engine.step()
         assert_content_is(fn, expected)
 
-        engine.get_native_state('test_input').set_value(True)
+        engine.get_native_state('test_input.create').set_value(True)
         _, _, step_info = engine.step()
         expected += f'{step_info.stage_start_time[RunStage.DEFAULT].isoformat()},false,true\r\n'
         assert_content_is(fn, expected)
@@ -152,7 +152,7 @@ async def run_test():
         assert_equals(os.path.getsize(fn), 0)
         expected = ''
 
-        engine.get_native_state('test_input').set_value(False)
+        engine.get_native_state('test_input.create').set_value(False)
 
         _, _, step_info = engine.step()
         expected += f'{step_info.stage_start_time[RunStage.DEFAULT].isoformat()},,false\r\n'
@@ -171,7 +171,7 @@ async def run_test():
     async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
         await engine.start_tasks_async(tg, async_exit_stack)
 
-        engine.get_native_state('test_input').set_value(False)
+        engine.get_native_state('test_input.create').set_value(False)
 
         _, _, step_info = engine.step()
         expected += f'{step_info.stage_start_time[RunStage.DEFAULT].isoformat()},,false\r\n'
@@ -197,7 +197,7 @@ async def run_test():
         expected += '\n'
         assert_content_is(fn, expected)
 
-        engine.get_native_state('test_input').set_value(False)
+        engine.get_native_state('test_input.create').set_value(False)
 
         _, _, step_info = engine.step()
         expected += f'{step_info.stage_start_time[RunStage.DEFAULT].isoformat()},,false\r\n'
@@ -220,16 +220,16 @@ async def run_test():
         assert_equals(os.path.getsize(fn2), 0)
         expected = ''
 
-        engine.get_native_state('test_option_input').set_value(wirely.Some(False))
+        engine.get_native_state('test_option_input.create').set_value(wirely.Some(False))
         _, _, step_info = engine.step()
         expected += f'{step_info.stage_start_time[RunStage.DEFAULT].isoformat()},,false\r\n'
         assert_content_is(fn2, expected)
 
-        engine.get_native_state('test_option_input').set_value(wirely.Some(False))
+        engine.get_native_state('test_option_input.create').set_value(wirely.Some(False))
         _, _, step_info = engine.step()
         assert_content_is(fn2, expected)
 
-        engine.get_native_state('test_option_input').set_value(wirely.Some(True))
+        engine.get_native_state('test_option_input.create').set_value(wirely.Some(True))
         _, _, step_info = engine.step()
         expected += f'{step_info.stage_start_time[RunStage.DEFAULT].isoformat()},false,true\r\n'
         assert_content_is(fn2, expected)
@@ -277,7 +277,7 @@ async def run_test():
         engine.assert_is_idle()
         assert_content_is(fn2, expected)
 
-        engine.get_native_state('test_option_input').set_value(None)
+        engine.get_native_state('test_option_input.create').set_value(None)
         _, _, step_info = engine.step()
         expected += f'{step_info.stage_start_time[RunStage.DEFAULT].isoformat()},true,\r\n'
         assert_content_is(fn2, expected)
@@ -333,7 +333,7 @@ async def run_test():
     engine.set_fake_wall_time(None)
     async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
         await engine.start_tasks_async(tg, async_exit_stack)
-        engine.get_native_state('test_option_input').set_value(wirely.Some(True))
+        engine.get_native_state('test_option_input.create').set_value(wirely.Some(True))
         engine.step()
         engine.step()
         expected = ',,true\r\n'
@@ -343,7 +343,7 @@ async def run_test():
         engine.step()
         expected += ',true,true\r\n'
         assert_content_is(fn2, expected)
-        engine.get_native_state('test_option_input').set_value(wirely.Some(False))
+        engine.get_native_state('test_option_input.create').set_value(wirely.Some(False))
         engine.step()
         engine.step()
         expected += ',true,false\r\n'
@@ -355,7 +355,7 @@ async def run_test():
     engine.set_fake_wall_time(datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc))
     async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
         await engine.start_tasks_async(tg, async_exit_stack)
-        engine.get_native_state('test_option_input').set_value(wirely.Some(True))
+        engine.get_native_state('test_option_input.create').set_value(wirely.Some(True))
         engine.step()
         engine.step()
         expected += '2026-01-01T00:00:00+00:00,,true\r\n'

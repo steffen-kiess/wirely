@@ -95,7 +95,7 @@ async def run_test():
     gpiod.line = line
 
     with mock.patch.dict(sys.modules, {'gpiod': gpiod, 'gpiod.line': line}):
-        output = engine.get_native_state('test_output')
+        output = engine.get_native_state('test_output.create')
         assert not Chip.instances
         async with asyncio.TaskGroup() as tasks, contextlib.AsyncExitStack() as stack:
             await engine.start_tasks_async(tasks, stack)
@@ -109,7 +109,7 @@ async def run_test():
             assert config[7].bias is Bias.PULL_UP
             assert chip.request.reconfigurations == []
 
-            input_state = engine.get_native_state('test_input')
+            input_state = engine.get_native_state('test_input.create')
             input_state.set_value(True)
             engine.step()
             assert len(chip.request.reconfigurations) == 1

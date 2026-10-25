@@ -21,22 +21,22 @@ def counted_function(function_name):
 
 
 def check_main_program():
-    source = engine.get_native_state('source')
+    source = engine.get_native_state('source.create')
     source.set_value(False)
-    engine.get_native_state('constant_source').set_value(False)
-    engine.get_native_state('option_source').set_value(None)
-    engine.get_native_state('nested_source').set_value(None)
-    engine.get_native_state('int_source').set_value(0)
-    engine.get_native_state('duration_source').set_value(internal(wirely.Duration(ticks=0)))
-    engine.get_native_state('time_source').set_value(internal(wirely.TimeOfDay.from_parts(0, 0)))
-    engine.get_native_state('int8_source').set_value(0)
-    engine.get_native_state('uint8_source').set_value(0)
-    engine.get_native_state('pair_source').set_value(pair(False, 0))
-    engine.get_native_state('span_source').set_value(internal(wirely.Duration(ticks=0)))
-    engine.get_native_state('factor_source').set_value(1)
+    engine.get_native_state('constant_source.create').set_value(False)
+    engine.get_native_state('option_source.create').set_value(None)
+    engine.get_native_state('nested_source.create').set_value(None)
+    engine.get_native_state('int_source.create').set_value(0)
+    engine.get_native_state('duration_source.create').set_value(internal(wirely.Duration(ticks=0)))
+    engine.get_native_state('time_source.create').set_value(internal(wirely.TimeOfDay.from_parts(0, 0)))
+    engine.get_native_state('int8_source.create').set_value(0)
+    engine.get_native_state('uint8_source.create').set_value(0)
+    engine.get_native_state('pair_source.create').set_value(pair(False, 0))
+    engine.get_native_state('span_source.create').set_value(internal(wirely.Duration(ticks=0)))
+    engine.get_native_state('factor_source.create').set_value(1)
     for name in ('monotonic_source', 'monotonic_other'):
-        engine.get_native_state(name).set_value(internal(wirely.MonotonicTime(generation=0, ticks=0)))
-    engine.get_native_state('monotonic_span').set_value(internal(wirely.Duration(ticks=0)))
+        engine.get_native_state(name + '.create').set_value(internal(wirely.MonotonicTime(generation=0, ticks=0)))
+    engine.get_native_state('monotonic_span.create').set_value(internal(wirely.Duration(ticks=0)))
     engine.step()
     engine.assert_value_is('selected', False)
     engine.assert_value_is('fallback', True)
@@ -83,7 +83,7 @@ def check_constant_blocks():
         engine.assert_value_is(name, expected)
         # Inside the runtime, a struct is a tuple of its field values.
         engine.assert_value_is(name + '.Wrapped', (expected,))
-    source = engine.get_native_state('constant_source')
+    source = engine.get_native_state('constant_source.create')
     for enabled in (False, True, False):
         source.set_value(enabled)
         engine.step()
@@ -141,7 +141,7 @@ def check_output_storage():
     }
     node split: Split {}
     ''')
-    assert 'split:run.value' in program.temporaries.variables
+    assert 'split.run.value' in program.temporaries.variables
     engine = test_engine(program)
     engine.step()
     engine.assert_value_is('split.Value', True)
@@ -232,10 +232,10 @@ def check_procedure_ports():
     node p: Ports {}
     connect source -> p;
     ''', add_std=True)
-    assert 'p:invert.inverted' in program.temporaries.variables
+    assert 'p.invert.inverted' in program.temporaries.variables
     engine = test_engine(program)
     assert engine.get_variable('p.named') is engine.get_variable('p.Twice')
-    source = engine.get_native_state('source')
+    source = engine.get_native_state('source.create')
     for value, previous in [(True, False), (False, False), (True, True)]:
         source.set_value(value)
         engine.step()
@@ -351,7 +351,7 @@ def check_root_dependencies():
     connect second -> copied;
     ''', add_std=True)
     chained_engine = test_engine(chained)
-    chained_source = chained_engine.get_native_state('source')
+    chained_source = chained_engine.get_native_state('source.create')
     chained_source.set_value(False)
     chained_engine.step()
     chained_engine.assert_value_is('first', False)
@@ -392,7 +392,7 @@ def check_root_state():
     connect saved.new -> new_copy;
     ''', add_std=True)
     state_engine = test_engine(root_state)
-    state_source = state_engine.get_native_state('source')
+    state_source = state_engine.get_native_state('source.create')
     state_source.set_value(True)
     state_engine.step()
     state_engine.assert_value_is('previous', False)
@@ -416,8 +416,8 @@ def check_root_state():
 
 
 def check_option_presence():
-    source = engine.get_native_state('option_source')
-    nested_source = engine.get_native_state('nested_source')
+    source = engine.get_native_state('option_source.create')
+    nested_source = engine.get_native_state('nested_source.create')
     for value, nested in [(None, None), (wirely.Some(False), wirely.Some(None)),
                           (wirely.Some(True), wirely.Some(wirely.Some(False))),
                           (None, None)]:
@@ -446,7 +446,7 @@ def check_ordering():
         'time': [wirely.TimeOfDay.from_parts(7, 59), wirely.TimeOfDay.from_parts(8, 0), wirely.TimeOfDay.from_parts(8, 1)],
     }
     for name, (below, equal, above) in cases.items():
-        source = engine.get_native_state(f'{name}_source')
+        source = engine.get_native_state(f'{name}_source.create')
         for value, expected in [(below, (True, True, False, False)), (equal, (False, True, False, True)),
                                 (above, (False, False, True, True))]:
             source.set_value(internal(value))
@@ -509,7 +509,7 @@ def check_arithmetic():
                   (0, 1, 0, some(0), None, 0)],
     }
     for name, rows in cases.items():
-        source = engine.get_native_state(f'{name}_source')
+        source = engine.get_native_state(f'{name}_source.create')
         for value, *expected in rows:
             source.set_value(value)
             engine.step()
@@ -526,7 +526,7 @@ def pair(enabled, number):
 
 
 def check_struct_fields():
-    source = engine.get_native_state('pair_source')
+    source = engine.get_native_state('pair_source.create')
     for enabled, number, expected_next in [(True, 7, 8), (False, 255, 255), (True, 0, 1)]:
         source.set_value(pair(enabled, number))
         engine.step()
@@ -541,7 +541,7 @@ def check_struct_fields():
 
 
 def check_conversions():
-    source = engine.get_native_state('int_source')
+    source = engine.get_native_state('int_source.create')
     some = wirely.Some
     for value, wrapped, saturated, checked, level in [
             (300, 44, 127, None, 1), (-129, 127, -128, None, 0),
@@ -581,7 +581,7 @@ def check_native_functions():
     calls, clamp = counted_function('TestLibrary.Clamp')
     nothing_calls, nothing = counted_function('TestLibrary.Nothing')
     function_engine = test_engine(functions, override_extensions=[clamp, nothing])
-    source = function_engine.get_native_state('source')
+    source = function_engine.get_native_state('source.create')
     for value, expected in [(5, 5), (500, 10), (-500, -10)]:
         source.set_value(value)
         calls.clear()
@@ -614,8 +614,8 @@ def check_duration_functions():
 
     second = wirely.types.time.TICKS_PER_SECOND
     maximum = wirely.Duration.MAX_TICKS
-    span_source = engine.get_native_state('span_source')
-    factor_source = engine.get_native_state('factor_source')
+    span_source = engine.get_native_state('span_source.create')
+    factor_source = engine.get_native_state('factor_source.create')
     some = wirely.Some
     for span, factor, total, difference, scaled, divided in [
             (3 * second, 2, 4 * second, 2 * second, some(duration(6 * second)), some(duration(second + second // 2))),
@@ -634,7 +634,7 @@ def check_duration_functions():
 
 def check_time_of_day_functions():
     parse = wirely.TimeOfDay.parse
-    source = engine.get_native_state('time_source')
+    source = engine.get_native_state('time_source.create')
     for time, later, earlier, until_end in [('08:00', '10:00', '06:00', 'PT16H'),
                                             ('23:00', '01:00', '21:00', 'PT1H'),
                                             ('24:00', '02:00', '22:00', 'PT0S'),
@@ -653,7 +653,7 @@ def check_monotonic_time_functions():
         return internal(wirely.MonotonicTime(generation=generation, ticks=ticks))
 
     some, maximum = wirely.Some, wirely.MonotonicTime.MAX_TICKS
-    sources = [engine.get_native_state(name) for name in ('monotonic_source', 'monotonic_other', 'monotonic_span')]
+    sources = [engine.get_native_state(name + '.create') for name in ('monotonic_source', 'monotonic_other', 'monotonic_span')]
     outputs = ('Later', 'Earlier', 'CheckedLater', 'CheckedEarlier', 'Elapsed', 'Less')
     for value, other, span, expected in [
             # Within range; other is earlier in the same generation.
@@ -680,7 +680,7 @@ def check_monotonic_time_functions():
 
 
 def check_mutation():
-    source = engine.get_native_state('source')
+    source = engine.get_native_state('source.create')
     for value in (False, True, False, True):
         source.set_value(value)
         engine.step()
@@ -732,7 +732,7 @@ def check_multi_procedures():
     machine.assert_is_idle()
     procedure = next(proc for schedule in machine.program.procs.values() for proc in schedule
                      if proc.node == 'digits')
-    assert procedure.name == 'digits:run'
+    assert procedure.name == 'digits.run'
     # Inputs z[0], z[1], middle, a[0], a[1].
     assert [source.constant.value for source in procedure.inputs] == [2, 1, 3, 5, 4]
 
@@ -744,8 +744,8 @@ def check_multi_procedures():
     connect first, second -> combined;
     ''', add_std=True)
     machine = test_engine(program)
-    first = machine.get_native_state('first')
-    second = machine.get_native_state('second')
+    first = machine.get_native_state('first.create')
+    second = machine.get_native_state('second.create')
     first.set_value(False)
     second.set_value(False)
     machine.step()

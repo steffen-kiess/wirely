@@ -205,7 +205,7 @@ def check_optional_values():
 
             bindings = test_extension(**registry, contracts=contracts)
             runtime = Engine(program, override_extensions=[bindings])
-        values = runtime.get_native_state('forward.child').values
+        values = runtime.get_native_state('forward.child.create').values
         assert values['Maybe'] == expected
         assert values[''] == expected
         assert values['Type'] == (None if expected_type is None else wirely.Some(expected_type))

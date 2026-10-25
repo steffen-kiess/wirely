@@ -18,8 +18,8 @@ from tests.infra.support import test_contracts, test_extension
 checks = TestCase()
 
 
-def compile_program(source):
-    graph = wirely.compiler.compile_strs([('<load-checks>', source)])
+def compile_program(source, filename='<load-checks>'):
+    graph = wirely.compiler.compile_strs([(filename, source)])
     assert graph is not None
     return graph, program_compiler.compile_nocatch(graph)
 
@@ -110,6 +110,22 @@ def check_instances():
     assert caught.exception.node == 'second'
     assert '<load assert <load-checks>:' in caught.exception.procedure
 
+    for source, owner in [
+        ('load assert false;', '<global>'),
+        ('''namespace Lib {
+          singleton node type Checked {
+            load assert false;
+          }
+        }
+        node checked: Lib.Checked {}
+        ''', 'Lib.Checked:'),
+    ]:
+        _, program = compile_program(source, filename='example.source:case.wrl')
+        with checks.assertRaises(LoadFailure) as caught:
+            Engine(program)
+        assert caught.exception.node == owner
+        assert 'example.source:case.wrl' in caught.exception.procedure
+
 
 def check_loading_stops():
     graph, program = compile_program('''namespace TestLibrary {
@@ -157,7 +173,7 @@ def check_loading_stops():
 
 
 def make_program(instructions, *, local_types=()):
-    procedure = Procedure(name='test:check', inputs=(), outputs=(), body=ProcedureBody(instructions, local_types))
+    procedure = Procedure(name='test.check', inputs=(), outputs=(), body=ProcedureBody(instructions, local_types))
     return Program(
         state_variables=VariableTable((), 'state'),
         temporaries=VariableTable((), 'temporaries'), initial_state={},

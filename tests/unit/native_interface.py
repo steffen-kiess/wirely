@@ -196,11 +196,11 @@ def check_context_names():
     node shared_again: TestLibrary.SharedContainer {}
     ''')
     named_engine.step()
-    assert sorted(named_contexts) == ['TestLibrary.SharedContainer.child', 'outer.child', 'probe']
+    assert sorted(named_contexts) == ['TestLibrary.SharedContainer:child', 'outer.child', 'probe']
     named_contexts.clear()
     named_engine = make_engine('native procedure run;', check_node_name, singleton=True)
     named_engine.step()
-    assert named_contexts == ['TestLibrary.Probe']
+    assert named_contexts == ['TestLibrary.Probe:']
 
 
 def check_stage_times():
@@ -391,13 +391,13 @@ def check_triggers():
         bindings = test_extension(**trigger_registry, contracts=contracts)
         resource_bindings = test_extension(resources=resource_types, contracts=contracts)
         trigger_engine = Engine(trigger_program, override_extensions=[bindings, resource_bindings])
-    first = trigger_engine.get_native_state('first')
-    second = trigger_engine.get_native_state('second')
-    shared = trigger_engine.get_native_state('shared')
+    first = trigger_engine.get_native_state('first.create')
+    second = trigger_engine.get_native_state('second.create')
+    shared = trigger_engine.get_native_state('TestLibrary.SharedTriggerProbe:create')
     assert first.services.name == 'first'
     assert second.services.name == 'second'
-    assert shared.services.name == 'TestLibrary.SharedTriggerProbe'
-    assert shared is trigger_engine.get_native_state('shared_again')
+    assert shared.services.name == 'TestLibrary.SharedTriggerProbe:'
+    assert trigger_program.symbols.node_aliases['shared'] == trigger_program.symbols.node_aliases['shared_again']
     assert not first.calls and not second.calls and not shared.calls
     trigger_engine.step()
     for state in [first, second, shared]:
@@ -444,7 +444,7 @@ def check_triggers():
     trigger_engine.assert_is_idle()
 
     # Dependents in other nodes rerun too.
-    trigger_engine.get_native_state('provider').services.trigger('service')
+    trigger_engine.get_native_state('provider.create').services.trigger('service')
     trigger_engine.step()
     checks.assertCountEqual(reader_calls, ['reader', 'another_reader'])
     trigger_engine.assert_is_idle()
@@ -477,8 +477,8 @@ def check_typed_ports():
     probe.step()
     assert snapshots[-1] == (None, None)
     probe.assert_value_is('probe', 7)
-    probe.get_native_state('probe.first').send_event(wirely.Some(1))
-    probe.get_native_state('probe.second').send_event(wirely.Some(3))
+    probe.get_native_state('probe.first.create').send_event(wirely.Some(1))
+    probe.get_native_state('probe.second.create').send_event(wirely.Some(3))
     probe.step()
     assert snapshots[-1] == (wirely.Some(wirely.UInt8(1)), wirely.Some(wirely.UInt8(3)))
     probe.assert_value_is('probe', 11)
@@ -552,7 +552,7 @@ def check_events():
     ''')
         probe.step()
         probe.assert_value_is('probe', None)
-        source = probe.get_native_state('source')
+        source = probe.get_native_state('source.create')
         for send in [lambda: source.send_event(event),
                      lambda: send_event_text(source, command)]:
             send()
@@ -637,7 +637,7 @@ namespace Example {
     # Inside the runtime, named and unnamed enum values are numbers.
     probe.assert_value_is('probe', 1)
     output = 255
-    probe.trigger('probe', 'run')
+    probe.trigger('probe.run')
     probe.step()
     probe.assert_value_is('probe', 255)
 
@@ -1345,7 +1345,7 @@ connect source, source -> multiple;
         resource_bindings = test_extension(resources={'TestLibrary.LengthState': LengthProbe}, contracts=contracts)
         machine = Engine(program, override_extensions=[bindings, resource_bindings])
     for value in (False, True):
-        machine.get_native_state('source').set_value(value)
+        machine.get_native_state('source.create').set_value(value)
         machine.step()
         machine.assert_value_is('empty', 0)
         machine.assert_value_is('multiple', 2)

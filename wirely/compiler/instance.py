@@ -16,6 +16,7 @@ from .stages import ResolutionState
 from wirely.compiler.parameters import ParameterValues, native_parameters
 from wirely.compiler.types import resolve_type, check_runtime_type
 from wirely.program import InputSource, Variable, VariableBank
+from wirely.program.names import member_name
 
 # TODO: Probably InstanceInputPort, InstanceOutputPort, InstanceStateVariable etc. should only exist in NodeType
 class InstanceNode(model.GraphElement):
@@ -70,19 +71,15 @@ class InstanceNode(model.GraphElement):
         return name.id_str if name is not None else '<global>'
 
     @staticmethod
-    def path_name(path: NodePath, *, qualified: bool = False) -> str:
-        names = []
+    def path_name(path: NodePath) -> str:
+        name = ''
         for node in path:
             if isinstance(node, InstanceNode):
                 if not node.is_root:
-                    names.append(node.name)
+                    name = member_name(name, node.name)
             else:
-                if qualified:
-                    names.append(node.fullname)
-                else:
-                    assert node.name is not None
-                    names.append(node.name.id_str)
-        return '.'.join(names)
+                name = node.qualified_name + ':'
+        return name
 
     def __repr__(self) -> str:
         # return f"{type(self).__name__}{{{self.graph}.{self.name}}}"
@@ -98,7 +95,7 @@ class InstanceNode(model.GraphElement):
 
     def validate(self, path: NodePath) -> None:
         """Require a source for each single input and a producer for each output."""
-        name = InstanceNode.path_name(path, qualified=True)
+        name = InstanceNode.path_name(path)
         for input in self.all_input_ports:
             if input.connected_source is None and not isinstance(input.node, model.TypeOutputPort):
                 port = 'Default input' if input.name == '' else f'Input `{input.name}`'
@@ -170,14 +167,12 @@ class InstanceNode(model.GraphElement):
         # TODO: Clean up
         # path_prefix = '.'.join([node.name for node in path])
         path_prefix = self.path_name(path)
-        if path_prefix:
-            path_prefix += '.'
         for state_var in self.state_variables:
             var_type = resolve_type(state_var.var_type, instance.static_values)
             source = (self.node_type.value_nodes[state_var.name]
                       if self.is_root else self.instantiation)
             check_runtime_type(var_type, source)
-            v = Variable(path_prefix + state_var.name, var_type)
+            v = Variable(member_name(path_prefix, state_var.name), var_type)
             state_map[path, state_var] = v
             variable_map[path, state_var.var_identifier] = InputSource(VariableBank.OLD_STATE, v)
             state_variables.append(v)
@@ -612,7 +607,7 @@ class NodeTypeInstance(NodeInstance):
 
         parameter_values_bystr = {key.name.id_str: value for key, value in parameter_values_resolved.items()}
         parameters = native_parameters(parameter_values_bystr)
-        name = InstanceNode.path_name(self.path, qualified=True) or '<global>'
+        name = InstanceNode.path_name(self.path) or '<global>'
         self.static_context = model.StaticNodeContext(name=name, parameters=parameters)
 
     def instantiation_hint(self) -> model.CompilerHint | None:
@@ -621,7 +616,7 @@ class NodeTypeInstance(NodeInstance):
         assert isinstance(owner, InstanceNode)
         if owner.is_root:
             return None
-        name = InstanceNode.path_name(self.path, qualified=True)
+        name = InstanceNode.path_name(self.path)
         return model.CompilerHint(owner.instantiation, f'While instantiating `{name}`')
 
     @property

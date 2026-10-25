@@ -1,5 +1,5 @@
-source = engine.get_native_state('source')
-measurement = engine.get_native_state('measurement')
+source = engine.get_native_state('source.create')
+measurement = engine.get_native_state('measurement.create')
 
 for enabled, length in [(False, 7), (True, 9), (False, 0)]:
     source.set_value(enabled)

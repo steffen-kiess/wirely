@@ -13,7 +13,7 @@ def make_program():
     pair = types.TypeStruct('Pair', {'flag': types.boolean, 'number': types.uint8})
     variable = Variable('source.Value', pair)
     value = Constant(pair, (True, 7))
-    procedure = Procedure('source:run', (), (OutputTarget(VariableBank.TEMPORARIES, variable),), body=ProcedureBody((
+    procedure = Procedure('source.run', (), (OutputTarget(VariableBank.TEMPORARIES, variable),), body=ProcedureBody((
         Instruction(Opcode.COPY, (Operand(OperandKind.OUTPUT, 0), ConstOperand(value))),
         Instruction(Opcode.RETURN, ()),
     )))
@@ -39,7 +39,7 @@ def check_engine(original, engine):
     assert constant.value == (True, 7) and constant.value_type is variable.var_type
     assert list(variable.var_type.fields) == ['flag', 'number']
     assert variable.var_type.type_name == 'Pair'
-    assert engine.program.procs[RunStage.DEFAULT][0].name == 'source:run'
+    assert engine.program.procs[RunStage.DEFAULT][0].name == 'source.run'
 
 
 async def run_test():

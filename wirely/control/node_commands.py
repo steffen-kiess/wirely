@@ -139,8 +139,7 @@ def node_tree(program: Program, root: str | None = None) -> list[TreeNode]:
     visit(program.graph, '', 0)
     if root is None:
         return nodes
-    path = program.symbols.node_aliases.get(root, root)
-    subtree = [node for node in nodes if node.path == path or node.path.startswith(path + '.')]
+    subtree = [node for node in nodes if node.path == root or node.path.startswith(root + '.')]
     if not subtree:
         raise NodeCommandError(f'Cannot find node `{root}`')
     base = subtree[0].depth

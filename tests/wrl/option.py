@@ -74,9 +74,9 @@ with checks.assertRaises(Exception):
     list_option.verify_value(wirely.Some([wirely.Some(1)]))
 
 inp_count = 3
-inp = [engine.get_native_state('inp{}'.format(i)) for i in range(inp_count)]
-number_inp = engine.get_native_state('number_inp')
-nested_input = engine.get_native_state('nested_input')
+inp = [engine.get_native_state(('inp{}'.format(i)) + '.create') for i in range(inp_count)]
+number_inp = engine.get_native_state('number_inp.create')
+nested_input = engine.get_native_state('nested_input.create')
 nested_input.set_value(None)
 
 

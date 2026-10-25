@@ -51,7 +51,7 @@ runtime.step()
 runtime.assert_value_is('timestamp', None)
 runtime.assert_is_idle()
 
-held_source = runtime.get_native_state('input')
+held_source = runtime.get_native_state('input.create')
 held_source.set_value(wirely.Some(False))
 _, _, first_step = runtime.step()
 first = runtime.get_value('timestamp')

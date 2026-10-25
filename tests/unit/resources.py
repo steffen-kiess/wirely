@@ -225,13 +225,14 @@ connect factory -> typed_consumer.Service;
 connect value_source -> typed_consumer.Value;
 '''
 native_resource_engine = make_engine(compile_resources(source))
-consumer = native_resource_engine.get_native_state('consumer')
-provider = native_resource_engine.get_native_state('factory.source')
-shared = native_resource_engine.get_native_state('shared')
-assert native_resource_engine.get_native_state('other_shared') is shared
+consumer = native_resource_engine.get_native_state('consumer.create')
+provider = native_resource_engine.get_native_state('factory.source.create')
+shared = native_resource_engine.get_native_state('TestLibrary.Shared:create')
+node_aliases = native_resource_engine.program.symbols.node_aliases
+assert node_aliases['shared'] == node_aliases['other_shared']
 assert consumer.resources['service'] is provider
 assert consumer.resources['implicit'] is shared
-value_source = native_resource_engine.get_native_state('value_source')
+value_source = native_resource_engine.get_native_state('value_source.create')
 value_source.set_value(7)
 native_resource_engine.step()
 native_resource_engine.assert_value_is('consumer.Count', 7)
@@ -271,10 +272,10 @@ node source: TestLibrary.Provider {}
 connect source -> sink.Service;
 ''')
 alias_engine = make_engine(alias_graph)
-alias_inputs = alias_engine.get_native_state('sink').resources
-assert alias_inputs['service'] is alias_engine.get_native_state('source')
+alias_inputs = alias_engine.get_native_state('sink.create').resources
+assert alias_inputs['service'] is alias_engine.get_native_state('source.create')
 # Each output supplies the object its provider wrote under the output's key.
-assert alias_inputs['child'] is alias_engine.get_native_state('sink.provider').named
+assert alias_inputs['child'] is alias_engine.get_native_state('sink.provider.create').named
 
 incomplete_graph = compile_resources('''
 namespace TestLibrary {
@@ -295,7 +296,7 @@ with checks.assertRaisesRegex(ValueError, "Native initializer `TestLibrary.Incom
 # Resource outputs are typed ResourceValues; their objects are checked
 # against the Python type registered for the resource type.
 service_value = next(value for slot, value in native_resource_engine.resource_values.items()
-                     if slot.name == 'factory.source:create.service')
+                     if slot.name == 'factory.source.create.service')
 assert isinstance(service_value, ResourceValue) and service_value.object is provider
 checks.assertEqual((service_value.type.name, service_value.type.python_type), ('TestLibrary.Service', Service))
 with checks.assertRaises(dataclasses.FrozenInstanceError):
@@ -394,13 +395,13 @@ with test_contracts(alias_graph) as contracts:
     bindings = test_extension(**alias_registry, contracts=contracts)
     resource_bindings = test_extension(resources={'TestLibrary.Service': Service}, contracts=contracts)
     alias_resource_engine = Engine(alias_program, override_extensions=[bindings, resource_bindings])
-holder = alias_resource_engine.get_native_state('holder')
-assert alias_resource_engine.get_native_state('holder.child').service is holder
-source_state = alias_resource_engine.get_native_state('composite.source')
-assert alias_resource_engine.get_native_state('composite.child').service is source_state
+holder = alias_resource_engine.get_native_state('holder.create')
+assert alias_resource_engine.get_native_state('holder.child.create').service is holder
+source_state = alias_resource_engine.get_native_state('composite.source.create')
+assert alias_resource_engine.get_native_state('composite.child.create').service is source_state
 read = next(proc for schedule in alias_program.procs.values() for proc in schedule if proc.node == 'composite')
 assert [(name, source.resource.name) for name, source in read.named_inputs()] == [
-    ('service', 'composite.source:create.service'),
+    ('service', 'composite.source.create.service'),
 ]
 alias_resource_engine.step()
 assert alias_reads == [source_state]

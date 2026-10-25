@@ -27,7 +27,7 @@ node parent: Parent {}
 singleton node type Shared {
   assert false; // E: Compile-time assertion failed
 }
-node shared: Shared {} // H: While instantiating `Shared`
+node shared: Shared {} // H: While instantiating `Shared:`
 
 // TEST: unused unknown name
 node type Unused {

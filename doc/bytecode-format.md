@@ -862,11 +862,12 @@ values are at most 24 hours. The only `Timer.MonotonicTime` value in a file
 is the default, because generations of a file are never current.
 
 The reserved linking name for a native procedure with multi value/event
-reads is `Namespace.BlockType:procedure.2.3.4`. The decimal suffixes are
-member counts in read declaration order, including zero counts; scalar and
-fixed reads contribute no suffix. Native multi
-value/event specialization is not currently supported. Procedure debug
-symbols remain instance names such as `someblock:procedure`.
+reads is `Namespace.NodeType:procedure[2,3,4]`. The bracketed decimal values
+are member counts in read declaration order, including zero counts; scalar
+and fixed reads contribute no count. Procedures without multi reads have
+no bracketed suffix. Native multi value/event specialization is not
+currently supported. Procedure debug symbols remain instance names such
+as `somenode.procedure`.
 
 Embedded adapters can retain numeric bindings and function pointers after
 linking.
@@ -1152,9 +1153,17 @@ target table, in the same order:
 | Table | Target table | Name |
 | --- | --- | --- |
 | `StateVariableSymbols` | `StateVariables` | Variable path, such as `a.b.count` |
-| `TemporarySymbols` | `Temporaries` | Procedure symbol and output port joined by `.`, such as `a.b:run.output` |
-| `ProcedureSymbols` | `ProcedureInstances` | Owning node path and procedure name joined by `:`, such as `a.b:run` |
+| `TemporarySymbols` | `Temporaries` | Procedure symbol and output port joined by `.`, such as `a.b.run.output` |
+| `ProcedureSymbols` | `ProcedureInstances` | Owning node path and procedure name joined by `.`, such as `a.b.run` |
 | `TypeSymbols` | `ValueTypes` | Qualified name of an enum or struct, such as `Example.State`; none for other types |
+
+Ordinary instance paths and their members use dots, such as `a.b.count`
+and `a.b.run`. Global members have no owner prefix. Singleton-owned symbols
+start with the fully qualified singleton type name and a colon, such as
+`Example.Shared:count` or `Example.Shared:child.run`. The singleton owner
+itself is `Example.Shared:`. Instance symbols do not include multi-input
+counts. Source aliases can also reach singleton-owned values through
+ordinary instance paths.
 
 Symbols identify variables, procedures, and types in diagnostics and when
 building [state transitions](#state-transitions). Symbols and aliases for

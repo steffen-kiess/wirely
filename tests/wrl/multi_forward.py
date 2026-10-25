@@ -1,6 +1,6 @@
 import itertools
 
-inp = [engine.get_native_state(f'inp{index}') for index in range(3)]
+inp = [engine.get_native_state(f'inp{index}.create') for index in range(3)]
 
 for values in itertools.product((False, True), repeat=3):
     for source, value in zip(inp, values):

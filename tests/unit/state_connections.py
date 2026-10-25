@@ -181,7 +181,7 @@ def check_old_snapshots():
     connect other -> second;
     connect owner, source, second -> collector;
     ''')
-    probe.get_native_state('source').set_value(True)
+    probe.get_native_state('source.create').set_value(True)
     probe.step()
     probe.assert_value_is('owner', False)
     probe.assert_value_is('owner.reader', False)
@@ -198,7 +198,7 @@ def check_old_snapshots():
     probe.assert_is_idle()
     assert calls['owner.reader'] == 2
 
-    probe.get_native_state('source').set_value(False)
+    probe.get_native_state('source.create').set_value(False)
     probe.step()
     probe.assert_value_is('collector', 4)
     probe.step()
@@ -325,7 +325,7 @@ def check_current_snapshots():
     connect owner.New -> observer;
     '''
     current = make_engine(current_source, declarations=current_definitions)
-    current.get_native_state('source').set_value(5)
+    current.get_native_state('source.create').set_value(5)
     current.step()
     assert observations['owner'] == (0, 5)
     current.assert_value_is('owner.Old', 0)
@@ -347,15 +347,14 @@ def check_current_snapshots():
     write_calls = calls['owner.write']
 
     # A skipped writer still supplies .new when its reader is triggered.
-    observer_path = current.get_node_path('observer')
-    current.trigger(observer_path, 'run')
+    current.trigger('observer.run')
     current.step()
     assert calls['owner.write'] == write_calls
     assert calls['observer'] == observer_calls + 1
     current.assert_value_is('observer', 5)
     current.assert_value_is('owner.New', 5)
 
-    current.get_native_state('source').set_value(9)
+    current.get_native_state('source.create').set_value(9)
     current.step()
     assert observations['owner'] == (5, 9)
     current.assert_value_is('owner.mixed', 329993)
@@ -368,7 +367,7 @@ def check_current_snapshots():
     later_current = make_engine(current_source, declarations=current_definitions.replace(
         'native procedure observe\n', 'native procedure observe stage output\n',
     ))
-    later_current.get_native_state('source').set_value(11)
+    later_current.get_native_state('source.create').set_value(11)
     later_current.step()
     assert observations['owner'] == (0, 11)
 
@@ -477,7 +476,7 @@ def check_copied_states():
                             ('Twice', twice), ('Mirrored', mirrored), ('Published', published)]:
             copied.assert_value_is('copies.' + name, value)
 
-    copied.get_native_state('source').set_value(3)
+    copied.get_native_state('source.create').set_value(3)
     copied.step()
     check(9, 0, 3, 0, 5, 3)
     copied.step()
@@ -486,7 +485,7 @@ def check_copied_states():
     check(3, 3, 3, 3, 3, 3)
     copied.assert_is_idle()
 
-    copied.get_native_state('source').set_value(7)
+    copied.get_native_state('source.create').set_value(7)
     copied.step()
     check(3, 3, 7, 3, 3, 7)
     copied.step()

@@ -1,14 +1,14 @@
 # Verify compiled procedure behavior through changing engine inputs.
-engine.get_native_state('boolean_source').set_value(False)
-engine.get_native_state('other_source').set_value(False)
+engine.get_native_state('boolean_source.create').set_value(False)
+engine.get_native_state('other_source.create').set_value(False)
 for bits in (8, 16, 32, 64, 128):
     for prefix in ('int', 'uint'):
-        engine.get_native_state(prefix + str(bits) + '_source').set_value(0)
+        engine.get_native_state((prefix + str(bits) + '_source') + '.create').set_value(0)
 
 for bits in (8, 16, 32, 64, 128):
     for signed in (True, False):
         name = ('int' if signed else 'uint') + str(bits)
-        source = engine.get_native_state(name + '_source')
+        source = engine.get_native_state((name + '_source') + '.create')
         mask = (1 << bits) - 1
 
         def normalized(value):
@@ -30,8 +30,8 @@ for bits in (8, 16, 32, 64, 128):
             for port, result in expected.items():
                 engine.assert_value_is(name + '_ops.' + port, result)
 
-first = engine.get_native_state('boolean_source')
-second = engine.get_native_state('other_source')
+first = engine.get_native_state('boolean_source.create')
+second = engine.get_native_state('other_source.create')
 for left in (False, True):
     for right in (False, True):
         first.set_value(left)

@@ -1,4 +1,4 @@
-inp_inst = engine.get_native_state('inp')
+inp_inst = engine.get_native_state('inp.create')
 
 
 inp_inst.set_value(False)
