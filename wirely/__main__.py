@@ -21,7 +21,7 @@ def main() -> None:
                             help='private key for TLS on the control socket')
     run_parser.add_argument('input_filename', type=str, nargs='+',
                             help='Wirely source files or a single .wbc program')
-    run_parser.set_defaults(module_name='wirely.cli.service')
+    run_parser.set_defaults(module_name='wirely.cli.run')
 
     compile_parser = subparsers.add_parser('compile')
     program_group = compile_parser.add_mutually_exclusive_group()
@@ -37,7 +37,7 @@ def main() -> None:
     compile_parser.add_argument('--timings', action='store_true',
                                 help='print the duration of each compiler stage to stderr')
     compile_parser.add_argument('input_filename', nargs='+')
-    compile_parser.set_defaults(module_name='wirely.cli.compile_command',
+    compile_parser.set_defaults(module_name='wirely.cli.compile',
                                 create_program=True, create_engine=False)
 
     show_graph_parser = subparsers.add_parser('show-graph')

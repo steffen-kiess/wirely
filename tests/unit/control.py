@@ -19,7 +19,7 @@ import wirely.cli.client
 import wirely.compiler
 import wirely.misc.service
 import wirely.types
-from wirely.cli import service
+from wirely.cli import run as run_command
 from wirely.compiler import program as program_compiler
 from wirely.control import node_commands
 from wirely.control.client import ControlClient
@@ -253,7 +253,7 @@ async def check_service_interactive():
           unittest.mock.patch('sys.stdin', io.StringIO('pause\nset value 5\nget value\nquit\nresume\n')),
           unittest.mock.patch.object(wirely.misc.service, 'loop_until_sigint_and_throw', wait_forever)):
         controller = RuntimeController(runtime, program_build_id(program))
-        assert await asyncio.wait_for(service.run_engine(runtime, controller, interactive=True, program=program),
+        assert await asyncio.wait_for(run_command.run_engine(runtime, controller, interactive=True, program=program),
                                       5) == 0
     lines = output.getvalue().splitlines()
     assert lines[1].startswith('paused, ') and lines[2] == '5' and 'running' not in output.getvalue(), lines

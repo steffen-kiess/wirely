@@ -16,7 +16,7 @@ from wirely import types
 from wirely.__main__ import main
 from wirely.compiler import compile_files, compile_strs
 from wirely.compiler import program as program_compiler
-from wirely.cli import compile_command
+from wirely.cli import compile as compile_command
 from wirely.program import (
     BranchTarget, Constant, ConstOperand, Function, InputSource, Instruction,
     NativeProcedureEntry, Opcode, Operand, OperandKind, OutputTarget, Procedure,

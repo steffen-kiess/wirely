@@ -11,7 +11,7 @@ from unittest import TestCase
 from unittest.mock import AsyncMock, Mock, mock_open, patch
 
 from wirely import types
-from wirely.cli import service
+from wirely.cli import run as run_command
 from wirely.program import (
     BranchTarget, Constant, ConstOperand, Function, InputSource, NativeProcedureEntry, Opcode, Operand, OperandKind,
     OutputTarget, Procedure, ProcedureBody, RunStage, Section, SectionList, Variable, VariableBank,
@@ -358,8 +358,8 @@ def check_native_registry():
 
 async def check_service():
     magic = SectionList.MAGIC.to_bytes(4, 'little')
-    with patch('wirely.cli.service.open', mock_open(read_data=magic + b'ignored')) as opened:
-        assert service._is_binary_program('program')
+    with patch('wirely.cli.run.open', mock_open(read_data=magic + b'ignored')) as opened:
+        assert run_command._is_binary_program('program')
         opened().read.assert_called_once_with(4)
     with tempfile.TemporaryDirectory() as directory:
         path = Path(directory) / 'program.bin'
@@ -369,47 +369,47 @@ async def check_service():
         args = argparse.Namespace(input_filename=[str(path)], verbose=False, debug=False,
                                   state_directory=None, control_tls_cert=None, control_tls_key=None,
                                   interactive=False)
-        with patch.object(service.wirely.compiler, 'compile_files', side_effect=AssertionError('must not compile')):
-            with patch.object(service, 'run_engine', new_callable=AsyncMock, return_value=None) as run:
-                assert await service.async_run(args) is None
+        with patch.object(run_command.wirely.compiler, 'compile_files', side_effect=AssertionError('must not compile')):
+            with patch.object(run_command, 'run_engine', new_callable=AsyncMock, return_value=None) as run:
+                assert await run_command.async_run(args) is None
                 run.assert_awaited_once()
             for filenames, status in (([str(path), str(source)], 2), ([str(source), str(path)], 2),
                                        ([str(path), str(path)], 2)):
                 with contextlib.redirect_stderr(io.StringIO()):
-                    assert await service.async_run(argparse.Namespace(**{**vars(args), 'input_filename': filenames})) == status
+                    assert await run_command.async_run(argparse.Namespace(**{**vars(args), 'input_filename': filenames})) == status
             for error in (ValueError('link failure'), LoadFailure(Procedure('test:load', (), ()), 0, 'load failure', ())):
-                with patch.object(service, 'Engine', side_effect=error), patch.object(service, 'run_engine', new_callable=AsyncMock, return_value=None) as run:
+                with patch.object(run_command, 'Engine', side_effect=error), patch.object(run_command, 'run_engine', new_callable=AsyncMock, return_value=None) as run:
                     output = io.StringIO()
                     with contextlib.redirect_stderr(output):
-                        assert await service.async_run(args) == 1
+                        assert await run_command.async_run(args) == 1
                     assert str(error) in output.getvalue()
                     run.assert_not_awaited()
             path.write_bytes(magic)
-            with patch.object(service, 'Engine') as engine, contextlib.redirect_stderr(io.StringIO()):
-                assert await service.async_run(args) == 1
+            with patch.object(run_command, 'Engine') as engine, contextlib.redirect_stderr(io.StringIO()):
+                assert await run_command.async_run(args) == 1
                 engine.assert_not_called()
             path.unlink()
-            with patch.object(service, 'Engine') as engine, contextlib.redirect_stderr(io.StringIO()):
-                assert await service.async_run(args) == 1
+            with patch.object(run_command, 'Engine') as engine, contextlib.redirect_stderr(io.StringIO()):
+                assert await run_command.async_run(args) == 1
                 engine.assert_not_called()
             failure = Constant(types.TypeList(types.String), ('intentional failure',))
             path.write_bytes(write_program(body_program((instruction(Opcode.FAIL, failure, 0),), stage=RunStage.LOAD)))
-            with patch.object(service, 'run_engine', new_callable=AsyncMock, return_value=None) as run:
+            with patch.object(run_command, 'run_engine', new_callable=AsyncMock, return_value=None) as run:
                 output = io.StringIO()
                 with contextlib.redirect_stderr(output):
-                    assert await service.async_run(args) == 1
+                    assert await run_command.async_run(args) == 1
                 assert 'intentional failure' in output.getvalue()
                 run.assert_not_awaited()
         args.input_filename = [str(source)]
-        with patch.object(service, 'load_program', side_effect=AssertionError('must compile source')):
-            with patch.object(service, 'run_engine', new_callable=AsyncMock, return_value=None) as run:
-                assert await service.async_run(args) is None
+        with patch.object(run_command, 'load_program', side_effect=AssertionError('must compile source')):
+            with patch.object(run_command, 'run_engine', new_callable=AsyncMock, return_value=None) as run:
+                assert await run_command.async_run(args) is None
                 run.assert_awaited_once()
         for prefix in (b'', magic[:1], magic[:2], magic[:3]):
             source.write_bytes(prefix)
-            with patch.object(service.wirely.compiler, 'compile_files', return_value=None) as compile_files:
-                with patch.object(service, 'load_program') as load:
-                    assert await service.async_run(args) == 1
+            with patch.object(run_command.wirely.compiler, 'compile_files', return_value=None) as compile_files:
+                with patch.object(run_command, 'load_program') as load:
+                    assert await run_command.async_run(args) == 1
                     compile_files.assert_called_once_with([str(source)])
                     load.assert_not_called()
 
