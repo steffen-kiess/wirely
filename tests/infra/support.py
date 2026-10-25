@@ -128,6 +128,11 @@ def internal(value: Any) -> Any:
     return value
 
 
+def send_event_text(source: Any, text: str) -> None:
+    """Send an event from a Std.DebugEventSource state, with its payload in the value text format."""
+    source.send_event(model.Some(source.value_type.parse(text)._value))
+
+
 @functools.cache
 def library_type(name: str) -> TypeStruct:
     """Return a struct type declared by the standard libraries, such as Std.Duration."""

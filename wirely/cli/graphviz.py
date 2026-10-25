@@ -5,7 +5,7 @@ from wirely.compiler import model
 def htmlescape(s):
     return s.replace('&', '&amp;').replace('"', '&quot;').replace('<', '&lt;').replace('>', '&gt;')
 
-def get_graph(graph, engine=None):
+def get_graph(graph):
     digraph = graphviz.Digraph()
 
     for node_name in graph.instance_nodes:
@@ -18,14 +18,6 @@ def get_graph(graph, engine=None):
             label = input.name
             if label == '':
                 label = '()'
-            # Default inputs have no alias; their edge shows the source.
-            if engine is not None and engine.cache is not None and input.name != '':
-                name = node.name + '.' + input.name
-                if name in engine.program.symbols.variable_aliases:
-                    label += f' = {engine.get_value(name)}'
-                else:
-                    # TODO: Handle this
-                    label += f' = MISSING'
             inputs += f'<TD PORT="{htmlescape(input.name)}">{htmlescape(label)}</TD>'
         if inputs != '':
             inputs = f'''
@@ -41,13 +33,6 @@ def get_graph(graph, engine=None):
             label = output.name
             if label == '':
                 label = '()'
-            if engine is not None and engine.cache is not None:
-                name = node.name + '.' + output.name if output.name else node.name
-                if name in engine.program.symbols.variable_aliases:
-                    label += f' = {engine.get_value(name)}'
-                else:
-                    # TODO: Handle this
-                    label += f' = MISSING'
             outputs += f'<TD PORT="{htmlescape(output.name)}">{htmlescape(label)}</TD>'
         if outputs != '':
             outputs = f'''

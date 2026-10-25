@@ -16,7 +16,7 @@ import wirely.compiler
 from wirely.program import RunStage
 from wirely.runtime.engine import Engine
 from wirely.runtime.native_api import NativeProcedure
-from tests.infra.support import test_extension, test_contracts
+from tests.infra.support import send_event_text, test_extension, test_contracts
 from wirely.runtime.signatures import Builtin, Enum, Int, Opaque
 from wirely.types.value_types import NativeEnum, NativeOpaque, NativeStruct, OpenIntEnum
 import wirely.generated.structs
@@ -554,7 +554,7 @@ def check_events():
         probe.assert_value_is('probe', None)
         source = probe.get_native_state('source')
         for send in [lambda: source.send_event(event),
-                     lambda: source.debug_command(['send', command])]:
+                     lambda: send_event_text(source, command)]:
             send()
             probe.step()
             probe.assert_value_is('probe', event)

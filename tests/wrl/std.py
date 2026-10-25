@@ -2,6 +2,7 @@ import contextlib
 import io
 
 import wirely
+from tests.infra.support import send_event_text
 
 engine.get_native_state('in').set_value(False)
 engine.get_native_state('initial_true').set_value(True)
@@ -87,7 +88,7 @@ assert step_output() == 'Warning: [w_bool]: Bool warning true!\n'
 assert step_output() == ''
 engine.assert_is_idle()
 
-engine.get_native_state('edge_events').debug_command(['send', 'Falling'])
+send_event_text(engine.get_native_state('edge_events'), 'Falling')
 assert step_output() == 'Warning: [w_edge]: Edge Std.EdgeType.Falling\n'
 assert step_output() == ''
 engine.assert_is_idle()

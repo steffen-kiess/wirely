@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 
 import wirely.native.mqtt
+from tests.infra.support import send_event_text
 
 # mosquitto_sub -v -t '#'
 
@@ -217,13 +218,13 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('enum_event_source').debug_command(['send', 'Off'])
+            send_event_text(engine.get_native_state('enum_event_source'), 'Off')
             await expect_msgs()
 
             engine.step()
             await expect_msgs(('test/t5', b'"off"'))
 
-            engine.get_native_state('enum_event_source').debug_command(['send', 'Off'])
+            send_event_text(engine.get_native_state('enum_event_source'), 'Off')
             await expect_msgs()
 
             engine.step()
@@ -232,7 +233,7 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('enum_event_source').debug_command(['send', 'EmergencyHeat'])
+            send_event_text(engine.get_native_state('enum_event_source'), 'EmergencyHeat')
             await expect_msgs()
 
             engine.step()
@@ -252,13 +253,13 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('template_event_source').debug_command(['send', 'Off'])
+            send_event_text(engine.get_native_state('template_event_source'), 'Off')
             await expect_msgs()
 
             engine.step()
             await expect_msgs(('test/t5', b'{"value": "off", "other": "%s"}'))
 
-            engine.get_native_state('template_event_source').debug_command(['send', 'Off'])
+            send_event_text(engine.get_native_state('template_event_source'), 'Off')
             await expect_msgs()
 
             engine.step()
@@ -267,7 +268,7 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('template_event_source').debug_command(['send', 'EmergencyHeat'])
+            send_event_text(engine.get_native_state('template_event_source'), 'EmergencyHeat')
             await expect_msgs()
 
             engine.step()

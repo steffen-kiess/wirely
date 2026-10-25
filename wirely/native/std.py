@@ -1,4 +1,3 @@
-from collections.abc import Sequence
 from typing import Any, Literal
 
 import wirely
@@ -120,23 +119,6 @@ class DebugValueSourceCreate(contracts.DebugValueSourceCreate):
         self._set(_decode_value(self.value_type, argument))
         return {}
 
-    def debug_command(self, parameters: Sequence[str]) -> None:
-        if len(parameters) == 0:
-            raise Exception('Missing command')
-        cmd = parameters[0]
-
-        if cmd == 'set':
-            if len(parameters) != 2:
-                raise Exception(f'Invalid number of parameter for command {cmd}')
-            self._set(self.value_type.parse(parameters[1]))
-        elif cmd == 'get':
-            if len(parameters) != 1:
-                raise Exception(f'Invalid number of parameter for command {cmd}')
-            value = self.current_value
-            print(f'Current value of {self.services.name} is {value!r}', flush=True)
-        else:
-            raise Exception(f'Unknown command: {parameters!r}')
-
 
 class DebugValueSourceRun(contracts.DebugValueSourceRun):
     def prepare(self, *, services: PreparationServices, state: 'DebugValueSourceCreate', type: ValueType[Any]) -> None:
@@ -183,23 +165,6 @@ class DebugEventSourceCreate(contracts.DebugEventSourceCreate):
             raise CommandFailed('An event is already queued', reason=1)
         self._send(wirely.Some(payload))
         return {}
-
-    def debug_command(self, parameters: Sequence[str]) -> None:
-        if len(parameters) == 0:
-            raise Exception('Missing command')
-        cmd = parameters[0]
-
-        if cmd == 'send':
-            if len(parameters) != 2:
-                raise Exception(f'Invalid number of parameter for command {cmd}')
-            self._send(wirely.Some(self.value_type.parse(parameters[1])))
-        elif cmd == 'get':
-            if len(parameters) != 1:
-                raise Exception(f'Invalid number of parameter for command {cmd}')
-            next_value = self.next_value
-            print(f'Next value of {self.services.name} is {next_value!r}', flush=True)
-        else:
-            raise Exception(f'Unknown command: {parameters!r}')
 
 
 class DebugEventSourceRun(contracts.DebugEventSourceRun):
