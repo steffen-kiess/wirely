@@ -261,7 +261,7 @@ class Engine:
 
     def step(self) -> tuple[int, int, StepContext]:
         if self.debug:
-            print(f'Starting step of {self.program.symbols.name}')
+            print(f'Starting step of {self.program.symbols.name}', flush=True)
         self.next_wakeup = None
         cache = self.cache
         state_old = self.state  # Snapshot read throughout this step.
@@ -331,7 +331,7 @@ class Engine:
                         self.update_next_wakeup(now, self.wakeups[key])
                     continue
                 if self.debug:
-                    print(f'Running procedure {proc.name}')
+                    print(f'Running procedure {proc.name}', flush=True)
                 run_count += 1
                 self.triggered_procs.discard(key)
                 if proc.native is not None:
@@ -373,7 +373,7 @@ class Engine:
         self.state = state_new
         self.step_count += 1
         if self.debug:
-            print(f'Finished step of {self.program.symbols.name}')
+            print(f'Finished step of {self.program.symbols.name}', flush=True)
         self._status_changed()
         return run_count, state_change_count, step_info
 
