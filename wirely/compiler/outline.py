@@ -37,7 +37,7 @@ from .ast.values import Reference
 from .ast.procedures import Port as AstPort
 from . import attributes as _attributes
 from .diagnostics import Diagnostic
-from .sources import ParseCache
+from .sources import ParseCache, SourceError, parse_source, standard_library_cache, standard_library_texts
 
 
 @dataclass(frozen=True)
@@ -417,8 +417,6 @@ def outline(sources: Iterable[tuple[str, str]], *, add_std: bool = False, cache:
 def parse(sources: Iterable[tuple[str, str]], *,
           add_std: bool = False, cache: ParseCache | None = None) -> tuple[tuple[SourceFile, ...], list[tuple[str, _attributes.ParsedFile]]]:
     """Return the file records and the (filename, declarations) of files that parse."""
-    from .sources import SourceError, parse_source, standard_library_cache, standard_library_texts
-
     parse = [(filename, text, standard_library_cache.parse_source)
              for filename, text in (standard_library_texts() if add_std else ())]
     parse_user = parse_source if cache is None else cache.parse_source

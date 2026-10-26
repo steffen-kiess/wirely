@@ -14,6 +14,10 @@ from .extensions import NativeTypes, RuntimeNativeExtension
 from .native_api import FunctionBinding, InitializerAdapter, NativeProcedure, NativeState, ProcedureAdapter
 from .procedures import NativeFunction
 from .resources import ResourceType
+from .signatures import (
+    Builtin, Option, TypeVar, ResourceType as SignatureResourceType, describe, matches, validate_function,
+)
+from .value_types import check_opaque_values
 
 if TYPE_CHECKING:
     from .signatures import Initializer, Port, Procedure as SignatureProcedure, SignatureType
@@ -85,7 +89,6 @@ def link_native_structs(program: Program, extension: RuntimeNativeExtension) -> 
 
 def check_native_struct(struct_type: TypeStruct, native_types: NativeTypes) -> None:
     """Check a native or opaque struct against an implementation; raise ValueError on a mismatch."""
-    from .signatures import describe, matches
     name = struct_type.native_name
     assert name is not None
     kind = 'Opaque struct type' if struct_type.is_opaque else 'Native struct type'
@@ -103,7 +106,6 @@ def check_native_struct(struct_type: TypeStruct, native_types: NativeTypes) -> N
 
 def link_opaque_values(program: Program, extension: RuntimeNativeExtension) -> None:
     """Check static and initial values containing opaque structs with their implementations."""
-    from .value_types import check_opaque_values
     values: list[tuple[Type, Any]] = [(constant.value_type, constant.value) for constant in program.constants]
     values += [(variable.var_type, value) for variable, value in program.initial_state.items()]
     for value_type, value in values:
@@ -112,8 +114,6 @@ def link_opaque_values(program: Program, extension: RuntimeNativeExtension) -> N
 
 def link_native_signatures(program: Program, extension: RuntimeNativeExtension) -> None:
     """Check the native interfaces a program uses against the runtime's signatures."""
-    from .signatures import Builtin, Option, TypeVar, ResourceType as SignatureResourceType, describe, matches
-
     def check_keys(where: str, kind: str, actual: Iterable[str], expected: Iterable[str]) -> None:
         if set(actual) != set(expected):
             raise ValueError(f'{where}: {kind} {sorted(actual)!r} do not match the expected {sorted(expected)!r}')
@@ -246,7 +246,6 @@ def bind_native_function(function_name: str, parameter_types: Sequence[Type],
     entry = extension.functions.get(function_name)
     if entry is None:
         raise ValueError(f'Cannot find native function `{function_name}`')
-    from .signatures import validate_function
     validate_function(function_name, entry.signature, parameter_types, return_type)
     implementation = entry.load()
     binding = FunctionBinding(native_types=extension.native_types, name=function_name,

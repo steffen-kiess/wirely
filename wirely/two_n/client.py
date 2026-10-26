@@ -8,6 +8,8 @@ import time
 from collections.abc import AsyncIterator, Callable, Coroutine, Sequence
 from typing import Any
 
+import wirely.misc.service
+
 from . import cert
 
 import aiohttp
@@ -276,8 +278,6 @@ class LogReceiver:
     @contextlib.asynccontextmanager
     async def start_task_context(task_group: asyncio.TaskGroup,
                                  coroutine: Coroutine[Any, Any, object]) -> AsyncIterator[asyncio.Task]:
-        import wirely.misc.service
-
         task = task_group.create_task(wirely.misc.service.should_never_return(coroutine))
         try:
             yield task

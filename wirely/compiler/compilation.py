@@ -13,7 +13,7 @@ from wirely.compiler import model
 from wirely.compiler.diagnostics import Diagnostic, WarningSink, error_diagnostics, print_diagnostic
 from ..runtime.extensions import RuntimeNativeExtension, resolve_extensions
 from .extensions import CompilerNativeExtension, resolve_compiler_extensions
-from .attributes import ParsedFile, ValidatedMetadata
+from .attributes import ParsedFile, ValidatedMetadata, validate_files
 from .sources import (
     ParsedSource, ParseDurations, SourceError, SourceInput, parse_sources, standard_library_cache,
     standard_library_texts,
@@ -135,7 +135,6 @@ def compile_strs(sources: Iterable[SourceInput], *, add_std: bool = False,
 def validate_source_metadata(parsed_files: Sequence[tuple[str | os.PathLike, ParsedFile]],
                              declarations: Iterable[model.Declaration],
                              warnings: WarningSink) -> ValidatedMetadata:
-    from .attributes import validate_files
     from .native_functions import validate_collisions, validate_native_names
 
     metadata = validate_files(parsed_files, warnings=warnings)

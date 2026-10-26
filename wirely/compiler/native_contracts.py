@@ -22,6 +22,7 @@ from typing import Any, TypeVar
 
 import wirely
 from wirely.runtime import signatures
+from wirely.types.integers import integer_class
 
 package_root = Path(wirely.__file__).resolve().parent
 repository_root = package_root.parent
@@ -163,8 +164,6 @@ def class_name(native_name: str) -> str:
 def annotation(signature: signatures.SignatureType | signatures.ResourceType, imports: _Imports,
                resource_classes: Mapping[str, tuple[str, str]], strict: bool = True) -> str:
     """Return the annotation of a value or resource as native code receives it."""
-    from wirely.types.integers import integer_class
-
     if isinstance(signature, signatures.TypeVar):
         return imports.add('wirely.runtime.value_types', 'DynamicValue')
     if isinstance(signature, signatures.Builtin):

@@ -15,7 +15,7 @@ from typing import Any
 
 from PySide6.QtCore import QObject, QPointF, QRect, QRectF, Qt, Signal
 from PySide6.QtGui import (
-    QColor, QContextMenuEvent, QFont, QFontDatabase, QFontMetricsF, QMouseEvent, QPainter, QPainterPath,
+    QColor, QContextMenuEvent, QFont, QFontDatabase, QFontMetricsF, QMouseEvent, QPainter, QPainterPath, QPainterPathStroker,
     QPalette, QPen, QResizeEvent, QTransform, QWheelEvent,
 )
 from PySide6.QtWidgets import (
@@ -380,7 +380,6 @@ class EdgeGraphic(QGraphicsPathItem):
         return super().boundingRect().adjusted(-8, -8, 8, 8)
 
     def shape(self) -> QPainterPath:
-        from PySide6.QtGui import QPainterPathStroker
         stroker = QPainterPathStroker()
         stroker.setWidth(10)
         return stroker.createStroke(self.path())

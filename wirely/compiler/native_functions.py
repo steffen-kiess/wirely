@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from . import model
 from ..runtime.extensions import NativeTypes
+from ..runtime.signatures import validate_function
+from ..runtime.value_types import from_native, to_native
 
 if TYPE_CHECKING:
     from .diagnostics import WarningSink
@@ -190,7 +192,6 @@ def resolve_implementation(function: model.CompiledFunction,
         entry = function.scope.coordinator.global_node_type.compiler_native_extension.functions.get(function.native_name)
         if entry is None:
             raise ValueError(f'Cannot find native function `{function.native_name}`')
-        from ..runtime.signatures import validate_function
         validate_function(function.native_name, entry.signature, function.parameter_types, function.return_type)
         binding = entry.load()
     except (ImportError, TypeError, ValueError) as error:
@@ -201,8 +202,6 @@ def resolve_implementation(function: model.CompiledFunction,
 
 def invoke(function: model.CompiledFunction, values: Sequence[object], sources: Sequence[object],
            call: model.SourceElement) -> object:
-    from wirely.runtime.value_types import from_native, to_native
-
     native_types = function.scope.coordinator.global_node_type.native_extension.native_types
     binding = resolve_implementation(function, call)
     name = function.function_name

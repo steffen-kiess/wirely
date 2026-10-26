@@ -14,6 +14,8 @@ from collections.abc import Callable, Coroutine, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Generic, TypeVar, overload
 
+import wirely.misc.service
+
 from ..program.program import RunStage
 from ..program.types import InternalValue, Type
 from ..types.time import MonotonicTime
@@ -278,8 +280,6 @@ class NativeState(Generic[K]):
     @contextlib.contextmanager
     def start_task_context(task_group: asyncio.TaskGroup,
                            coroutine: Coroutine[Any, Any, object]) -> Iterator[asyncio.Task]:
-        import wirely.misc.service
-
         task = task_group.create_task(wirely.misc.service.should_never_return(coroutine))
         try:
             yield task

@@ -23,6 +23,7 @@ from types import MappingProxyType
 
 from wirely.compiler import model
 from wirely.program import types as _types
+from wirely.runtime.extensions import resolve_extensions
 from . import outline as _outline
 from . import support
 from .ast.specifiers import PortDirection
@@ -327,7 +328,6 @@ def analyze(sources: Iterable[tuple[str, str]], *, add_std: bool = False, cache:
     global_node_type = model.NodeType(model.DeclarationNodeType((), None, tuple(declarations), source_position=position), None)
     global_node_type.services = MappingProxyType({})
     # The built-in implementations of opaque structs parse their literals.
-    from wirely.runtime.extensions import resolve_extensions
     global_node_type.native_extension = resolve_extensions()
     warnings = WarningSink(diagnostics.append)
     coordinator = CompilerCoordinator(global_node_type, diagnostics=diagnostics, warnings=warnings)
