@@ -16,7 +16,7 @@ def make_program():
     procedure = Procedure((), (OutputTarget(VariableBank.TEMPORARIES, variable),), name='source.run', body=ProcedureBody((
         Instruction(Opcode.COPY, (Operand(OperandKind.OUTPUT, 0), ConstOperand(value))),
         Instruction(Opcode.RETURN, ()),
-    )))
+    ), output_count=1))
     return Program(state_variables=VariableTable((), 'state'), temporaries=VariableTable((variable,), 'temporaries'),
                    initial_state={}, procs={RunStage.DEFAULT: (procedure,)}, graph=object(),
                    symbols=ProgramSymbols(name='probe', node_aliases={'alias': 'source'},

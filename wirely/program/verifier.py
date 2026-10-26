@@ -358,7 +358,7 @@ class _Verifier:
                 raise ValueError(f'Unknown variable bank {binding.bank}')
             at(self.variables[binding.bank], binding.variable.value, binding.bank.name or 'Variable')
 
-    def operand_type(self, operand: ValueRef | int, locals_: tuple[int, ...],
+    def operand_type(self, operand: ValueRef | int, locals_: tuple[int, ...], counts: tuple[int, int],
                      inputs: tuple[int, ...] | None, outputs: tuple[int, ...] | None) -> int | None:
         if not isinstance(operand, ValueRef):
             raise ValueError('Expected a value operand')
@@ -369,12 +369,13 @@ class _Verifier:
         elif operand.kind == f.OperandKind.Local:
             index = at(locals_, operand.index, 'LOCAL')
         else:
-            table = inputs if operand.kind == f.OperandKind.Input else outputs
+            is_input = operand.kind == f.OperandKind.Input
+            name = 'INPUT' if is_input else 'OUTPUT'
+            at(range(counts[0] if is_input else counts[1]), operand.index, name)
+            table = inputs if is_input else outputs
             if table is None:
-                if operand.index == UINT32_MAX:
-                    raise ValueError('Operand index is reserved')
                 return None
-            index = at(table, operand.index, 'INPUT' if operand.kind == f.OperandKind.Input else 'OUTPUT')
+            index = at(table, operand.index, name)
         self.runtime_type(index)
         return index
 
@@ -428,21 +429,22 @@ class _Verifier:
              stage: f.RunStage | None = None) -> None:
         record = at(self.bytecode, index, 'BytecodeProcedures')
         locals_ = self.type_list(record.locals)
+        counts = record.input_count, record.output_count
         for value_type in locals_:
             self.runtime_type(value_type)
         for instruction_index, instruction in enumerate(self.file.instructions(index)):
             try:
-                self.instruction(instruction, locals_, inputs, outputs, stage)
+                self.instruction(instruction, locals_, counts, inputs, outputs, stage)
             except VerificationLimitError:
                 raise
             except ValueError as error:
                 raise ValueError(f'BytecodeProcedures[{index}] instruction {instruction_index} at byte {instruction.offset}: {error}') from error
 
-    def instruction(self, instruction: RawInstruction, locals_: tuple[int, ...], inputs: tuple[int, ...] | None,
-                    outputs: tuple[int, ...] | None, stage: f.RunStage | None) -> None:
+    def instruction(self, instruction: RawInstruction, locals_: tuple[int, ...], counts: tuple[int, int],
+                    inputs: tuple[int, ...] | None, outputs: tuple[int, ...] | None, stage: f.RunStage | None) -> None:
         opcode, operands = instruction.opcode, instruction.operands
         self.charge(1 + len(operands))
-        operand_types = [self.operand_type(item, locals_, inputs, outputs) if isinstance(item, ValueRef) else None
+        operand_types = [self.operand_type(item, locals_, counts, inputs, outputs) if isinstance(item, ValueRef) else None
                          for item in operands]
         if opcode == f.Opcode.FAIL:
             assert isinstance(operands[0], int) and isinstance(operands[1], int)
@@ -615,6 +617,9 @@ class _Verifier:
                         if len(inputs) != native.input_names.count_ or len(outputs) != native.output_names.count_:
                             raise ValueError('Native binding counts do not match interface names')
                     else:
+                        bytecode = at(self.bytecode, record.bytecode.value, 'BytecodeProcedures')
+                        if len(inputs) != bytecode.input_count or len(outputs) != bytecode.output_count:
+                            raise ValueError('Bytecode binding counts do not match the procedure')
                         input_types = tuple(self.variables[item.bank][item.variable.value].value_type.value for item in inputs)
                         output_types = tuple(self.variables[item.bank][item.variable.value].value_type.value for item in outputs)
                         for index in (*input_types, *output_types):

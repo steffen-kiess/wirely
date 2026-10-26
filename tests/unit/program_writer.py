@@ -399,7 +399,7 @@ def check_stage_order():
     bound = Constant(types.uint64, 4)
     converted = Constant(types.uint64, 5)
     body = ProcedureBody((instruction(Opcode.CONVERT_WRAPPING, local(0), ConstOperand(converted)),
-                          instruction(Opcode.RETURN)), (types.uint64,))
+                          instruction(Opcode.RETURN)), (types.uint64,), input_count=1)
     first = Procedure((InputSource(VariableBank.CONST_VALUES, constant=bound),), (), name='first.run', body=body)
     following = Constant(types.uint64, 6)
     second = Procedure((InputSource(VariableBank.CONST_VALUES, constant=following),), (), name='second.run',

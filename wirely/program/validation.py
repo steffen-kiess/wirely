@@ -62,6 +62,8 @@ def _validate_body(procedure: Procedure, stage: RunStage) -> None:
     body = procedure.body
     if not isinstance(body, ProcedureBody):
         raise ValueError('Expected a ProcedureBody')
+    if len(procedure.inputs) != body.input_count or len(procedure.outputs) != body.output_count:
+        raise ValueError('Bytecode binding counts do not match the procedure')
     if any(source.resource is not None for source in procedure.inputs) or any(
             target.variable.is_resource for target in procedure.outputs):
         raise ValueError('Bytecode procedures cannot access resources')

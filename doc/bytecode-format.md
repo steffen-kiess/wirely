@@ -710,8 +710,9 @@ example through a wakeup; the mechanism is part of the runtime's native
 interface.
 
 A bytecode procedure instance executes its instruction stream. Its inputs,
-outputs, and locals have runtime types. Operands `input.N` and `output.N`
-select entry N of the instance's `Inputs` and `Outputs` ranges.
+outputs, and locals have runtime types. Its `Inputs` and `Outputs` ranges
+have the procedure's `InputCount` and `OutputCount` entries, and operands
+`input.N` and `output.N` select entry N.
 
 Load procedures read const values and fixed values and write fixed values.
 Runtime procedures write temporaries and new state. Each fixed value,
@@ -823,12 +824,17 @@ temporary.
 ### BytecodeProcedures
 
 ```wirely
-// An instruction stream and its locals. BytecodeProcedures table.
+// An instruction stream, its locals, and its interface.
+// BytecodeProcedures table.
 struct type BytecodeProcedure {
   // Byte range in ProcedureCode; the instruction stream.
   Code: ByteRange,
   // Range into TypeLists; local.N has the type of entry N.
   Locals: Range,
+  // Number of inputs; operands input.N have N < InputCount.
+  InputCount: uint32,
+  // Number of outputs; operands output.N have N < OutputCount.
+  OutputCount: uint32,
 }
 ```
 
@@ -1375,17 +1381,17 @@ After the pass, every bit is set.
 
 Every bytecode procedure's instruction stream is structurally checked
 from its start, including unreferenced procedures. Opcodes, operand kinds,
-canonical encodings, instruction boundaries, and control flow are checked
-without an instance. Branches only go forward, so a branch target can be
-confirmed when decoding reaches it, using one bit per code byte or by
-decoding ahead.
+operand indices, canonical encodings, instruction boundaries, and control
+flow are checked without an instance. Branches only go forward, so a
+branch target can be confirmed when decoding reaches it, using one bit per
+code byte or by decoding ahead.
 
 Full verification checks every bytecode procedure instance, using its
-binding ranges and types and its scheduled stage. Operand indices,
-immediate values, operand types, and writable destinations must be valid
-in that context. For `FAIL`, the instance is in the `Load` stage, its
-format index selects a constant `List[string]` of the required length,
-and each specification is supported for the corresponding value type.
+binding ranges and types and its scheduled stage. Immediate values,
+operand types, and writable destinations must be valid in that context.
+For `FAIL`, the instance is in the `Load` stage, its format index selects
+a constant `List[string]` of the required length, and each specification
+is supported for the corresponding value type.
 All instructions are checked, including unreachable ones. Structural
 decoding and compatible contextual checks can be shared across instances;
 an unreferenced bytecode procedure has no instance context for full
@@ -1414,11 +1420,12 @@ contains the transition's own `ValueTypes`, `TypeLists`, `NativeNames`,
 stages, procedure instances, bindings, or variable tables.
 
 The transition procedure reads the old program's state and writes the new
-program's state. Operand `input.N` reads entry N of the old program's
-`StateVariables`, and `output.N` writes entry N of the new program's
-`StateVariables`. The procedure can use locals like any bytecode procedure.
-Outputs start with their type's default, so the procedure writes every new
-state value that differs from it.
+program's state. Its `InputCount` and `OutputCount` are the lengths of the
+old and new programs' `StateVariables`. Operand `input.N` reads entry N of
+the old program's `StateVariables`, and `output.N` writes entry N of the
+new program's `StateVariables`. The procedure can use locals like any
+bytecode procedure. Outputs start with their type's default, so the
+procedure writes every new state value that differs from it.
 
 | Section | Record type | Layout |
 | --- | --- | --- |

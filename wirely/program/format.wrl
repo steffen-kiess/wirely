@@ -348,12 +348,17 @@ struct type VariableRef {
   Variable: Ref,
 }
 
-// An instruction stream and its locals. BytecodeProcedures table.
+// An instruction stream, its locals, and its interface.
+// BytecodeProcedures table.
 struct type BytecodeProcedure {
   // Byte range in ProcedureCode; the instruction stream.
   Code: ByteRange,
   // Range into TypeLists; local.N has the type of entry N.
   Locals: Range,
+  // Number of inputs; operands input.N have N < InputCount.
+  InputCount: uint32,
+  // Number of outputs; operands output.N have N < OutputCount.
+  OutputCount: uint32,
 }
 
 // A native function called by bytecode procedures.

@@ -350,7 +350,8 @@ class _Writer:
         bytecode = []
         for body in self.bodies.values():
             data = self.code(body)
-            bytecode.append(fmt.BytecodeProcedure(fmt.ByteRange(len(code), len(data)), self.types.type_list(body.local_types)))
+            bytecode.append(fmt.BytecodeProcedure(fmt.ByteRange(len(code), len(data)), self.types.type_list(body.local_types),
+                                                  body.input_count, body.output_count))
             code += data
         table(fmt.SectionType.BytecodeProcedures, fmt.RecordType.BytecodeProcedure, bytecode)
         buffer(fmt.SectionType.ProcedureCode, code)

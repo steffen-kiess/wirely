@@ -155,6 +155,8 @@ def _operand_text(operand: object) -> str:
 class ProcedureBody:
     instructions: tuple[Instruction, ...]
     local_types: tuple[Type, ...] = ()
+    input_count: int = 0  # Number of inputs; instances bind exactly this many.
+    output_count: int = 0  # Number of outputs; instances bind exactly this many.
 
     def __post_init__(self) -> None:
         object.__setattr__(self, 'instructions', tuple(self.instructions))

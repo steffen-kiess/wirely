@@ -1066,7 +1066,7 @@ class InstructionCompiler:
         if expression.runtime:
             self.compile(expression)
         self.emit(Opcode.RETURN)
-        return ProgramBody(tuple(self.instructions), tuple(self.local_types))
+        return ProgramBody(tuple(self.instructions), tuple(self.local_types), len(self.inputs), len(self.outputs))
 
 
 OPTIONAL_RUNTIME_MESSAGE = 'optional requires an optional parameter without a default or a single event dependency'

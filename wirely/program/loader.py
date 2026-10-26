@@ -262,7 +262,8 @@ class _Loader:
             instructions.append(Instruction(opcode, tuple(operands)))
         key = index, tuple(immediate_types)
         if key not in self.resolved_bodies:
-            self.resolved_bodies[key] = ProcedureBody(tuple(instructions), locals_)
+            record = self.bytecode[index]
+            self.resolved_bodies[key] = ProcedureBody(tuple(instructions), locals_, record.input_count, record.output_count)
         return self.resolved_bodies[key]
 
     @overload

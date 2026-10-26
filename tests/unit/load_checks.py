@@ -247,9 +247,12 @@ def check_validation():
     validate_program(make_program((Instruction(Opcode.JUMP, (BranchTarget(1),)), fail)))
     with checks.assertRaisesRegex(ValueError, 'end in RETURN or FAIL'):
         validate_program(make_program(()))
+    bound = replace(procedure, inputs=(InputSource(VariableBank.CONST_VALUES, constant=format_constant),))
+    with checks.assertRaisesRegex(ValueError, 'binding counts'):
+        validate_program(replace(program, procs={RunStage.LOAD: (bound,)}))
     with checks.assertRaisesRegex(ValueError, 'resolved runtime type'):
         validate_program(replace(program, procs={RunStage.LOAD: (replace(
-            procedure, inputs=(InputSource(VariableBank.CONST_VALUES, constant=format_constant),)),)}))
+            bound, body=replace(procedure.body, input_count=1)),)}))
 
 
 async def run_test():

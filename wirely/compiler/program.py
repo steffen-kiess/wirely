@@ -25,7 +25,7 @@ from wirely.program.program import (
 COPY_BODY = ProcedureBody((
     Instruction(Opcode.COPY, (Operand(OperandKind.OUTPUT, 0), Operand(OperandKind.INPUT, 0))),
     Instruction(Opcode.RETURN),
-))
+), input_count=1, output_count=1)
 
 
 def cycle_error(element: model.SourceElement, message: str,

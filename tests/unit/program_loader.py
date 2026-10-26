@@ -439,9 +439,9 @@ node store: Store {}
 def check_shared_bodies():
     flag, number = Variable(types.boolean), Variable(types.int8)
     first = Procedure((), (OutputTarget(VariableBank.TEMPORARIES, flag),), name='first.run', body=ProcedureBody((
-        instruction(Opcode.COPY, Operand(OperandKind.OUTPUT, 0), const(types.boolean, True)), instruction(Opcode.RETURN))))
+        instruction(Opcode.COPY, Operand(OperandKind.OUTPUT, 0), const(types.boolean, True)), instruction(Opcode.RETURN)), output_count=1))
     second = Procedure((), (OutputTarget(VariableBank.TEMPORARIES, number),), name='second.run', body=ProcedureBody((
-        instruction(Opcode.COPY, Operand(OperandKind.OUTPUT, 0), const(types.int8, -1)), instruction(Opcode.RETURN))))
+        instruction(Opcode.COPY, Operand(OperandKind.OUTPUT, 0), const(types.int8, -1)), instruction(Opcode.RETURN)), output_count=1))
     data = write_program(program(temporaries=(flag, number), procs=((RunStage.DEFAULT, (first, second)),)))
 
     def share(section):
@@ -459,12 +459,13 @@ def check_shared_bodies():
     assert machine.cache[left.outputs[0].variable] is True
     assert machine.cache[right.outputs[0].variable] == -1
     copy = ProcedureBody((instruction(Opcode.COPY, Operand(OperandKind.OUTPUT, 0), Operand(OperandKind.INPUT, 0)),
-                          instruction(Opcode.RETURN)))
+                          instruction(Opcode.RETURN)), input_count=1, output_count=1)
     first = replace(first, inputs=(InputSource(VariableBank.CONST_VALUES, constant=Constant(types.boolean, True)),), body=copy)
     second = replace(second, inputs=(InputSource(VariableBank.CONST_VALUES, constant=Constant(types.int8, -1)),), body=copy)
     loaded = roundtrip(program(temporaries=(flag, number), procs=((RunStage.DEFAULT, (first, second)),)))
     left, right = loaded.procs[RunStage.DEFAULT]
     assert left.body is right.body  # No immediates need specializing.
+    assert (left.body.input_count, left.body.output_count) == (1, 1)
 
 
 def check_budgets():
@@ -512,7 +513,7 @@ def check_malformed():
         image = write_program(body_program((instruction(Opcode.RETURN),), (types.boolean,)))
         image = replace_data(image, fmt.SectionType.ProcedureCode, code)
         image = replace_data(image, fmt.SectionType.BytecodeProcedures,
-                             pack_record(fmt.BytecodeProcedure(fmt.ByteRange(0, len(code)), fmt.Range(fmt.Ref(0), 1))))
+                             pack_record(fmt.BytecodeProcedure(fmt.ByteRange(0, len(code)), fmt.Range(fmt.Ref(0), 1), 0, 0)))
         with checks.assertRaisesRegex(ValueError, message):
             load_program(image)
     image = write_program(body_program((instruction(Opcode.COPY, local(0), const(types.uint8, 1)),
@@ -523,7 +524,7 @@ def check_malformed():
     oversized = b'\x01\x40\x1e\x00\x01\x22'  # Immediate 256 does not fit uint8.
     oversized_image = replace_data(image, fmt.SectionType.ProcedureCode, oversized)
     oversized_image = replace_data(oversized_image, fmt.SectionType.BytecodeProcedures,
-                                   pack_record(fmt.BytecodeProcedure(fmt.ByteRange(0, len(oversized)), fmt.Range(fmt.Ref(0), 1))))
+                                   pack_record(fmt.BytecodeProcedure(fmt.ByteRange(0, len(oversized)), fmt.Range(fmt.Ref(0), 1), 0, 0)))
     with checks.assertRaisesRegex(ValueError, 'instruction 0'):
         load_program(oversized_image)
     # The verifier checks a type-valued constant's reference.

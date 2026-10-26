@@ -45,7 +45,7 @@ def make_program(instructions, *, local_types=(), output_types=(types.boolean,),
         name='test.run',
         inputs=tuple(InputSource(VariableBank.OLD_STATE, variable) for variable in state),
         outputs=tuple(OutputTarget(VariableBank.TEMPORARIES, variable) for variable in outputs),
-        body=ProcedureBody(instructions, local_types),
+        body=ProcedureBody(instructions, local_types, len(inputs), len(output_types)),
     )
     return Program(
         state_variables=VariableTable(state, 'state'),

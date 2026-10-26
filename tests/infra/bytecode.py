@@ -137,6 +137,8 @@ class _Matcher:
         assert (old.body is None) == (new.body is None), f'{where}: implementation changed'
         if old.body is None or new.body is None:
             return
+        assert ((old.body.input_count, old.body.output_count)
+                == (new.body.input_count, new.body.output_count)), f'{where}: interface changed'
         assert len(old.body.local_types) == len(new.body.local_types), f'{where}: locals changed'
         for index, (old_type, new_type) in enumerate(zip(old.body.local_types, new.body.local_types)):
             self.type_pair(old_type, new_type, f'{where} local {index}')

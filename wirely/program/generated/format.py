@@ -329,6 +329,8 @@ class VariableRef(NamedTuple):
 class BytecodeProcedure(NamedTuple):
     code: ByteRange
     locals: Range
+    input_count: int
+    output_count: int
 
 
 # NativeFunction in wirely/program/format.wrl
@@ -673,6 +675,8 @@ _types['VariableRef'] = TypeStruct('VariableRef', {
 _types['BytecodeProcedure'] = TypeStruct('BytecodeProcedure', {
     'Code': _types['ByteRange'],
     'Locals': _types['Range'],
+    'InputCount': uint32,
+    'OutputCount': uint32,
 })
 _types['NativeFunction'] = TypeStruct('NativeFunction', {
     'Name': _types['StringRef'],

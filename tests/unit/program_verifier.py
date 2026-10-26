@@ -299,12 +299,18 @@ def check_code():
     base = write_program(program())
     base = replace_data(base, f.SectionType.ProcedureCode, b'\xff')
     base = replace_data(base, f.SectionType.BytecodeProcedures,
-                        pack_record(f.BytecodeProcedure(f.ByteRange(0, 1), f.Range(f.Ref(0), 0))))
+                        pack_record(f.BytecodeProcedure(f.ByteRange(0, 1), f.Range(f.Ref(0), 0), 0, 0)))
     reject(base, 'Unknown opcode')
-    # With no instance, input and output bounds have no contextual type information.
+    # With no instance, input and output operands are checked against the procedure's counts only.
     base = replace_data(base, f.SectionType.ProcedureCode, b'\x01\x80\x60\x22')
     base = table_change(base, f.SectionType.BytecodeProcedures, f.BytecodeProcedure, 0, code=f.ByteRange(0, 4))
-    verify_program(base)
+    reject(base, 'OUTPUT index 0')
+    reject(table_change(base, f.SectionType.BytecodeProcedures, f.BytecodeProcedure, 0, output_count=1), 'INPUT index 0')
+    verify_program(table_change(base, f.SectionType.BytecodeProcedures, f.BytecodeProcedure, 0,
+                                input_count=1, output_count=1))
+    # An instance binds exactly the procedure's number of inputs and outputs.
+    reject(table_change(code_image(b'\x22'), f.SectionType.BytecodeProcedures, f.BytecodeProcedure, 0,
+                        input_count=1), 'binding counts')
     # Equal-looking type records retain distinct identities in the file.
     data = bound_constants(Constant(types.uint8, 7))
     original_types = next(section.data for section in SectionList.from_bytes(data).sections if section.section_type == f.SectionType.ValueTypes)
@@ -312,7 +318,7 @@ def check_code():
     data = replace_data(data, f.SectionType.TypeLists, pack_record(f.TypeEntry(f.Ref(1))))
     data = replace_data(data, f.SectionType.ProcedureCode, b'\x01\x40\x20\x22')
     data = replace_data(data, f.SectionType.BytecodeProcedures,
-                        pack_record(f.BytecodeProcedure(f.ByteRange(0, 4), f.Range(f.Ref(0), 1))))
+                        pack_record(f.BytecodeProcedure(f.ByteRange(0, 4), f.Range(f.Ref(0), 1), 0, 0)))
     data = table_change(data, f.SectionType.ProcedureInstances, f.ProcedureInstance, 0,
                         bytecode=f.OptionalRef(0), native=f.OptionalRef(0xffffffff), inputs=f.Range(f.Ref(0), 0))
     reject(data, 'type indices')
@@ -367,7 +373,7 @@ def check_limits_and_independence():
         verify_program(shared, max_steps=5000)
     # A small shared stream can have many distinct instance type contexts.
     body = ProcedureBody((instruction(Opcode.SET_DEFAULT, local(0)),) * 1000
-                         + (instruction(Opcode.RETURN),), (types.boolean,))
+                         + (instruction(Opcode.RETURN),), (types.boolean,), input_count=1)
     procedures = []
     for index in range(50):
         enum = types.TypeEnum(f'E{index}', {'Zero': 0}, is_open=False, underlying_type=types.uint8)
