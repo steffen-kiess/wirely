@@ -1,4 +1,5 @@
 // See Matter Application Cluster Specification
+#[JSON]
 open enum type ThermostatSystemModeEnum: uint8 {
   Off = 0,
   Auto = 1,

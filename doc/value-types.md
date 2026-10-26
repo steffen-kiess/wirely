@@ -348,17 +348,21 @@ Serialization support is used by library nodes such as MQTT providers and
 | `boolean` | Boolean | `false` or `true` |
 | All integer types | Number | Decimal integer |
 | `string` | string | No |
-| Declared enums | Member name; number for an unnamed open value | No |
+| Enums with `#[JSON]` | Member name; number for an unnamed open value | No |
 | `unit`, `Std.Duration`, `Schedule.TimeOfDay`, `Timer.MonotonicTime`, `type`, structs | No | No |
 | `Option[T]` | No direct type-level conversion | Supported when `T` supports CSV |
 | `List[T]` | No | No |
 
-For enums, the default JSON format encodes and decodes names such as
+Enums opt in with `#[JSON]`; without it they do not support JSON conversion.
+For enabled enums, the default JSON format encodes and decodes names such as
 `"Enabled"` and `"StandbyMode"`. Encoding with `Format = "SnakeCase"` uses
 strings such as `"enabled"` and `"standby_mode"`. Use the default format for
 receiving named enum values. Unnamed open values encode as JSON numbers;
 open enums also accept numbers when decoding. Text parsing accepts member
-names and, for open enums, decimal numbers.
+names and, for open enums, decimal numbers. A member's
+`#[JSON.Name = "external_name"]` replaces its JSON name for encoding and
+decoding, including before SnakeCase formatting. Text parsing and display
+use the declared member names.
 
 For CSV, an absent optional value becomes an empty field; a present value
 uses the inner type's conversion. MQTT's `ValueOptionProvider` handles

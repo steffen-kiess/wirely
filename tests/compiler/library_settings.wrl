@@ -65,20 +65,26 @@ node knx_unix: KNXSettings { Protocol: KNX.Protocol.Unix }
 node knx_auto: KNXSettings { Protocol: KNX.Protocol.Auto }
 node knx_inferred: KNXSettings { UnixPath: "/unused" }
 
+#[JSON]
+closed enum type PublishEdge {
+  Falling,
+  Rising,
+}
+
 node type MQTTSettings {
   optional parameter Format: MQTT.Format;
   optional parameter Template: string;
   input Broker: fixed MQTT.Broker;
-  default input: value Std.EdgeType;
+  default input: value PublishEdge;
   node output: MQTT.ValueProvider {
-    Topic: "unused", Type: Std.EdgeType,
+    Topic: "unused", Type: PublishEdge,
     Format?: optional(Format),
     Template?: optional(Template),
   }
   connect Broker -> output.Broker;
   connect default input -> output;
 }
-node enum_input: Std.Constant { Type: Std.EdgeType, Value: Std.EdgeType.Falling }
+node enum_input: Std.Constant { Type: PublishEdge, Value: PublishEdge.Falling }
 node broker: MQTT.Connection { URI: "mqtt://localhost" }
 node mqtt_omitted: MQTTSettings {}
 node mqtt_default: MQTTSettings { Format: MQTT.Format.Default }

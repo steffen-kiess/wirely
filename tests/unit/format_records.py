@@ -179,4 +179,29 @@ check_invalid_values()
 
 
 async def run_test():
-    pass
+    from wirely.compiler.compilation import compile_strs
+    from wirely.compiler.native_contracts import generate_format_records
+
+    graph = compile_strs([('<json-records>', '''
+#[JSON]
+closed enum type Mode {
+  #[JSON.Name = "heat"] Heat,
+}
+closed enum type Plain { Off, }
+#[JSON]
+struct type Record {
+  #[JSON.Name = "mode"] Mode: Mode,
+}
+struct type Empty { #![JSON] }
+struct type PlainRecord { Value: uint8, }
+''')], add_std=False)
+    assert graph is not None
+    namespace = {'__name__': '_json_records'}
+    exec(generate_format_records(graph), namespace)
+    mode = namespace['enum_types'][namespace['Mode']]
+    assert mode.is_json_serializable and mode.json_encode(0, None) == 'heat'
+    assert not namespace['enum_types'][namespace['Plain']].is_json_serializable
+    records = namespace['record_types']
+    assert records[namespace['Record']].json_names == ('mode',)
+    assert records[namespace['Empty']].json_names == ()
+    assert records[namespace['PlainRecord']].json_names is None

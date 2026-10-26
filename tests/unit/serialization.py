@@ -126,7 +126,8 @@ def check_scalar_codecs():
         for bits in (8, 16, 32, 64, 128):
             underlying = getattr(wirely.program.types, ('int' if signed else 'uint') + str(bits))
             members = {'Minimum': underlying.min_value, 'Maximum': underlying.max_value}
-            descriptor = wirely.program.types.TypeEnum('Boundary', members, is_open=True, underlying_type=underlying)
+            descriptor = wirely.program.types.TypeEnum('Boundary', members, is_open=True, underlying_type=underlying,
+                                                       is_json_serializable=True)
             assert descriptor.json_encode(underlying.max_value, None) == 'Maximum'
             assert descriptor.json_decode('Minimum', None) == underlying.min_value
             for number in (underlying.min_value, 0, 7, underlying.max_value):

@@ -78,7 +78,7 @@ def check_parsing_and_conversions():
             value_type.parse(text)
 
     descriptor = value_types.ValueType(wirely.program.types.TypeEnum(
-        'Mode', {'Cool': 3, 'EmergencyHeat': 5}, is_open=True, underlying_type=wirely.program.types.uint8,
+        'Mode', {'Cool': 3, 'EmergencyHeat': 5}, is_open=True, underlying_type=wirely.program.types.uint8, is_json_serializable=True,
     ))
     cool = descriptor.parse('Cool', native_types=builtin_extension.native_types)
     assert cool.to_text(native_types=builtin_extension.native_types) == 'Mode.Cool'
@@ -92,7 +92,7 @@ def check_parsing_and_conversions():
 
 def check_enum_values():
     # Enum values are member numbers; values of another enum type with the same numbers differ.
-    mode_type = wirely.program.types.TypeEnum('Mode', {'Cool': 3, 'Heat': 4}, is_open=True, underlying_type=wirely.program.types.uint8)
+    mode_type = wirely.program.types.TypeEnum('Mode', {'Cool': 3, 'Heat': 4}, is_open=True, underlying_type=wirely.program.types.uint8, is_json_serializable=True)
     descriptor = value_types.ValueType(mode_type)
     cool = descriptor.parse('Cool', native_types=builtin_extension.native_types)
     assert cool == descriptor.json_decode('Cool') and hash(cool) == hash(descriptor.json_decode('Cool'))
@@ -114,7 +114,7 @@ def check_enum_values():
 
     registry = {'Native.Mode': NativeEnum(Mode, is_open=True, underlying_type='uint8')}
     native = value_types.ValueType(wirely.program.types.TypeEnum('Example.Mode', {'Cool': 3, 'Heat': 4}, is_open=True,
-                                                    underlying_type=wirely.program.types.uint8, native_name='Native.Mode'))
+                                                    underlying_type=wirely.program.types.uint8, native_name='Native.Mode', is_json_serializable=True))
     native_types = NativeTypes(enums=registry)
     assert native.parse('Heat', native_types=native_types).extract(native, native_types=native_types) is Mode.Heat
     unknown = native.json_decode(5).to_native(native_types=native_types)
@@ -181,7 +181,7 @@ def check_open_and_closed_enums():
 
     for underlying in (types.int8, types.uint8, types.int128, types.uint128):
         for members in ({}, {'Named': 1}):
-            opened = types.TypeEnum('Open', members, is_open=True, underlying_type=underlying)
+            opened = types.TypeEnum('Open', members, is_open=True, underlying_type=underlying, is_json_serializable=True)
             descriptor = value_types.ValueType(opened)
             assert opened.default_value() == 0
             assert opened.is_open
@@ -200,7 +200,7 @@ def check_open_and_closed_enums():
                 with checks.assertRaises(ValueError):
                     descriptor.json_decode(number)
 
-    opened = types.TypeEnum('Open', {}, is_open=True, underlying_type=types.uint8)
+    opened = types.TypeEnum('Open', {}, is_open=True, underlying_type=types.uint8, is_json_serializable=True)
     nested_type = types.TypeStruct('Packet', {'mode': types.TypeOption(opened)})
     assert nested_type.verify_value((wirely.Some(255),)) == (wirely.Some(255),)
 
@@ -535,13 +535,13 @@ def check_unnamed_types():
         closed.verify_value(3)
     partial = types.TypeEnum(None, {'First': 0}, is_open=False, underlying_type=types.uint8, member_count=2)
     assert partial.to_text(1) == '1' and partial.parse('1') == 1
-    named = types.TypeEnum(None, {'Off': 0, 'On': 1}, is_open=False, underlying_type=types.uint8)
+    named = types.TypeEnum(None, {'Off': 0, 'On': 1}, is_open=False, underlying_type=types.uint8, is_json_serializable=True)
     assert (str(named), named.to_text(1)) == ('enum', 'On')
 
-    # JSON names are separate from member and field names and default to them.
+    # Enabled enums default to member names; struct metadata requires explicit names.
     assert named.json_names == {0: 'Off', 1: 'On'} and named.json_encode(1, None) == 'On'
     level = types.TypeEnum('Level', {'Low': 0}, is_open=True, underlying_type=types.uint8,
-                           json_names={0: 'low', 5: 'high'})
+                           json_names={0: 'low', 5: 'high'}, is_json_serializable=True)
     assert (level.json_encode(5, None), level.json_encode(0, None), level.json_encode(7, None)) == ('high', 'low', 7)
     assert (level.json_decode('high', None), level.json_decode('7', None), level.to_text(5)) == (5, 7, '5')
     with checks.assertRaisesRegex(ValueError, 'Unknown member'):
@@ -549,7 +549,23 @@ def check_unnamed_types():
     assert closed.json_names == {} and point.json_names is None
     renamed = types.TypeStruct('Pair', {'flag': types.boolean}, json_names=('Flag',))
     assert renamed.json_names == ('Flag',)
-    assert types.TypeStruct('Pair', {'flag': types.boolean}).json_names == ('flag',)
+    assert types.TypeStruct('Pair', {'flag': types.boolean}).json_names is None
+
+
+def check_json_defaults():
+    from wirely.program import types
+
+    mode = types.TypeEnum('Plain', {'Off': 0}, is_open=False, underlying_type=types.uint8)
+    descriptor = value_types.ValueType(mode)
+    assert not descriptor.supports_json and mode.json_names == {}
+    with checks.assertRaises(ValueError):
+        descriptor.json_decode('Off')
+    with checks.assertRaises(ValueError):
+        descriptor.parse('Off', native_types=builtin_extension.native_types).json_encode()
+    record = types.TypeStruct('Record', {'mode': mode})
+    assert record.json_names is None and not value_types.ValueType(record).supports_json
+    assert types.TypeStruct('Empty', {}).json_names is None
+    assert types.TypeStruct('Empty', {}, json_names=()).json_names == ()
 
 
 def check_default_values():
@@ -739,4 +755,5 @@ check_immutability()
 
 
 async def run_test():
+    check_json_defaults()
     pass

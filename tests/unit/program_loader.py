@@ -201,12 +201,12 @@ def check_code():
 
 
 def check_stripped_types_and_state():
-    mode = types.TypeEnum('Mode', {'Off': 0, 'On': 1}, is_open=False, underlying_type=types.uint8)
+    mode = types.TypeEnum('Mode', {'Off': 0, 'On': 1}, is_open=False, underlying_type=types.uint8, is_json_serializable=True)
     signed = types.TypeEnum('Signed', {'Negative': -3}, is_open=True, underlying_type=types.int16)
-    pair = types.TypeStruct('Pair', {'flag': types.boolean, 'mode': mode})
-    other = types.TypeStruct('Pair', {'flag': types.boolean, 'mode': mode})
+    pair = types.TypeStruct('Pair', {'flag': types.boolean, 'mode': mode}, json_names=('flag', 'mode'))
+    other = types.TypeStruct('Pair', {'flag': types.boolean, 'mode': mode}, json_names=('flag', 'mode'))
     variables = (Variable(pair), Variable(other), Variable(signed),
-                 Variable(types.TypeStruct('Empty', {})))
+                 Variable(types.TypeStruct('Empty', {}, json_names=())))
     original = state_program(variables, dict(zip(variables, ((True, 1), (False, 0), -3, ()))))
     loaded = roundtrip(original)
     state = list(loaded.state_variables.offsets)
@@ -227,7 +227,7 @@ def check_stripped_types_and_state():
 
 def symbol_program():
     mode = types.TypeEnum('Example.Mode', {'Off': 0, 'On': 1}, is_open=False,
-                          underlying_type=types.uint8, json_names={0: 'off', 1: 'on'})
+                          underlying_type=types.uint8, json_names={0: 'off', 1: 'on'}, is_json_serializable=True)
     packet = types.TypeStruct('Example.Packet', {'mode': mode, 'value': types.uint8}, json_names=('m', 'v'))
     wide = types.TypeEnum('Example.Wide', {'Negative': -2, 'Large': 1 << 90}, is_open=True,
                           underlying_type=types.int128)
@@ -347,7 +347,7 @@ def check_symbols():
 
 
 def check_json_presence():
-    opened = types.TypeEnum('Numbers', {}, is_open=True, underlying_type=types.uint8)
+    opened = types.TypeEnum('Numbers', {}, is_open=True, underlying_type=types.uint8, is_json_serializable=True)
     variable = Variable(opened)
     image = write_program(state_program((variable,), {variable: 7}))
     present = load_program(image)
@@ -360,6 +360,80 @@ def check_json_presence():
     assert write_program(load_program(normalized)) == normalized
     assert not next(section.data for section in SectionList.from_bytes(normalized).sections
                     if section.section_type == fmt.SectionType.JsonTypes)
+
+
+def check_declared_json():
+    from wirely.compiler.compilation import compile_strs
+    from wirely.compiler.program import compile_nocatch
+    from wirely.generated import extension
+    from wirely.runtime.value_types import ValueType
+
+    graph = compile_strs([('<json>', '''
+#[JSON]
+closed enum type Mode {
+  #[JSON.Name = "CustomHeat"] Heat,
+  Off,
+}
+open enum type EmptyMode: uint8 { #![JSON] }
+closed enum type Plain { Off, }
+#[JSON]
+struct type Record {
+  #[JSON.Name = ""] mode: Mode,
+  count: uint8,
+}
+struct type Empty { #![JSON] }
+struct type PlainRecord { count: uint8, }
+node type Store {
+  state mode: Mode = Mode.Heat;
+  state empty_mode: Option[EmptyMode] = None;
+  state plain: Plain = Plain.Off;
+  state record: Record = Record { mode: Mode.Heat, count: 3 };
+  state empty: Empty = Empty {};
+  state plain_record: PlainRecord = PlainRecord { count: 3 };
+  procedure run
+    reads mode.old as a, empty_mode.old as b, plain.old as c,
+      record.old as d, empty.old as e, plain_record.old as f
+    writes mode, empty_mode, plain, record, empty, plain_record
+  {
+    mode = a;
+    empty_mode = b;
+    plain = c;
+    record = d;
+    empty = e;
+    plain_record = f;
+  }
+}
+node store: Store {}
+''')])
+    assert graph is not None
+    original = compile_nocatch(graph)
+    for program in (original, roundtrip(original)):
+        state_types = {}
+        for var in program.state_variables.offsets:
+            value_type = var.var_type.inner_type if isinstance(var.var_type, types.TypeOption) else var.var_type
+            state_types[value_type.type_name] = value_type
+        mode = state_types['Mode']
+        descriptor = ValueType(mode)
+        heat = descriptor.parse('Heat', native_types=extension.native_types)
+        assert heat.json_encode() == 'CustomHeat'
+        assert heat.json_encode('SnakeCase') == 'custom_heat'
+        assert descriptor.json_decode('CustomHeat') == heat
+        assert heat.to_text(native_types=extension.native_types) == 'Mode.Heat'
+        with checks.assertRaises(ValueError):
+            descriptor.json_decode('Heat')
+        empty_mode = ValueType(state_types['EmptyMode'])
+        assert empty_mode.supports_json and empty_mode.json_decode(7).json_encode() == 7
+        plain = ValueType(state_types['Plain'])
+        assert not plain.supports_json and state_types['Plain'].json_names == {}
+        with checks.assertRaises(ValueError):
+            plain.json_decode('Off')
+        with checks.assertRaises(ValueError):
+            plain.parse('Off', native_types=extension.native_types).json_encode()
+        assert state_types['Record'].field_names == ('mode', 'count')
+        assert state_types['Record'].json_names == ('', 'count')
+        assert not ValueType(state_types['Record']).supports_json
+        assert state_types['Empty'].json_names == ()
+        assert state_types['PlainRecord'].json_names is None
 
 
 def check_shared_bodies():
@@ -540,6 +614,7 @@ async def run_test():
     check_code()
     check_stripped_types_and_state()
     check_json_presence()
+    check_declared_json()
     check_symbols()
     check_shared_bodies()
     check_budgets()

@@ -114,12 +114,12 @@ def check_container():
 
 def check_types_and_constants():
     option = types.TypeOption(types.uint8)
-    pair = types.TypeStruct('Pair', {'one': option, 'two': types.TypeOption(types.uint8)})
-    twin = types.TypeStruct('Pair', {'one': option, 'two': option})
+    pair = types.TypeStruct('Pair', {'one': option, 'two': types.TypeOption(types.uint8)}, json_names=('one', 'two'))
+    twin = types.TypeStruct('Pair', {'one': option, 'two': option}, json_names=('one', 'two'))
     closed = types.TypeEnum('Mode', {'Off': 0, 'On': 1}, is_open=False,
-                            underlying_type=types.uint8, native_name='Test.Mode')
+                            underlying_type=types.uint8, native_name='Test.Mode', is_json_serializable=True)
     opened = types.TypeEnum('Signed', {'High': 300, 'Low': -3}, is_open=True,
-                            underlying_type=types.int16, json_names={300: 'high', -3: 'low'})
+                            underlying_type=types.int16, json_names={300: 'high', -3: 'low'}, is_json_serializable=True)
     resource = types.TypeResource('Resource', 'Test.Resource')
     typed = types.TypeList(types.ValueType)
     constants = [Constant(pair, (Some(1), None)), Constant(twin, (None, None)),
@@ -232,7 +232,7 @@ def check_nested_type_values():
     first = types.TypeEnum('Same', {'Zero': 0}, is_open=False, underlying_type=types.uint8)
     second = types.TypeEnum('Same', {'Zero': 0}, is_open=False, underlying_type=types.uint8)
     wrapper = types.TypeStruct('Types', {'values': types.TypeOption(types.TypeList(types.ValueType))})
-    opaque = types.TypeStruct('Native', {'ticks': types.uint64}, native_name='Test.Native', is_opaque=True)
+    opaque = types.TypeStruct('Native', {'ticks': types.uint64}, native_name='Test.Native', is_opaque=True, json_names=('ticks',))
     unnamed = types.TypeStruct(None, (types.boolean,))
     constants = [Constant(wrapper, (Some((types.TypeOption(first), types.TypeOption(second))),)),
                  Constant(opaque, (7,)), Constant(unnamed, (True,)), Constant(types.String, '')]

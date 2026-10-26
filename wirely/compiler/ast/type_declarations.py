@@ -6,7 +6,7 @@ import typing
 from wirely.compiler import model
 from wirely.compiler.types import parse_value
 
-from .base import SourcePosition, SyntaxElement, CompilerHint, ProgramError, Identifier, Declaration, Value
+from .base import SourceElement, SourcePosition, SyntaxElement, CompilerHint, ProgramError, Identifier, Declaration, Value
 from .values import IntNumber, Reference, StringConstant
 
 
@@ -24,6 +24,30 @@ class EnumMember(SyntaxElement):
 class StructField(SyntaxElement):
     name: Identifier
     field_type: Value
+
+
+def _json_names(declaration: Declaration, members: tuple[EnumMember, ...] | tuple[StructField, ...],
+                scope: 'model.Scope') -> tuple[str, ...] | None:
+    enabled = any(attribute.name == 'JSON' for attribute in scope.coordinator.attributes(declaration))
+    names = []
+    previous: dict[str, SourceElement] = {}
+    for member in members:
+        name = member.name.id_str
+        source: SourceElement = member.name
+        for attribute in scope.coordinator.attributes(member):
+            if attribute.name == 'JSON.Name':
+                source = SourceElement(source_position=attribute.source_position)
+                if not enabled:
+                    raise ProgramError(source, '`JSON.Name` requires `JSON` on the containing type')
+                assert isinstance(attribute.value, str)
+                name = attribute.value
+        if enabled and name in previous:
+            raise ProgramError(source, f'Duplicate JSON name `{name}`', hints=[
+                CompilerHint(previous[name], 'Previous JSON name was here'),
+            ])
+        previous[name] = source
+        names.append(name)
+    return tuple(names) if enabled else None
 
 
 @dataclasses.dataclass(frozen=True, eq=False, repr=False)
@@ -112,7 +136,9 @@ class StructDefinition:
                     # Without an implementation, values have no literals or text, and linking fails.
                     native_types = None
             self.value_type = model.types.TypeStruct(fullname, fields, native_name=native_name,
-                                                     is_opaque=self.declaration.is_opaque)
+                                                     is_opaque=self.declaration.is_opaque,
+                                                     json_names=_json_names(self.declaration, self.declaration.fields,
+                                                                            self.scope))
             if native_types is not None:
                 from wirely.runtime.linking import check_native_struct
                 try:
@@ -232,8 +258,12 @@ class DeclarationEnumType(Declaration):
         native_name = None
         if self.is_native:
             native_name = self.alias.value if self.alias is not None else fullname
-        value_type = model.types.TypeEnum(fullname, numbers, is_open=self.is_open, underlying_type=underlying,
-                                          native_name=native_name)
+        json_names = _json_names(self, self.members, graph)
+        value_type = model.types.TypeEnum(
+            fullname, numbers, is_open=self.is_open, underlying_type=underlying,
+            native_name=native_name, is_json_serializable=json_names is not None,
+            json_names=None if json_names is None else dict(zip(numbers.values(), json_names)),
+        )
         graph.enum_types[name] = EnumDefinition(self, value_type)
 
 

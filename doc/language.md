@@ -92,6 +92,13 @@ omitted from the library reference.
 connections have no meaning, as for `Std.And`. The compiler still keeps
 their order.
 
+`#[JSON]` on an enum enables JSON conversion. On a struct it supplies JSON
+field names; struct JSON conversion is not supported. Both bodies also
+accept `#![JSON]`. Within an enabled type, use
+`#[JSON.Name = "external_name"]` on a member or field to override its JSON
+name; otherwise its declared name is used. Names must be distinct within
+the type. See [JSON support](value-types.md#json-and-csv-support).
+
 `#[Allow(Name, ...)]` suppresses the named warnings inside the attributed
 item, including everything nested in it. It can appear on files with
 `#![Allow(...)]`, namespaces, node types, node instances, constants,

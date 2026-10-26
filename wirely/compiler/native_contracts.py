@@ -897,7 +897,10 @@ def generate_format_records(graph: Any, *, source_root: Path = repository_root) 
     for value_type in enums:
         types.append(f'_enums[{value_type.name!r}] = TypeEnum({value_type.name!r}, {{')
         types += [f'    {member!r}: {number},' for member, number in value_type.members.items()]
-        types.append(f'}}, is_open={value_type.is_open}, underlying_type={integer_code(value_type.underlying_type)})')
+        json_options = (f', is_json_serializable=True, json_names={dict(value_type.json_names)!r}'
+                        if value_type.is_json_serializable else '')
+        types.append(f'}}, is_open={value_type.is_open}, underlying_type={integer_code(value_type.underlying_type)}'
+                     f'{json_options})')
 
     # Wirely allows forward references, so the types are ordered with their field types first.
     ordered: list[Any] = []
@@ -917,7 +920,7 @@ def generate_format_records(graph: Any, *, source_root: Path = repository_root) 
         types.append(f'_types[{value_type.name!r}] = TypeStruct({value_type.name!r}, {{')
         types += [f'    {field!r}: {field_code(value_type, field, field_type)[1]},'
                   for field, field_type in value_type.fields.items()]
-        types.append('})')
+        types.append('}' + (f', json_names={value_type.json_names!r}' if value_type.json_names is not None else '') + ')')
     types += ['', '# Wirely type of each enum class.', 'enum_types: dict[type[enum.IntEnum], TypeEnum] = {',
               *(f'    {value_type.name}: _enums[{value_type.name!r}],' for value_type in enums), '}']
     types += ['', '# Wirely type of each record class.', 'record_types: dict[type[tuple[Any, ...]], TypeStruct] = {',

@@ -356,3 +356,80 @@ constant C: boolean = {
   // ^E: Attribute `Internal` is not permitted on statement
   value
 };
+
+// TEST: JSON wrong target
+#[JSON] node type T {} // E: Attribute `JSON` is not permitted on node_type
+
+// TEST: JSON arguments
+#[JSON()] closed enum type E { A, }
+// ^E: `JSON` must be a flag without arguments or a value
+
+// TEST: JSON value
+#[JSON = true] closed enum type E { A, }
+// ^E: `JSON` must be a flag without arguments or a value
+
+// TEST: JSON repeated outer and inner
+#[JSON]
+closed enum type E {
+  #![JSON] // E: Duplicate attribute `JSON`
+  A,
+}
+
+// TEST: JSON name wrong target
+#[JSON.Name = "e"] closed enum type E { A, }
+// ^E: Attribute `JSON.Name` is not permitted on enum
+
+// TEST: JSON name missing value
+#[JSON] closed enum type E {
+  #[JSON.Name] A, // E: `JSON.Name` requires a string literal
+}
+
+// TEST: JSON name numeric value
+#[JSON] struct type S {
+  #[JSON.Name = 3] a: uint8, // E: `JSON.Name` requires a string literal
+}
+
+// TEST: JSON name repeated
+#[JSON] closed enum type E {
+  #[JSON.Name = "a"]
+  #[JSON.Name = "b"] A, // E: Duplicate attribute `JSON.Name`
+}
+
+// TEST: JSON member requires containing opt-in
+closed enum type E {
+  #[JSON.Name = "a"] A,
+  // ^E: `JSON.Name` requires `JSON` on the containing type
+}
+
+// TEST: JSON field requires containing opt-in
+struct type S {
+  #[JSON.Name = "a"] a: uint8,
+  // ^E: `JSON.Name` requires `JSON` on the containing type
+}
+
+// TEST: JSON duplicate enum names
+#[JSON] closed enum type E {
+  #[JSON.Name = "b"] A,
+  // ^H: Previous JSON name was here
+  #[JSON.Name = "b"] B, // E: Duplicate JSON name `b`
+}
+
+// TEST: JSON name collides with default member
+#[JSON] open enum type E: uint8 {
+  A = 1, // H: Previous JSON name was here
+  #[JSON.Name = "A"] B = 2, // E: Duplicate JSON name `A`
+}
+
+// TEST: JSON default field collides with override
+#[JSON] struct type S {
+  #[JSON.Name = "b"] a: uint8,
+  // ^H: Previous JSON name was here
+  b: uint8, // E: Duplicate JSON name `b`
+}
+
+// TEST: JSON duplicate empty field names
+#[JSON] struct type S {
+  #[JSON.Name = ""] a: uint8,
+  // ^H: Previous JSON name was here
+  #[JSON.Name = ""] b: uint8, // E: Duplicate JSON name ``
+}

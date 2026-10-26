@@ -259,7 +259,7 @@ class TypeStruct(Type):
                  field_names: Sequence[str | None] | None = None) -> None:
         """Create a struct from named fields, or from field types alone.
 
-        json_names defaults to the names of a field mapping. field_names
+        json_names supplies JSON metadata, disabled by default. field_names
         supplies optional symbols for positional field types, independently
         of JSON names.
         """
@@ -297,7 +297,7 @@ class TypeStruct(Type):
         if any(not isinstance(field_type, Type) or field_type.contains_parameters
                for field_type in self.field_types):
             raise ValueError('Struct fields require resolved value types')
-        object.__setattr__(self, 'json_names', (tuple(fields) if isinstance(fields, Mapping) else None) if json_names is None else tuple(json_names))
+        object.__setattr__(self, 'json_names', None if json_names is None else tuple(json_names))
         if self.json_names is not None and len(self.json_names) != len(self.field_types):
             raise ValueError(f'Struct `{self}` needs one JSON name per field')
 
@@ -785,10 +785,11 @@ class TypeEnum(TypePrimitive):
 
     def __init__(self, name: str | None, members: Mapping[str, int], *, is_open: bool, underlying_type: TypeInt,
                  native_name: str | None = None, member_count: int | None = None,
-                 json_names: Mapping[int, str] | None = None, is_json_serializable: bool = True) -> None:
+                 json_names: Mapping[int, str] | None = None, is_json_serializable: bool = False) -> None:
         """Create an enum; an unnamed closed enum has no members and gives member_count.
 
-        json_names maps numbers to their JSON names; by default, the member names.
+        json_names maps numbers to their JSON names; when JSON is enabled,
+        these default to the member names.
         is_json_serializable enables JSON conversion; the binary format records it
         as the presence of a JsonTypes entry.
         """
@@ -828,7 +829,8 @@ class TypeEnum(TypePrimitive):
         object.__setattr__(self, 'native_name', native_name)
         object.__setattr__(self, 'members', MappingProxyType(dict(members)))
         object.__setattr__(self, '_names', MappingProxyType(names))
-        object.__setattr__(self, 'json_names', MappingProxyType(dict(names if json_names is None else json_names)))
+        object.__setattr__(self, 'json_names', MappingProxyType(
+            dict(names if json_names is None else json_names) if is_json_serializable else {}))
         object.__setattr__(self, '_json_numbers', MappingProxyType(
             {json_name: number for number, json_name in self.json_names.items()}))
         object.__setattr__(self, 'is_json_serializable', is_json_serializable)

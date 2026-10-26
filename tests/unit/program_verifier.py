@@ -170,7 +170,7 @@ def check_values():
 
 
 def check_names_and_json():
-    mode = types.TypeEnum('Mode', {'Off': 0, 'On': 1}, is_open=False, underlying_type=types.uint8)
+    mode = types.TypeEnum('Mode', {'Off': 0, 'On': 1}, is_open=False, underlying_type=types.uint8, is_json_serializable=True)
     data = bound_constants(Constant(mode, 1))
     reject(table_change(data, f.SectionType.JsonTypes, f.JsonType, 0, numbers=0), 'sentinel')
     reject(table_change(data, f.SectionType.JsonTypes, f.JsonType, 0, count_=1), 'count')
@@ -185,7 +185,7 @@ def check_names_and_json():
     names = records(next(section.data for section in SectionList.from_bytes(interfaces).sections
                          if section.section_type == f.SectionType.InterfaceNames), f.NameRef)
     reject(replace_data(interfaces, f.SectionType.InterfaceNames, b''.join(map(pack_record, reversed(names)))), 'InterfaceNames range')
-    opened = types.TypeEnum('Numbers', {'Low': -3, 'High': 7}, is_open=True, underlying_type=types.int16)
+    opened = types.TypeEnum('Numbers', {'Low': -3, 'High': 7}, is_open=True, underlying_type=types.int16, is_json_serializable=True)
     data = bound_constants(Constant(opened, -1))
     json_type = records(next(section.data for section in SectionList.from_bytes(data).sections
                              if section.section_type == f.SectionType.JsonTypes), f.JsonType)[0]
@@ -401,7 +401,8 @@ def check_ignored_bytes():
     struct.pack_into('<II', overlap, last_entry, 0, 16)
     verify_program(overlap)
     # JSON-name distinctness is also a producer responsibility.
-    enum = types.TypeEnum('Mode', {'Off': 0, 'On': 1}, is_open=False, underlying_type=types.uint8)
+    enum = types.TypeEnum('Mode', {'Off': 0, 'On': 1}, is_open=False, underlying_type=types.uint8,
+                          is_json_serializable=True)
     image = bound_constants(Constant(enum, 1))
     names = records(next(section.data for section in SectionList.from_bytes(image).sections
                          if section.section_type == f.SectionType.JsonNames), f.JsonName)

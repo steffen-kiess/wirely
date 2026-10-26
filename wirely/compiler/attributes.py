@@ -143,6 +143,13 @@ def _literal(attribute: Attribute) -> object:
     return metadata.value.value
 
 
+def _json_name(attribute: Attribute) -> str:
+    value = _literal(attribute)
+    if not isinstance(value, str):
+        _error(attribute, '`JSON.Name` requires a string literal')
+    return value
+
+
 def _size(attribute: Attribute) -> int | float:
     value = _literal(attribute)
     if not _number(value) or value <= 0:
@@ -185,6 +192,8 @@ _DIAGRAM_ITEMS = frozenset({'node', 'port', 'state', 'binding', 'constant', 'par
                             'procedure'})
 
 ATTRIBUTE_REGISTRY = {
+    'JSON': AttributeDefinition(frozenset({'enum', 'struct'}), _flag),
+    'JSON.Name': AttributeDefinition(frozenset({'enum_member', 'struct_field'}), _json_name),
     'Internal': AttributeDefinition(frozenset({
         'node', 'node_type', 'function', 'namespace', 'struct', 'enum',
         'resource_type', 'constant', 'parameter', 'port', 'state',
