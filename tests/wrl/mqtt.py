@@ -9,10 +9,11 @@ from tests.infra.support import send_event_text
 async def run_test():
     # TODO: Add timeouts?
     # TODO: Make sure that exceptions in KNX callbacks cause the test to fail?
-    aiomqtt = wirely.native.mqtt.get_aiomqtt()
-
     print('a', flush=True)
-    client = engine.get_native_state('server.create').create_client()
+    server = engine.get_native_state('server.create')
+    async with asyncio.timeout(5):
+        await server.connected_event.wait()
+    client = server.create_client()
     async with client:
         await client.subscribe('#')
         print('b', flush=True)
@@ -46,6 +47,7 @@ async def run_test():
         await expect_msgs()
 
         engine.step()
+        engine.assert_value_is('server.Connected', True)
         # TODO: This should not depend on ordering
         await expect_msgs(('test/t2', b''), ('test/t1', b'false'), ('test/t1t', b'{"value": false, "other": "%s"}'))
 

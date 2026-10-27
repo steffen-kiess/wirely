@@ -19,10 +19,18 @@ namespace MQTT {
 
   node type Connection {
     parameter URI: string;
+    parameter KeepAlive: Std.Duration = "PT60S";
 
     default output: fixed Broker;
+    output Connected: value boolean;
 
-    native initializer create reads URI writes default output as "broker";
+    native initializer create
+      reads URI, KeepAlive
+      writes default output as "broker";
+
+    native procedure get_connected stage input
+      reads default output as "broker"
+      writes Connected as "connected";
   }
 
   #[Internal]

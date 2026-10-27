@@ -1,0 +1,21 @@
+node server: MQTT.Connection {
+  URI: Test.ReplaceMQTTURI("mqtt://localhost"),
+}
+
+node provider_input: Std.DebugValueSource { Type: boolean, Initial: false }
+
+node provider: MQTT.ValueProvider { Topic: "test/value", Type: boolean }
+connect provider_input -> provider;
+connect server -> provider.Broker;
+
+node event_source: Std.DebugEventSource { Type: boolean }
+
+node event_sender: MQTT.EventSender { Topic: "test/event", Type: boolean }
+connect event_source -> event_sender;
+connect server -> event_sender.Broker;
+
+node receiver: MQTT.EventReceiver { Topic: "test/received", Type: boolean }
+connect server -> receiver.Broker;
+
+node receiver_printer: Std.DebugEventPrinter { Type: boolean }
+connect receiver -> receiver_printer;

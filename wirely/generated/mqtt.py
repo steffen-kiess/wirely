@@ -20,6 +20,7 @@ from wirely.types.option import Some
 
 if TYPE_CHECKING:
     from wirely.native.mqtt import Broker, EventReceiverState, EventSenderState, ValueOptionProviderState
+    from wirely.native.std import Duration
 
 __all__ = [
     'ConnectionCreateResult',
@@ -30,6 +31,8 @@ __all__ = [
     'EventSenderCreate',
     'ValueOptionProviderCreateResult',
     'ValueOptionProviderCreate',
+    'ConnectionGetConnectedResult',
+    'ConnectionGetConnected',
     'EventReceiverGetValueResult',
     'EventReceiverGetValue',
     'EventSenderSendValueResult',
@@ -54,6 +57,7 @@ class ConnectionCreate(NativeState[Literal['broker']], abc.ABC):
         self, *,
         services: StateServices[Literal['broker']],
         uri: str,
+        keep_alive: Duration,
     ) -> ConnectionCreateResult:
         ...
 
@@ -67,6 +71,7 @@ class _ConnectionCreateAdapter(InitializerAdapter):
         result = state.initialize(
             services=services,
             uri=cast('str', binding.use('URI')),
+            keep_alive=cast('Duration', binding.use('KeepAlive')),
         )
         binding.check_result(result, ConnectionCreateResult)
         return {
@@ -211,6 +216,57 @@ class _ValueOptionProviderCreateAdapter(InitializerAdapter):
 
 
 ValueOptionProviderCreate._adapter = _ValueOptionProviderCreateAdapter()
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ConnectionGetConnectedResult:
+    """Outputs of native procedure MQTT.Connection:get_connected."""
+
+    connected: bool
+
+
+class ConnectionGetConnected(NativeProcedure, abc.ABC):
+    """Native procedure MQTT.Connection:get_connected."""
+
+    def prepare(
+        self, *,
+        services: PreparationServices,
+        broker: Broker,
+    ) -> None:
+        pass
+
+    @abc.abstractmethod
+    def run(
+        self, *,
+        services: ProcedureServices,
+        broker: Broker,
+    ) -> ConnectionGetConnectedResult:
+        ...
+
+
+class _ConnectionGetConnectedAdapter(ProcedureAdapter):
+    def prepare(self, procedure: NativeProcedure, services: PreparationServices,
+                binding: InterfaceBinding) -> None:
+        assert isinstance(procedure, ConnectionGetConnected)
+        procedure.prepare(
+            services=services,
+            broker=cast('Broker', binding.fixed('broker')),
+        )
+
+    def run(self, procedure: NativeProcedure, services: ProcedureServices, binding: InterfaceBinding,
+            inputs: Mapping[str, InternalValue]) -> dict[str, InternalValue]:
+        assert isinstance(procedure, ConnectionGetConnected)
+        result = procedure.run(
+            services=services,
+            broker=cast('Broker', binding.fixed('broker')),
+        )
+        binding.check_result(result, ConnectionGetConnectedResult)
+        return {
+            'connected': binding.output('connected', result.connected),
+        }
+
+
+ConnectionGetConnected._adapter = _ConnectionGetConnectedAdapter()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

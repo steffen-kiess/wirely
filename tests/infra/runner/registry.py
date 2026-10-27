@@ -65,6 +65,7 @@ runtime_tests = [
     'wrl/knx',
     'wrl/abb',
     'wrl/mqtt',
+    'wrl/mqtt_reconnect',
     'wrl/time',
     'wrl/csv',
     'wrl/knx_time',
@@ -77,6 +78,7 @@ runtime_tests = [
 manually_activated_tests = {
     'wrl/csv',
     'wrl/gpio',
+    'wrl/mqtt_reconnect',
 }
 
 example_tests = [
@@ -204,4 +206,6 @@ exclusive_tests = [
     'unit/program_verifier',
     'unit/test_runner',
     'wrl/event_bindings',
+    'wrl/gpio',
+    'wrl/mqtt_reconnect',
 ]

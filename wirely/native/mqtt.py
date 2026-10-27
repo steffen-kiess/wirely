@@ -3,8 +3,9 @@ import json
 import dataclasses
 import urllib
 import contextlib
-from collections.abc import AsyncIterator
 from typing import Any, Literal
+
+import aiomqtt
 
 import wirely
 from wirely import Some
@@ -14,6 +15,7 @@ from wirely.native.support import check_state_type
 from wirely.generated.enums import MQTTFormat
 from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices
 from wirely.generated.structs import MQTTTemplateParts
+from wirely.types.time import TICKS_PER_SECOND, Duration
 from wirely.util import verbose_print
 
 
@@ -28,18 +30,19 @@ def _json_format(option: Some[MQTTFormat] | None) -> str | None:
     return _JSON_FORMATS[option.value]
 
 
-aiomqtt_module = None
+# Delay before the first reconnection attempt, doubled after each failed attempt up to the maximum.
+RECONNECT_DELAY_MIN = 1.0
+RECONNECT_DELAY_MAX = 60.0
 
 
-def get_aiomqtt() -> Any:
-    global aiomqtt_module
-    if aiomqtt_module is not None:
-        return aiomqtt_module
-
-    import aiomqtt
-    aiomqtt_module = aiomqtt
-
-    return aiomqtt_module
+def _keep_alive_seconds(keep_alive: Duration) -> int:
+    """Round the keepalive interval up to whole seconds, as MQTT requires."""
+    if keep_alive.ticks == 0:
+        raise ValueError('MQTT keepalive must not be zero')
+    seconds = -(-keep_alive.ticks // TICKS_PER_SECOND)
+    if seconds > 65535:
+        raise ValueError(f'MQTT keepalive {keep_alive.to_iso()} is longer than 65535 seconds')
+    return seconds
 
 
 class MQTTUriParseException(Exception):
@@ -48,7 +51,7 @@ class MQTTUriParseException(Exception):
 
 @dataclasses.dataclass(frozen=True)
 class ParsedMQTTUri:
-    transport: str
+    transport: Literal['tcp', 'unix']
     use_tls : bool
     hostname: str
     port: int
@@ -140,115 +143,126 @@ def parse_mqtt_uri(uri: str) -> 'ParsedMQTTUri':
             port=1,
         )
     else:
-        raise Exception('Unknown KNX URI scheme: {!r}'.format(scheme))
+        raise MQTTUriParseException('Unable to parse MQTT URI {!r}: Unknown scheme {!r}'.format(uri, scheme))
 
 
 class ConnectionCreate(contracts.ConnectionCreate):
     def initialize(self, *, services: StateServices[Literal['broker']],
-                   uri: str) -> contracts.ConnectionCreateResult:
-        aiomqtt = get_aiomqtt()
-
+                   uri: str, keep_alive: Duration) -> contracts.ConnectionCreateResult:
         verbose_print('Create MQTT connection', flush=True)
 
         verbose_print(f'  Using URI: {uri!r}', flush=True)
 
+        self.uri = uri
         self.parsed_uri = parse_mqtt_uri(uri)
+        self.keep_alive = _keep_alive_seconds(keep_alive)
 
-        self.all_subscriptions: dict[str, int] = {}
-        self.message_queues: dict[str, list[asyncio.Queue]] = {}
+        # Clients register themselves while being initialized.
+        self.receivers: dict[str, list[EventReceiverCreate]] = {}
+        self.value_providers: list[ValueOptionProviderCreate] = []
+        self.event_senders: list[EventSenderCreate] = []
+
+        # The client while connected, otherwise None.
+        self.client: aiomqtt.Client | None = None
+        # Set while connected.
+        self.connected_event = asyncio.Event()
+        # Set on a disconnect until get_connected() has reported it.
+        self.disconnect_pending = False
+
+        # The last connection error and how often it has been logged.
+        self.last_error: str | None = None
+        self.last_error_count = 0
         return contracts.ConnectionCreateResult(broker=self)
 
-    def create_client(self) -> Any:
-        # Note: Has to be called from the async loop so that asyncio.get_event_loop() is correct
+    @property
+    def connected(self) -> bool:
+        return self.client is not None
 
-        aiomqtt = get_aiomqtt()
+    def create_client(self) -> aiomqtt.Client:
+        # Note: Has to be called from the async loop so that asyncio.get_event_loop() is correct
 
         tls_params = None
         if self.parsed_uri.use_tls:
             tls_params = aiomqtt.TLSParameters()
-        return aiomqtt.Client(protocol=aiomqtt.ProtocolVersion.V5, transport=self.parsed_uri.transport, hostname=self.parsed_uri.hostname, port=self.parsed_uri.port, tls_params=tls_params)
+        return aiomqtt.Client(protocol=aiomqtt.ProtocolVersion.V5, transport=self.parsed_uri.transport, hostname=self.parsed_uri.hostname, port=self.parsed_uri.port, tls_params=tls_params, keepalive=self.keep_alive)
 
+    def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
+        super().start_tasks(task_group, async_exit_stack)
 
-    # TODO: Do start() later, while everything is already running?
-    # TODO: Clean up self.client somewhere (probably using async_exit_stack)?
-    async def start_tasks_async(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
-        await super().start_tasks_async(task_group=task_group, async_exit_stack=async_exit_stack)
+        self.task = self.start_task(task_group, async_exit_stack, self.connection_task())
 
-        verbose_print('Connecting to MQTT server', flush=True)
-        # Note: Has to be done here so that asyncio.get_event_loop() is correct
-        self.client = self.create_client()
-        await async_exit_stack.enter_async_context(self.client)
-        verbose_print('Connecting to MQTT server done', flush=True)
-
-        self.task = self.start_task(task_group, async_exit_stack, self.read_messages_task())
-
-        # TODO: Cleanup
-
-    async def add_subscription(self, topic: str) -> None:
-        if topic in self.all_subscriptions:
-            self.all_subscriptions[topic] += 1
-        else:
-            self.all_subscriptions[topic] = 1
-            # TODO: Error handling / locking?
-            await self.client.subscribe(topic)
-
-    async def remove_subscription(self, topic: str) -> None:
-        if self.all_subscriptions[topic] > 1:
-            self.all_subscriptions[topic] -= 1
-            return
-        del self.all_subscriptions[topic]
-
-        return  # TODO: This will hang if this is called after disconnection
-
-        # TODO: Error handling / locking?
-        await self.client.unsubscribe(topic)
-
-    @contextlib.asynccontextmanager
-    async def subscription(self, topic: str) -> AsyncIterator[None]:
-        await self.add_subscription(topic)
-        try:
-            yield
-        finally:
-            await self.remove_subscription(topic)
-
-    def add_message_queue(self, topic: str) -> asyncio.Queue:
-        if topic not in self.message_queues:
-            self.message_queues[topic] = []
-        queue: asyncio.Queue = asyncio.Queue()
-        self.message_queues[topic].append(queue)
-        return queue
-
-    def remove_message_queue(self, topic: str, queue: asyncio.Queue) -> None:
-        li = self.message_queues[topic]
-        li.remove(queue)
-
-    @staticmethod
-    async def get_queue_reader(queue: asyncio.Queue) -> AsyncIterator[Any]:
+    async def connection_task(self) -> None:
+        delay = RECONNECT_DELAY_MIN
         while True:
-            data = await queue.get()
-            yield data
-            queue.task_done()
+            verbose_print('Connecting to MQTT server', flush=True)
+            try:
+                # Note: Has to be done here so that asyncio.get_event_loop() is correct
+                client = self.create_client()
+                async with client:
+                    try:
+                        await self.restore(client)
+                        self.client = client
+                        self.connected_event.set()
+                        self.services.trigger('broker')
+                        print(f'Connected to MQTT server {self.uri!r}', flush=True)
+                        self.last_error = None
+                        delay = RECONNECT_DELAY_MIN
 
-    # TODO: Combine this with subscription()?
-    # TODO: Should this be async?
-    @contextlib.asynccontextmanager
-    async def register_topic_queue(self, topic: str) -> AsyncIterator[AsyncIterator[Any]]:
-        queue = self.add_message_queue(topic)
-        try:
-            yield self.get_queue_reader(queue)
-        finally:
-            self.remove_message_queue(topic, queue)
+                        async for message in client.messages:
+                            for receiver in self.receivers.get(message.topic.value, ()):
+                                receiver.handle_message(message)
+                    except aiomqtt.MqttError:
+                        self.set_disconnected()
+                        raise
+            except aiomqtt.MqttError as e:
+                self.log_error(str(e))
+            await asyncio.sleep(delay)
+            delay = min(delay * 2, RECONNECT_DELAY_MAX)
 
-    async def read_messages_task(self) -> None:
-        async for message in self.client.messages:
-            # print('QQQ', message)
-            # Note: Accessing self.message_queues should be safe here because this does not call any client code and does not suspend the async task
-            # TODO: Performance: Avoid looping over non-wildcard topics?
-            for topic in self.message_queues:
-                if not message.topic.matches(topic):
-                    continue
-                for queue in self.message_queues[topic]:
-                    queue.put_nowait(message)
+    async def restore(self, client: aiomqtt.Client) -> None:
+        """Publish the current values and subscribe to all topics after connecting."""
+        for provider in self.value_providers:
+            # A pending value is replaced by the current one.
+            provider.value_to_send = None
+            if provider.current_payload is not None:
+                await client.publish(provider.topic, payload=provider.current_payload)
+        for topic in self.receivers:
+            reason_codes = await client.subscribe(topic)
+            for code in reason_codes:
+                if not isinstance(code, int) and code.is_failure:
+                    print(f'Warning: Subscribing to MQTT topic {topic!r} failed: {code}', flush=True)
+
+    def set_disconnected(self) -> None:
+        if self.client is None:
+            return
+        self.client = None
+        self.connected_event.clear()
+        self.disconnect_pending = True
+        # Events are dropped instead of being sent when they might be outdated.
+        for sender in self.event_senders:
+            sender.values_to_send.clear()
+        self.services.trigger('broker')
+
+    def log_error(self, error: str) -> None:
+        if error != self.last_error:
+            self.last_error = error
+            self.last_error_count = 1
+            print(f'Warning: MQTT connection to {self.uri!r} failed: {error}', flush=True)
+        elif self.last_error_count == 1:
+            self.last_error_count = 2
+            print(f'Warning: MQTT connection to {self.uri!r} failed: {error} '
+                  '(further identical errors are suppressed)', flush=True)
+
+
+class ConnectionGetConnected(contracts.ConnectionGetConnected):
+    def run(self, *, services: ProcedureServices,
+            broker: ConnectionCreate) -> contracts.ConnectionGetConnectedResult:
+        if broker.disconnect_pending:
+            # Report each disconnect for at least one step, even if the connection was restored since.
+            broker.disconnect_pending = False
+            services.trigger_self()
+            return contracts.ConnectionGetConnectedResult(connected=False)
+        return contracts.ConnectionGetConnectedResult(connected=broker.connected)
 
 
 # TODO: Should this be persistent? If so, should it be cleared by the last will message?
@@ -262,6 +276,8 @@ class ValueOptionProviderCreate(contracts.ValueOptionProviderCreate):
         # Task is needed for sending out values
         self.task: asyncio.Task | None = None
         self.value_to_send: bytes | None = None
+        # The last value set, published again after each connect; None until a value is set.
+        self.current_payload: bytes | None = None
         # Note: Use an event instead of a condition because setting an event does not require await
         # self.condition_var = asyncio.Condition()
         self.event = asyncio.Event()
@@ -272,8 +288,6 @@ class ValueOptionProviderCreate(contracts.ValueOptionProviderCreate):
         self.template_prefix = template_parts.prefix
         self.template_suffix = template_parts.suffix
 
-        aiomqtt = get_aiomqtt()
-
         verbose_print('Create MQTT ValueOptionProvider', flush=True)
 
         verbose_print(f'  Using topic: {self.topic!r}', flush=True)
@@ -282,6 +296,7 @@ class ValueOptionProviderCreate(contracts.ValueOptionProviderCreate):
 
         self.native_server = broker
         verbose_print(f'  Using native server object: {self.native_server}', flush=True)
+        broker.value_providers.append(self)
         return contracts.ValueOptionProviderCreateResult(state=self)
 
     def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
@@ -298,11 +313,21 @@ class ValueOptionProviderCreate(contracts.ValueOptionProviderCreate):
                 # Note: This relies on the fact that everything is running on one thread and therefore everything without await is atomic with regard to other tasks
                 self.event.clear()
                 await self.event.wait()
+            # While disconnected, the value stays pending; the connection publishes the current value after connecting.
+            await self.native_server.connected_event.wait()
+            client = self.native_server.client
             value = self.value_to_send
+            if client is None or value is None:
+                continue
             self.value_to_send = None
 
             verbose_print(f'Sending {value!r} to {self.topic}', flush=True)
-            await self.native_server.client.publish(self.topic, payload=value)
+            try:
+                await client.publish(self.topic, payload=value)
+            except aiomqtt.MqttError as e:
+                # The connection publishes the current value again after reconnecting.
+                verbose_print(f'Sending {value!r} to {self.topic} failed: {e}', flush=True)
+                continue
             verbose_print(f'Sending {value!r} to {self.topic} done', flush=True)
 
 
@@ -329,6 +354,7 @@ class ValueOptionProviderSetValue(contracts.ValueOptionProviderSetValue):
         # Note: This can overwrite a non-None value if sending is too slow. In this case, the overwritten value will be discarded and not sent at all.
         # TODO: Provide some notification if this is happening?
         state.value_to_send = value_bytes
+        state.current_payload = value_bytes
         state.event.set()
         return contracts.ValueOptionProviderSetValueResult()
 
@@ -340,7 +366,7 @@ class EventSenderCreate(contracts.EventSenderCreate):
         self.current_value = None
         # Task is needed for sending out values
         self.task: asyncio.Task | None = None
-        self.values_to_send: list[object] = []
+        self.values_to_send: list[bytes] = []
         # Note: Use an event instead of a condition because setting an event does not require await
         # self.condition_var = asyncio.Condition()
         self.event = asyncio.Event()
@@ -351,8 +377,6 @@ class EventSenderCreate(contracts.EventSenderCreate):
         self.template_prefix = template_parts.prefix
         self.template_suffix = template_parts.suffix
 
-        aiomqtt = get_aiomqtt()
-
         verbose_print('Create MQTT EventSender', flush=True)
 
         verbose_print(f'  Using topic: {self.topic!r}', flush=True)
@@ -361,6 +385,7 @@ class EventSenderCreate(contracts.EventSenderCreate):
 
         self.native_server = broker
         verbose_print(f'  Using native server object: {self.native_server}', flush=True)
+        broker.event_senders.append(self)
         return contracts.EventSenderCreateResult(state=self)
 
     def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
@@ -377,11 +402,20 @@ class EventSenderCreate(contracts.EventSenderCreate):
                 # Note: This relies on the fact that everything is running on one thread and therefore everything without await is atomic with regard to other tasks
                 self.event.clear()
                 await self.event.wait()
+            client = self.native_server.client
+            if client is None:
+                self.values_to_send.clear()
+                continue
             value = self.values_to_send.pop(0)
 
-            verbose_print(f'Sending {value} to {self.topic}', flush=True)
-            await self.native_server.client.publish(self.topic, payload=value)
-            verbose_print(f'Sending {value} to {self.topic} done', flush=True)
+            verbose_print(f'Sending {value!r} to {self.topic}', flush=True)
+            try:
+                await client.publish(self.topic, payload=value)
+            except aiomqtt.MqttError as e:
+                # Events are dropped instead of being sent again when they might be outdated.
+                verbose_print(f'Sending {value!r} to {self.topic} failed: {e}', flush=True)
+                continue
+            verbose_print(f'Sending {value!r} to {self.topic} done', flush=True)
 
 
 class EventSenderSendValue(contracts.EventSenderSendValue):
@@ -401,12 +435,16 @@ class EventSenderSendValue(contracts.EventSenderSendValue):
             value = state.template_prefix + value + state.template_suffix
             value_bytes = bytes(value, 'utf-8')
 
-        verbose_print(f'Sending event {state.topic} to {value_bytes!r}, old values_to_send is {state.values_to_send}', flush=True)
+        if not state.native_server.connected:
+            # Events are dropped instead of being sent after reconnecting when they might be outdated.
+            verbose_print(f'Dropping event {state.topic} {value_bytes!r} while disconnected', flush=True)
+        else:
+            verbose_print(f'Sending event {state.topic} to {value_bytes!r}, old values_to_send is {state.values_to_send}', flush=True)
 
-        # Note: If sending is too slow, there might be multiple events queued up.
-        # TODO: Provide a notification in this case?
-        state.values_to_send.append(value_bytes)
-        state.event.set()
+            # Note: If sending is too slow, there might be multiple events queued up.
+            # TODO: Provide a notification in this case?
+            state.values_to_send.append(value_bytes)
+            state.event.set()
 
         # This makes sure that the value is sent again if the input does not change
         services.trigger_self()
@@ -416,7 +454,6 @@ class EventSenderSendValue(contracts.EventSenderSendValue):
 class EventReceiverCreate(contracts.EventReceiverCreate):
     def initialize(self, *, services: StateServices[Literal['state']], broker: ConnectionCreate, type: ValueType[Any],
                    topic: str, format: Some[MQTTFormat] | None) -> contracts.EventReceiverCreateResult:
-        self.task: asyncio.Task | None = None
         self.received_values: list[DynamicValue] = []
 
         self.value_type = type
@@ -424,8 +461,6 @@ class EventReceiverCreate(contracts.EventReceiverCreate):
         self.format = _json_format(format)
         self.template_prefix = ''
         self.template_suffix = ''
-
-        aiomqtt = get_aiomqtt()
 
         verbose_print('Create MQTT EventReceiver', flush=True)
 
@@ -435,44 +470,33 @@ class EventReceiverCreate(contracts.EventReceiverCreate):
 
         self.native_server = broker
         verbose_print(f'  Using native server object: {self.native_server}', flush=True)
+        broker.receivers.setdefault(self.topic, []).append(self)
         return contracts.EventReceiverCreateResult(state=self)
 
-    def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
-        super().start_tasks(task_group, async_exit_stack)
+    def handle_message(self, message: aiomqtt.Message) -> None:
+        try:
+            verbose_print(f'Received MQTT message: topic {message.topic.value!r} data {message.payload!r}', flush=True)
 
-        if self.task is not None:
-            raise Exception('self.task is not None')
+            value_bytes = message.payload
+            if not isinstance(value_bytes, bytes):
+                raise Exception(f'Unexpected payload type {type(value_bytes)}')
+            value = str(value_bytes, 'utf-8')
 
-        self.task = self.start_task(task_group, async_exit_stack, self.run_task())
+            # TODO: Do JSON parsing here?
+            if not value.startswith(self.template_prefix):
+                raise Exception(f'Message {value!r} does not start with prefix {self.template_prefix!r}')
+            value = value[len(self.template_prefix):]
+            if not value.endswith(self.template_suffix):
+                raise Exception(f'Message {value!r} does not end with suffix {self.template_suffix!r}')
+            if len(self.template_suffix):
+                value = value[:-len(self.template_suffix)]
 
-    async def run_task(self) -> None:
-        # TODO: Should subscribing be done here or in start_tasks()?
-        async with self.native_server.subscription(self.topic):
-            async with self.native_server.register_topic_queue(self.topic) as queue:
-                async for message in queue:
-                    try:
-                        verbose_print(f'Received MQTT message: topic {message.topic.value!r} data {message.payload!r}', flush=True)
-
-                        if message.topic.value == self.topic:
-                            value_bytes = message.payload
-                            value = str(value_bytes, 'utf-8')
-
-                            # TODO: Do JSON parsing here?
-                            if not value.startswith(self.template_prefix):
-                                raise Exception(f'Message {value!r} does not start with prefix {self.template_prefix!r}')
-                            value = value[len(self.template_prefix):]
-                            if not value.endswith(self.template_suffix):
-                                raise Exception(f'Message {value!r} does not end with suffix {self.template_suffix!r}')
-                            if len(self.template_suffix):
-                                value = value[:-len(self.template_suffix)]
-
-                            value = json.loads(value)
-                            self.received_values.append(self.value_type.json_decode(value, self.format))
-                            self.services.trigger('state')
-                    except Exception as e:
-                        # TODO: Do something else here?
-                        # TODO: Print stack trace?
-                        print(f'Warning: Error while parsing received MQTT message topic {message.topic.value!r} data {message.payload!r}: {e}', flush=True)
+            self.received_values.append(self.value_type.json_decode(json.loads(value), self.format))
+            self.services.trigger('state')
+        except Exception as e:
+            # TODO: Do something else here?
+            # TODO: Print stack trace?
+            print(f'Warning: Error while parsing received MQTT message topic {message.topic.value!r} data {message.payload!r}: {e}', flush=True)
 
 
 class EventReceiverGetValue(contracts.EventReceiverGetValue):

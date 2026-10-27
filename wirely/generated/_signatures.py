@@ -103,6 +103,7 @@ native_state_types: dict[str, Initializer] = {
         },
         uses={
             'URI': Builtin('string'),
+            'KeepAlive': Opaque('Std.Duration'),
         },
     ),
     'MQTT.EventReceiver:create': Initializer(
@@ -314,6 +315,16 @@ native_procedures: dict[str, Procedure] = {
         uses={
             'Type': Builtin('type'),
         },
+    ),
+    'MQTT.Connection:get_connected': Procedure(
+        stage='input',
+        depends={
+            'broker': Port('resource', ResourceType('MQTT.Broker')),
+        },
+        produces={
+            'connected': Port('value', Builtin('boolean')),
+        },
+        uses={},
     ),
     'MQTT.EventReceiver:get_value': Procedure(
         stage='input',

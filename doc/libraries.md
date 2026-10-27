@@ -177,14 +177,21 @@ string controlling JSON output. A template embeds the encoded value at one
 
 | Node type | Parameters | Ports and behavior |
 | --- | --- | --- |
-| `Connection` | `URI: string` | Out: `fixed MQTT.Broker`. Connects to a broker. |
+| `Connection` | `URI: string`, `KeepAlive: Std.Duration = "PT60S"` | Out: `fixed MQTT.Broker`; named out `Connected: value boolean`. Connects to a broker. |
 | `ValueOptionProvider` | `Type: type`, `Topic: string`, optional `Format: MQTT.Format`, `Template: string` | Named in: `Broker`; in: `value Option[Type]`. Publishes JSON; `None` publishes an empty payload. |
 | `ValueProvider` | Same as `ValueOptionProvider` | Named in: `Broker`; in: `value Type`. Publishes the value as JSON. |
 | `EventSender` | `Type: type`, `Topic: string`, optional `Format: MQTT.Format`, `Template: string` | Named in: `Broker`; in: `event Type`. Publishes each event as JSON. |
 | `EventReceiver` | `Type: type`, `Topic: string`, optional `Format: MQTT.Format` | Named in: `Broker`; out: `event Type`. Emits decoded messages received on the topic. |
 
 Use types with [JSON support](value-types.md#json-and-csv-support). MQTT
-requires the `aiomqtt` package and a reachable broker.
+requires the `aiomqtt` package.
+
+`Connection` retries connecting until it succeeds, also after losing the
+connection. `Connected` is true while connected and false for at least one
+step after each disconnect; noticing a lost connection can take up to 1.5
+times `KeepAlive`, which is rounded up to whole seconds. After each connect,
+providers publish their current value again. `EventSender` drops events
+while disconnected. Messages can be lost around a disconnect.
 
 ## CSV
 
