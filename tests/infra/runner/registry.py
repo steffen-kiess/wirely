@@ -73,6 +73,12 @@ runtime_tests = [
     'wrl/process',
 ]
 
+# Runtime tests in wrl/ whose engines the runner does not activate because they activate engines themselves.
+manually_activated_tests = {
+    'wrl/csv',
+    'wrl/gpio',
+}
+
 example_tests = [
     'examples/test',
     'examples/knx',

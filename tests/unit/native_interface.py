@@ -16,6 +16,8 @@ from wirely.compiler import program as program_compiler
 import wirely.compiler.compilation
 from wirely.program.program import RunStage
 from wirely.runtime.engine import Engine
+from wirely.runtime.loading import LoadedProgram
+from wirely.runtime.procedures import LoadError
 from wirely.runtime.native_api import NativeProcedure
 from tests.infra.support import send_event_text, test_extension, test_contracts
 from wirely.runtime.signatures import Builtin, Enum, Int, Opaque
@@ -80,7 +82,7 @@ node probe: TestLibrary.Probe {{ {parameters} }}
         registry['procedures']['TestLibrary.Probe:run'] = Probe.Run
 
         bindings = test_extension(**registry, contracts=contracts)
-        return Engine(program, override_extensions=[*override_extensions, bindings])
+        return Engine(LoadedProgram.load(program, override_extensions=[*override_extensions, bindings]))
 
 
 def expect_output_error(declaration, output, message, **options):
@@ -270,7 +272,7 @@ def check_stage_times():
 
             clock_registry['procedures'][f'TestLibrary.ClockProbe:{name}'] = type(name, (contract,), {'run': record_time})
         bindings = test_extension(**clock_registry, contracts=contracts)
-        clock_engine = Engine(program, override_extensions=[bindings])
+        clock_engine = Engine(LoadedProgram.load(program, override_extensions=[bindings]))
     clock_engine.fake_monotonic_time_offset = clock_offset
     clock_engine.enable_fixed_monotonic_time()
     monotonic_times = [clock_engine.get_monotonic_time() + wirely.Duration.from_seconds(index)
@@ -392,7 +394,7 @@ def check_triggers():
         resource_types = {'TestLibrary.ProbeState': ProbeState, 'TestLibrary.Service': Provider}
         bindings = test_extension(**trigger_registry, contracts=contracts)
         resource_bindings = test_extension(resources=resource_types, contracts=contracts)
-        trigger_engine = Engine(trigger_program, override_extensions=[bindings, resource_bindings])
+        trigger_engine = Engine(LoadedProgram.load(trigger_program, override_extensions=[bindings, resource_bindings]))
     first = trigger_engine.get_native_state('first.create')
     second = trigger_engine.get_native_state('second.create')
     shared = trigger_engine.get_native_state('TestLibrary.SharedTriggerProbe:create')
@@ -696,7 +698,7 @@ namespace Example {
         ({'Test.Level': level, 'Test.Day': NativeEnum(Week, is_open=False, underlying_type='uint8')},
          "Native enum type `Test.Day` must have 3 members, got 2"),
     ]:
-        with checks.assertRaisesRegex(ValueError, message):
+        with checks.assertRaisesRegex(LoadError, message):
             make(registry)
 
 
@@ -806,7 +808,7 @@ connect number -> stateful.Number;
                             for name, sig in procedures.items()},
                 functions={name: NativeFunction(sig, fixture.functions[name].load) for name, sig in functions.items()},
                 resources=bindings.resources)
-            Engine(program, extensions=[extension])
+            Engine(LoadedProgram.load(program, extensions=[extension]))
 
         link()
         for changes, message in [
@@ -839,7 +841,7 @@ connect number -> stateful.Number;
             ({'functions': {'TestLibrary.Clamp': Function((Int(16, False),) * 3, clamp.result)}},
              'parameter 0 has type `int16`, expected `uint16`'),
         ]:
-            with checks.assertRaisesRegex(ValueError, message):
+            with checks.assertRaisesRegex(LoadError, message):
                 link(**changes)
 
 
@@ -928,7 +930,7 @@ namespace Example {
         ({'Test.Reading': NativeStruct(Reading, (Int(16, False), Enum('Test.Other'))), 'Test.Empty': empty},
          "Native struct type `Test.Reading` field 1 has type `Example.Level`, expected native enum `Test.Other`"),
     ]:
-        with checks.assertRaisesRegex(ValueError, message):
+        with checks.assertRaisesRegex(LoadError, message):
             make(registry)
 
 
@@ -996,7 +998,7 @@ node constant: Std.Constant { Type: Example.Percent, Value: "7%" }
          "Opaque struct type `Test.Percent` field 0 has type `uint8`, expected `uint16`"),
         (NativeOpaque((Int(8, False),), lambda: Percent), '"150%"', 'Invalid `Example.Percent` value'),
     ]:
-        with checks.assertRaisesRegex(ValueError, message):
+        with checks.assertRaisesRegex(LoadError, message):
             make(opaque_type, level)
 
 
@@ -1047,24 +1049,30 @@ def check_port_keys():
 startup_observations = []
 cleanup_observations = []
 cleanup_clock_observations = []
+initialize_observations = []
 
 
-def make_lifecycle_engine(*, fail=False):
+def load_lifecycle_program(*, failure=None):
+    """Load two lifecycle probes; failure is None, 'initialize', 'prepare', or 'activate' for the second."""
     program = compile_program([('<native-lifecycle>', f'''
 namespace TestLibrary {{
   node type LifecycleProbe {{
     parameter Fail: boolean = false;
     native initializer create reads Fail;
+    native procedure run;
   }}
 }}
 node first: TestLibrary.LifecycleProbe {{}}
-node second: TestLibrary.LifecycleProbe {{ Fail: {'true' if fail else 'false'} }}
+node second: TestLibrary.LifecycleProbe {{ Fail: {'false' if failure is None else 'true'} }}
 ''')])
     with test_contracts(program.graph) as contracts:
         registry = {'initializers': {}, 'procedures': {}}
 
         class LifecycleProbe(contracts.LifecycleProbeCreate):
             def initialize(self, *, services, fail):
+                initialize_observations.append(services.name)
+                if fail and failure == 'initialize':
+                    raise RuntimeError('Initialization failed')
                 self.fail = fail
                 return contracts.LifecycleProbeCreateResult()
 
@@ -1073,16 +1081,60 @@ node second: TestLibrary.LifecycleProbe {{ Fail: {'true' if fail else 'false'} }
                 startup_observations.append(self.services.name)
 
             async def start_tasks_async(self, task_group, async_exit_stack):
-                if self.fail:
+                if self.fail and failure == 'activate':
                     raise RuntimeError('Startup failed')
 
             def observe_cleanup(self):
                 cleanup_observations.append(self.services.name)
                 cleanup_clock_observations.append((self.services.is_shutting_down, self.services.shutdown_time))
+
+            class Run(contracts.LifecycleProbeRun):
+                def prepare(self, *, services):
+                    if services.name == 'second' and failure == 'prepare':
+                        raise RuntimeError('Preparation failed')
+
+                def run(self, *, services):
+                    return contracts.LifecycleProbeRunResult()
         registry['initializers']['TestLibrary.LifecycleProbe:create'] = LifecycleProbe
+        registry['procedures']['TestLibrary.LifecycleProbe:run'] = LifecycleProbe.Run
 
         bindings = test_extension(**registry, contracts=contracts)
-        return Engine(program, override_extensions=[bindings])
+        return LoadedProgram.load(program, override_extensions=[bindings])
+
+
+def make_lifecycle_engine(*, failure=None):
+    return Engine(load_lifecycle_program(failure=failure))
+
+
+async def check_load_failures():
+    # Loading fails as a whole and never activates the native objects it created.
+    for failure, message in [('initialize', 'Initialization failed'), ('prepare', 'Preparation failed')]:
+        initialize_observations.clear()
+        startup_observations.clear()
+        with checks.assertRaisesRegex(LoadError, message) as caught:
+            load_lifecycle_program(failure=failure)
+        assert isinstance(caught.exception.__cause__, RuntimeError)
+        assert initialize_observations == ['first', 'second']
+        assert startup_observations == []
+
+
+async def check_single_activation():
+    # A loaded program belongs to one engine, which is activated at most once.
+    loaded = load_lifecycle_program()
+    engine = Engine(loaded)
+    with checks.assertRaisesRegex(RuntimeError, 'already used by an engine'):
+        Engine(loaded)
+    async with asyncio.TaskGroup() as task_group:
+        async with contextlib.AsyncExitStack() as exit_stack:
+            await engine.activate(task_group, exit_stack)
+            with checks.assertRaisesRegex(RuntimeError, 'already activated'):
+                await engine.activate(task_group, exit_stack)
+    startup_observations.clear()
+    async with asyncio.TaskGroup() as task_group:
+        async with contextlib.AsyncExitStack() as exit_stack:
+            with checks.assertRaisesRegex(RuntimeError, 'already activated'):
+                await engine.activate(task_group, exit_stack)
+    assert startup_observations == []
 
 
 async def run_test():
@@ -1093,7 +1145,7 @@ async def run_test():
     assert not lifecycle_engine.is_shutting_down
     async with asyncio.TaskGroup() as task_group:
         async with contextlib.AsyncExitStack() as exit_stack:
-            await lifecycle_engine.start_tasks_async(task_group, exit_stack)
+            await lifecycle_engine.activate(task_group, exit_stack)
     timestamp = lifecycle_engine.last_shutdown_time
     assert timestamp is not None and timestamp.tzinfo is not None
     assert cleanup_clock_observations == [(True, timestamp)] * len(cleanup_observations)
@@ -1109,7 +1161,7 @@ async def run_test():
     unknown_time_engine.set_fake_wall_time(None)
     async with asyncio.TaskGroup() as task_group:
         async with contextlib.AsyncExitStack() as exit_stack:
-            await unknown_time_engine.start_tasks_async(task_group, exit_stack)
+            await unknown_time_engine.activate(task_group, exit_stack)
             assert not unknown_time_engine.is_shutting_down
     assert cleanup_clock_observations == [(True, None)] * len(cleanup_observations)
     assert len(cleanup_observations) == 2
@@ -1118,16 +1170,19 @@ async def run_test():
     startup_observations.clear()
     cleanup_observations.clear()
     cleanup_clock_observations.clear()
-    failing_engine = make_lifecycle_engine(fail=True)
+    failing_engine = make_lifecycle_engine(failure='activate')
     async with asyncio.TaskGroup() as task_group:
         with checks.assertRaisesRegex(RuntimeError, 'Startup failed'):
             async with contextlib.AsyncExitStack() as exit_stack:
-                await failing_engine.start_tasks_async(task_group, exit_stack)
+                await failing_engine.activate(task_group, exit_stack)
     assert startup_observations in (['second'], ['first', 'second'])
     assert cleanup_observations == startup_observations[::-1]
     assert failing_engine.last_shutdown_time is None
     assert cleanup_clock_observations == [(False, None)] * len(cleanup_observations)
     assert not failing_engine.is_shutting_down
+
+    await check_load_failures()
+    await check_single_activation()
 
 
 def check_native_methods():
@@ -1204,7 +1259,7 @@ node keyed: TestLibrary.KeyedProbe {}
 
         bindings = test_extension(**registry, contracts=contracts)
         resource_bindings = test_extension(resources={'TestLibrary.ProbeState': StateProbe}, contracts=contracts)
-        runtime = Engine(program, override_extensions=[bindings, resource_bindings])
+        runtime = Engine(LoadedProgram.load(program, override_extensions=[bindings, resource_bindings]))
     runtime.step()
     expected = [
         ('shared', 'class_only'), ('inherited', 'class_only'),
@@ -1246,7 +1301,7 @@ def check_procedure_construction():
 
             bindings = test_extension(**registry, contracts=contracts)
             resource_bindings = test_extension(resources={'TestLibrary.LoadState': LoadProbe}, contracts=contracts)
-            return Engine(program, override_extensions=[bindings, resource_bindings])
+            return Engine(LoadedProgram.load(program, override_extensions=[bindings, resource_bindings]))
 
     source = '''namespace TestLibrary {
   resource type LoadState;
@@ -1270,7 +1325,7 @@ node second: TestLibrary.LoadProbe {}
     events.clear()
     failing = source.replace('node second: TestLibrary.LoadProbe {}',
                              'node second: TestLibrary.LoadProbe { Fail: true }')
-    with checks.assertRaisesRegex(ValueError, 'second: unsupported configuration'):
+    with checks.assertRaisesRegex(LoadError, 'second: unsupported configuration'):
         make(failing)
     checks.assertNotIn(('call', 'first'), events)
 
@@ -1303,8 +1358,8 @@ node invalid: TestLibrary.InvalidProbe {}
 
         bindings = test_extension(initializers={'TestLibrary.ValidProbe:create': ValidProbe},
                                           procedures={'TestLibrary.ValidProbe:run': ValidProbe.Run}, contracts=contracts)
-        with checks.assertRaisesRegex(ValueError, 'Cannot find the signature of native procedure.*InvalidProbe:missing'):
-            Engine(program, override_extensions=[bindings])
+        with checks.assertRaisesRegex(LoadError, 'Cannot find the signature of native procedure.*InvalidProbe:missing'):
+            LoadedProgram.load(program, override_extensions=[bindings])
     assert constructed == []
 
 
@@ -1345,7 +1400,7 @@ connect source, source -> multiple;
 
         bindings = test_extension(**registry, contracts=contracts)
         resource_bindings = test_extension(resources={'TestLibrary.LengthState': LengthProbe}, contracts=contracts)
-        machine = Engine(program, override_extensions=[bindings, resource_bindings])
+        machine = Engine(LoadedProgram.load(program, override_extensions=[bindings, resource_bindings]))
     for value in (False, True):
         machine.get_native_state('source.create').set_value(value)
         machine.step()

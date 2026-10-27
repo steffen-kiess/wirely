@@ -8,6 +8,7 @@ from pathlib import Path
 from ..compiler.compilation import compile_files
 from ..compiler import program as program_compiler
 from ..runtime.engine import Engine
+from ..runtime.loading import LoadedProgram
 from ..program.writer import write_program
 
 
@@ -56,7 +57,7 @@ def _compile(args: argparse.Namespace, timings: list[tuple[str, float]] | None) 
                 return 1
         if args.create_engine:
             start = time.perf_counter()
-            Engine(prog)
+            Engine(LoadedProgram.load(prog))
             if timings is not None:
                 timings.append(('create engine', time.perf_counter() - start))
     return None

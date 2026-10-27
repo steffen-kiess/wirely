@@ -1,5 +1,4 @@
 import asyncio
-import contextlib
 import tempfile
 
 import wirely
@@ -22,51 +21,48 @@ async def run_test():
         prog1 = engine.get_native_state('prog1.create')
         prog1.shell_command = cmd
 
-        async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
-            await engine.start_tasks_async(tg, async_exit_stack)
+        check_content('A\n')
 
-            check_content('A\n')
+        engine.step()
+        engine.assert_is_idle()
 
-            engine.step()
-            engine.assert_is_idle()
+        check_content('A\n')
 
-            check_content('A\n')
+        engine.get_native_state('evsrc.create').send_event(wirely.Some(wirely.Unit()))
+        engine.step()
+        engine.step()
+        engine.assert_is_idle()
 
-            engine.get_native_state('evsrc.create').send_event(wirely.Some(wirely.Unit()))
-            engine.step()
-            engine.step()
-            engine.assert_is_idle()
+        # Wait for command to be executed
+        await asyncio.sleep(0.2)
 
-            # Wait for command to be executed
-            await asyncio.sleep(0.2)
+        check_content('A\nx\n')
 
-            check_content('A\nx\n')
+        # Send an event
+        engine.get_native_state('evsrc.create').send_event(wirely.Some(wirely.Unit()))
+        engine.step()
+        engine.step()
+        engine.assert_is_idle()
 
-            # Send an event
-            engine.get_native_state('evsrc.create').send_event(wirely.Some(wirely.Unit()))
-            engine.step()
-            engine.step()
-            engine.assert_is_idle()
+        # Wait for command execution to start
+        await asyncio.sleep(0.03)
 
-            # Wait for command execution to start
-            await asyncio.sleep(0.03)
+        # Send an another event
+        engine.get_native_state('evsrc.create').send_event(wirely.Some(wirely.Unit()))
+        engine.step()
+        engine.step()
+        engine.assert_is_idle()
 
-            # Send an another event
-            engine.get_native_state('evsrc.create').send_event(wirely.Some(wirely.Unit()))
-            engine.step()
-            engine.step()
-            engine.assert_is_idle()
+        # Wait for command execution to start
+        await asyncio.sleep(0.03)
 
-            # Wait for command execution to start
-            await asyncio.sleep(0.03)
+        # Send an another event, which should be ignored
+        engine.get_native_state('evsrc.create').send_event(wirely.Some(wirely.Unit()))
+        engine.step()
+        engine.step()
+        engine.assert_is_idle()
 
-            # Send an another event, which should be ignored
-            engine.get_native_state('evsrc.create').send_event(wirely.Some(wirely.Unit()))
-            engine.step()
-            engine.step()
-            engine.assert_is_idle()
+        # Wait for everything to finish
+        await asyncio.sleep(0.4)
 
-            # Wait for everything to finish
-            await asyncio.sleep(0.4)
-
-            check_content('A\nx\nx\nx\n')
+        check_content('A\nx\nx\nx\n')

@@ -5,6 +5,7 @@ from wirely.compiler.sources import standard_library_sources
 from wirely.compiler import program as program_compiler
 from wirely.program.program import RunStage
 from wirely.runtime.engine import Engine
+from wirely.runtime.loading import LoadedProgram
 from tests.infra.support import internal, test_extension, test_contracts
 
 
@@ -46,7 +47,7 @@ with test_contracts(graph) as contracts:
 
     bindings = test_extension(**registry, contracts=contracts)
     resource_bindings = test_extension(resources={'TestLibrary.HeldEventState': HeldEventSource}, contracts=contracts)
-    runtime = Engine(program_compiler.compile_nocatch(graph), override_extensions=[bindings, resource_bindings])
+    runtime = Engine(LoadedProgram.load(program_compiler.compile_nocatch(graph), override_extensions=[bindings, resource_bindings]))
 
 runtime.step()
 runtime.assert_value_is('timestamp', None)

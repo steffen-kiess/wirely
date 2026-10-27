@@ -17,6 +17,8 @@ from wirely.compiler.native_contracts import generated_files
 from wirely.compiler.native_functions import ConstantFunctionContract
 from wirely.generated import extension as builtin_extension
 from wirely.runtime.engine import Engine
+from wirely.runtime.loading import LoadedProgram
+from wirely.runtime.procedures import LoadError
 from wirely.runtime.extensions import NativeFunction, NativeTypes, RuntimeNativeExtension, resolve_extensions
 from wirely.runtime.native_api import FunctionContract
 from wirely.runtime.signatures import Enum, Function, Int, List, Option, Struct
@@ -108,7 +110,7 @@ node probe: Probe {}
     assert all(graph is not None for graph in graphs)
     # Lower after both compilations have finished; retain each compilation's choices.
     programs = [program_compiler.compile_nocatch(graph) for graph in graphs]
-    engines = [Engine(replace(program, graph=None), extensions=[runtime])
+    engines = [Engine(LoadedProgram.load(replace(program, graph=None), extensions=[runtime]))
                for program, (runtime, _, _, _) in zip(programs, variants)]
     for index in (0, 1, 0, 1):
         engine = engines[index]
@@ -231,14 +233,14 @@ def seed(*, services: FunctionServices) -> UInt16:
                                   compiler_extensions=[compiler], include_builtin_extensions=False)
             assert graph is not None
             program = replace(program_compiler.compile_nocatch(graph), graph=None)
-            engine = Engine(program, extensions=[runtime], include_builtin_extensions=False)
+            engine = Engine(LoadedProgram.load(program, extensions=[runtime], include_builtin_extensions=False))
             engine.step()
             engine.assert_value_is('counter.Count', 4)
             engine.assert_value_is('counter.Added', 6)
             assert generated_files([source], package='acme', output_root=root) == files
             # The selected bindings, rather than compiler debug data, are required at runtime.
-            with checks.assertRaisesRegex(ValueError, 'Demo.Counter'):
-                Engine(program)
+            with checks.assertRaisesRegex(LoadError, 'Demo.Counter'):
+                LoadedProgram.load(program)
         finally:
             sys.path.remove(str(root))
             for name in list(sys.modules):

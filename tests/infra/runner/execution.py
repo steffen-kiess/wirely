@@ -20,7 +20,7 @@ from tests.infra.support import test_engine
 from .diagnostics import (
     NegativeTestCase, diagnostic_items, expected_diagnostics, match_diagnostics, negative_test_cases,
 )
-from .registry import example_tests, negative_tests, python_only_tests, to_compile
+from .registry import example_tests, manually_activated_tests, negative_tests, python_only_tests, to_compile
 from .services import TestResourceProvider, with_maybe_knxd, with_maybe_mqtt, with_maybe_twon
 
 if TYPE_CHECKING:
@@ -179,7 +179,13 @@ async def run_runtime_test(test_name: str) -> None:
 
             # eng.debug = True
 
-            await run_python_test(py_fn, engine=eng)
+            if test_name.startswith('wrl/') and test_name not in manually_activated_tests:
+                # Note: async_exit_stack must be exited before tg (and therefore entered after tg), otherwise destroying exiting tg might hang because there are still some tasks running
+                async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
+                    await eng.activate(tg, async_exit_stack)
+                    await run_python_test(py_fn, engine=eng)
+            else:
+                await run_python_test(py_fn, engine=eng)
 
     print(f'Done running test {test_name}')
 

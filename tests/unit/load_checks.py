@@ -16,6 +16,7 @@ from wirely.program.loader import load_program
 from wirely.program.writer import write_program
 from wirely.runtime.procedures import LoadFailure
 from wirely.runtime.engine import Engine
+from wirely.runtime.loading import LoadedProgram
 from wirely.runtime.extensions import NativeTypes
 from tests.infra.support import test_contracts, test_extension
 
@@ -44,7 +45,7 @@ def check_failure_messages():
     ]:
         _, program = compile_program(source)
         with checks.assertRaises(LoadFailure) as caught:
-            Engine(program)
+            Engine(LoadedProgram.load(program))
         failure = caught.exception
         assert failure.message == message, (failure.message, message)
         assert failure.node == '<global>'
@@ -56,7 +57,7 @@ def check_failure_messages():
       load fail "{} / {}", number, { number = 9; number };
     }''')
     with checks.assertRaises(LoadFailure) as caught:
-        Engine(program)
+        Engine(LoadedProgram.load(program))
     assert caught.exception.message == '3 / 9'
     assert tuple(value.to_text(native_types=NativeTypes()) for value in caught.exception.values) == ('3', '9')
 
@@ -70,7 +71,7 @@ def check_failure_messages():
     load assert result == 3;
     ''')
     with checks.assertRaises(LoadFailure) as caught:
-        Engine(program)
+        Engine(LoadedProgram.load(program))
     assert caught.exception.message == 'Eager fallback'
 
 
@@ -95,7 +96,7 @@ def check_successful_paths():
     node example: Example {}
     node type Unused { load assert false; }
     ''')
-    engine = Engine(program)
+    engine = Engine(LoadedProgram.load(program))
     assert engine.get_value('example.result') == 7
     engine.step()
     engine.step()
@@ -111,7 +112,7 @@ def check_instances():
     node second: Checked { Ready: false }
     ''')
     with checks.assertRaises(LoadFailure) as caught:
-        Engine(program)
+        Engine(LoadedProgram.load(program))
     assert caught.exception.node == 'second'
     assert '<load assert <load-checks>:' in caught.exception.procedure
 
@@ -127,14 +128,14 @@ def check_instances():
     ]:
         _, program = compile_program(source, filename='example.source:case.wrl')
         with checks.assertRaises(LoadFailure) as caught:
-            Engine(program)
+            Engine(LoadedProgram.load(program))
         assert caught.exception.node == owner
         assert 'example.source:case.wrl' in caught.exception.procedure
         container = SectionList.from_bytes(write_program(program))
         container.sections = [section for section in container.sections if section.section_type < 0x10000]
         loaded = load_program(container.to_bytes())
         with checks.assertRaises(LoadFailure) as caught:
-            Engine(loaded)
+            Engine(LoadedProgram.load(loaded))
         failure = caught.exception
         assert failure.procedure is None and failure.node is None
         assert failure.procedure_index == 0
@@ -183,7 +184,7 @@ def check_loading_stops():
             'TestLibrary.Probe:run': ProbeRun,
         })
         with checks.assertRaises(LoadFailure):
-            Engine(program, override_extensions=[extension])
+            Engine(LoadedProgram.load(program, override_extensions=[extension]))
     assert calls == ['load']
 
 
@@ -204,7 +205,7 @@ def check_validation():
     program = make_program((fail,))
     validate_program(program)
     with checks.assertRaises(LoadFailure) as caught:
-        Engine(program)
+        Engine(LoadedProgram.load(program))
     assert caught.exception.message == 'Value 7'
 
     def fail_with(parts):

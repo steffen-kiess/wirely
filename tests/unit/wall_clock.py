@@ -16,6 +16,7 @@ from wirely.generated import schedule as contracts
 from wirely.native.schedule import IsInDailyIntervalRun, TimeOfDayMinuteGetValue
 from wirely.program.program import RunStage
 from wirely.runtime.engine import Engine
+from wirely.runtime.loading import LoadedProgram
 from wirely.runtime.native_api import ProcedureServices
 from wirely.runtime.wall_clock import TimerFD, WallClockWaiter
 from tests.infra.support import internal, test_contracts, test_extension
@@ -47,7 +48,7 @@ def make_engine(callback=None):
                          ('<wall-clock>', 'node clock: Schedule.TimeOfDayMinute {}')])
     assert graph is not None
     bindings = test_extension(procedures={'Schedule.TimeOfDayMinute:get_value': Probe})
-    runtime = Engine(compile_nocatch(graph), override_extensions=[bindings])
+    runtime = Engine(LoadedProgram.load(compile_nocatch(graph), override_extensions=[bindings]))
     return runtime, probes[0]
 
 
@@ -189,7 +190,7 @@ node interval: Schedule.IsInDailyInterval {{ Start: "{start}", End: "{end}" }}
 ''')])
         assert graph is not None
         bindings = test_extension(procedures={'Schedule.IsInDailyInterval:run': Probe})
-        runtime = Engine(compile_nocatch(graph), override_extensions=[bindings])
+        runtime = Engine(LoadedProgram.load(compile_nocatch(graph), override_extensions=[bindings]))
 
         def step(value, expected, calls):
             if isinstance(value, str):
@@ -399,7 +400,7 @@ node local: TestLibrary.Clock {}
                 return contracts.ClockRunResult(output=None)
 
         bindings = test_extension(contracts=contracts, procedures={'TestLibrary.Clock:run': Clock})
-        runtime = Engine(compile_nocatch(graph), override_extensions=[bindings])
+        runtime = Engine(LoadedProgram.load(compile_nocatch(graph), override_extensions=[bindings]))
 
     reads = 0
     get_time = runtime.get_wall_time

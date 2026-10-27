@@ -13,7 +13,11 @@ from .extensions import NativeTypes
 NativeFunction = Callable[[Sequence[InternalValue]], InternalValue]
 
 
-class LoadFailure(Exception):
+class LoadError(Exception):
+    """A program does not load on this runtime; the cause, if any, is the original exception."""
+
+
+class LoadFailure(LoadError):
     """An intentional failure while executing a candidate program's load stage."""
 
     def __init__(self, procedure: Procedure, instruction_index: int, message: str,

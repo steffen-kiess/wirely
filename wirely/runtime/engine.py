@@ -2,47 +2,40 @@ import asyncio
 import contextlib
 import datetime
 import functools
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable
 from typing import Any, cast
 
 import wirely
-from wirely.program.program import InputSource, Procedure, Program, RunStage, Variable, VariableBank
-from wirely.program.validation import validate_program
-from wirely.program.program import procedure_instances
+from wirely.program.program import InputSource, Procedure, RunStage, Variable, VariableBank
 from wirely.runtime.contexts import StepContext, VariableTableInstance
-from wirely.runtime.native_api import (
-    InterfaceBinding, NativeProcedure, NativeState, PreparationServices, ProcedureAdapter, ProcedureServices,
-    StateServices,
-)
-from wirely.runtime.extensions import RuntimeNativeExtension, resolve_extensions
-from wirely.runtime.resources import ResourceValue
+from wirely.runtime.loading import LoadedProgram, fixed_input, procedure_owner_label
+from wirely.runtime.native_api import NativeState, ProcedureServices
 from wirely.runtime.signatures import Procedure as SignatureProcedure
-from wirely.program.types import InternalValue, TypeResource
+from wirely.program.types import InternalValue
 from wirely.types.time import Duration, MonotonicTime
 from wirely.runtime.procedures import execute_procedure
 from wirely.runtime.wall_clock import WallClockWaiter, WallWakeup
 
 
 class Engine:
-    def __init__(self, program: Program, *, extensions: Iterable[RuntimeNativeExtension] = (),
-                 override_extensions: Iterable[RuntimeNativeExtension] = (),
-                 include_builtin_extensions: bool = True) -> None:
-        from .linking import (
-            link_native_contracts, link_native_enums, link_native_functions,
-            link_native_resource_types, link_native_signatures, link_native_structs, link_opaque_values,
-        )
-
-        if not isinstance(program, Program):
-            raise Exception('program parameter is not a Program')
-
-        extension = resolve_extensions(extensions, override_extensions=override_extensions,
-                                       include_builtin_extensions=include_builtin_extensions)
-        self.native_types = extension.native_types
-        validate_program(program)
+    def __init__(self, loaded: LoadedProgram) -> None:
+        if not isinstance(loaded, LoadedProgram):
+            raise TypeError('loaded parameter is not a LoadedProgram')
+        loaded._host.attach(self)
+        program = loaded.program
         self.program = program
-        self._procedure_indices = {proc: index for index, proc in enumerate(procedure_instances(program))}
+        self.native_types = loaded.native_types
+        self.native_functions = loaded.native_functions
+        self.resource_types = loaded.resource_types
+        self._procedure_indices = loaded.procedure_indices
         self._runtime_procedures = frozenset(proc for stage, schedule in program.procs.items()
                                              if stage != RunStage.LOAD for proc in schedule)
+        self.fixed_values = loaded.fixed_values
+        self.resource_values = loaded.resource_values
+        self._resource_triggers = loaded.resource_triggers
+        self._initializer_outputs = loaded.initializer_outputs
+        self.native_states = loaded.native_states
+        self._native_procedures = loaded.native_procedures
 
         self.cache: VariableTableInstance | None = None  # Temporary values from the last completed step.
 
@@ -75,7 +68,6 @@ class Engine:
         self.state = VariableTableInstance(self.program.state_variables)
         # The state before the last step. Was .old during the last step.
         self.last_step_state: VariableTableInstance | None = None
-        self.native_states: dict[Procedure, NativeState] = {}
 
         self.fake_monotonic_time_offset: Duration | None = None
         self._fake_monotonic_time_generation: int | None = None
@@ -83,126 +75,21 @@ class Engine:
         self._has_fake_wall_time = False
         self.test_twon_fake_server_info: Any = None  # Set by the test runner for 2N tests.
 
-        link_native_enums(program, extension)
-        link_native_structs(program, extension)
-        link_opaque_values(program, extension)
-        link_native_signatures(program, extension)
-        self.resource_types = link_native_resource_types(program, extension)
-        linked_states, linked_procedures = link_native_contracts(program, extension)
-        self.native_functions = link_native_functions(program, extension)
-        self.fixed_values = VariableTableInstance(program.fixed_values)
-        self.resource_values: dict[Variable, ResourceValue] = {}
-        # Triggers follow resource object identity, including handles passed through load selectors.
-        self._resource_triggers: dict[Variable, list[Procedure]] = {}
-        self._resource_origins: dict[Variable, frozenset[Variable]] = {}
-        self._initializer_outputs: dict[Procedure, Mapping[str, Variable]] = {}
-        self._native_procedures: dict[Procedure, tuple[NativeProcedure, ProcedureAdapter, InterfaceBinding]] = {}
-        for proc in program.procs.get(RunStage.LOAD, ()):
-            if proc.native is None:
-                values = [self._fixed_input(source) for source in proc.inputs]
-                output_values = execute_procedure(proc, values, self.native_functions, native_types=self.native_types,
-                                                  procedure_index=self._procedure_indices[proc])
-            else:
-                if proc.initializer:
-                    linked = linked_states[proc.native.name]
-                    interface = self._procedure_binding(proc, linked.signature)
-                    self._initializer_outputs[proc] = {
-                        key: target.variable for key, target in proc.named_outputs()
-                        if target.variable.is_resource
-                    }
-                    services: StateServices[Any] = StateServices(
-                        native_types=self.native_types, name=self._procedure_owner_label(proc),
-                        output_keys=linked.adapter.output_keys,
-                        trigger=functools.partial(self._trigger_output, proc),
-                        shutdown_time=lambda: self.shutdown_time,
-                        is_shutting_down=lambda: self.is_shutting_down,
-                    )
-                    state, outputs = linked.adapter.construct(linked.factory, services, interface)
-                    self.native_states[proc] = state
-                else:
-                    linked_procedure = linked_procedures[proc.native.name]
-                    interface = self._procedure_binding(proc, linked_procedure.signature)
-                    inputs = {key: self._fixed_input(source) for key, source in self._port_inputs(proc, interface)
-                              if source.resource is None}
-                    outputs = linked_procedure.adapter.load(
-                        linked_procedure.factory(),
-                        PreparationServices(native_types=self.native_types, name=self._procedure_owner_label(proc)),
-                        interface, inputs,
-                    )
-                output_values = [outputs[key] for key in proc.native.output_names]
-            for (index, target), value in zip(enumerate(proc.outputs), output_values):
-                if target.variable.is_resource:
-                    if not isinstance(value, ResourceValue):
-                        raise ValueError(f'Resource output {index} did not return a resource')
-                    if target.variable in self.resource_values:
-                        raise ValueError('Resource is already initialized')
-                    self.resource_values[target.variable] = value
-                    origins = set()
-                    if not proc.initializer:
-                        for source in proc.inputs:
-                            if source.resource is not None and self.resource_values[source.resource].object is value.object:
-                                origins.update(self._resource_origins[source.resource])
-                    self._resource_origins[target.variable] = frozenset(origins or (target.variable,))
-                else:
-                    self.fixed_values.add(target.variable, value)
-        # Prepare runtime procedures only after the complete load schedule has run.
-        for stage, schedule in program.procs.items():
-            if stage == RunStage.LOAD:
-                continue
-            for proc in schedule:
-                for source in proc.inputs:
-                    if source.resource is not None:
-                        for origin in self._resource_origins[source.resource]:
-                            keys = self._resource_triggers.setdefault(origin, [])
-                            if proc not in keys:
-                                keys.append(proc)
-                if proc.native is not None:
-                    linked_procedure = linked_procedures[proc.native.name]
-                    interface = self._procedure_binding(proc, linked_procedure.signature)
-                    implementation = linked_procedure.factory()
-                    linked_procedure.adapter.prepare(
-                        implementation, PreparationServices(native_types=self.native_types, name=self._procedure_owner_label(proc)), interface)
-                    self._native_procedures[proc] = implementation, linked_procedure.adapter, interface
+        # Set when activation starts; an engine is activated at most once.
+        self._activated = False
+
         for variable, initial in program.initial_state.items():
             self.state.add(variable, initial)
 
-    def _fixed_input(self, source: InputSource) -> Any:
-        if source.constant is not None:
-            return source.constant.value
-        if source.resource is not None:
-            return self.resource_values[source.resource]
-        assert source.bank == VariableBank.FIXED_VALUES and isinstance(source.variable, Variable)
-        return self.fixed_values[source.variable]
+    async def activate(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
+        """Start the tasks of the native objects; their cleanup is registered on async_exit_stack.
 
-    @staticmethod
-    def _port_inputs(proc: Procedure, interface: InterfaceBinding) -> list[tuple[str, InputSource]]:
-        """Return the named inputs of a native procedure that are not compile-time reads."""
-        return [(name, source) for name, source in proc.named_inputs() if name not in interface.signature.uses]
+        An engine is activated at most once; load the program again to restart it.
+        """
+        if self._activated:
+            raise RuntimeError('The engine was already activated')
+        self._activated = True
 
-    def _procedure_binding(self, proc: Procedure, signature: Any) -> InterfaceBinding:
-        assert proc.native is not None
-        uses = {name: source.constant for name, source in proc.named_inputs() if name in signature.uses}
-        ports = [(name, source) for name, source in proc.named_inputs() if name not in uses]
-        port_types = {name: source.value_type for name, source in ports if source.resource is None}
-        port_types.update((name, target.variable.var_type) for name, target in proc.named_outputs()
-                          if not target.variable.is_resource)
-        return InterfaceBinding(
-            native_types=self.native_types,
-            where=f'Native {"initializer" if proc.initializer else "procedure"} `{proc.native.name}` of `{self._procedure_owner_label(proc)}`', signature=signature,
-            use_types={key: constant.value_type for key, constant in uses.items() if constant is not None},
-            use_values={key: cast(InternalValue, constant.value) for key, constant in uses.items() if constant is not None},
-            resources={name: self.resource_values[source.resource] for name, source in ports
-                       if source.resource is not None},
-            port_types=port_types,
-            output_resource_types={name: self.resource_types[cast(TypeResource, target.variable.var_type).native_name]
-                                   for name, target in proc.named_outputs() if target.variable.is_resource},
-            fixed_inputs={name: self._fixed_input(source) for name, source in ports
-                          if source.resource is None
-                          and source.bank in (VariableBank.FIXED_VALUES, VariableBank.CONST_VALUES)},
-        )
-
-    async def start_tasks_async(self, task_group: asyncio.TaskGroup,
-                                async_exit_stack: contextlib.AsyncExitStack) -> None:
         def start_task_cleanup() -> None:
             now_monotonic = self.get_monotonic_time()
 
@@ -232,7 +119,7 @@ class Engine:
         async_exit_stack.callback(start_task_cleanup)
 
     def _procedure_owner_label(self, procedure: Procedure) -> str:
-        return procedure.node if procedure.node is not None else f'procedure[{self._procedure_indices[procedure]}]'
+        return procedure_owner_label(procedure, self._procedure_indices)
 
     def _resolve_procedure(self, target: Procedure | str, candidates: Iterable[Procedure], kind: str) -> Procedure:
         if isinstance(target, Procedure):
@@ -481,7 +368,7 @@ class Engine:
 
     def get_source_value(self, input_source: InputSource) -> object:
         if input_source.bank in (VariableBank.CONST_VALUES, VariableBank.FIXED_VALUES):
-            return self._fixed_input(input_source)
+            return fixed_input(input_source, self.fixed_values, self.resource_values)
         variable = input_source.variable
         assert isinstance(variable, Variable)
         if input_source.bank == VariableBank.TEMPORARIES:

@@ -199,7 +199,7 @@ async def check_runner_cleanup():
                                       return_value=None if mode == 'program' else Program(
                                           state_variables=VariableTable((), 'state'), temporaries=VariableTable((), 'temporary'),
                                           initial_state={}, procs={})))
-            construct = mocks.enter_context(patch('tests.infra.support.Engine', return_value=SimpleNamespace()))
+            construct = mocks.enter_context(patch('tests.infra.support.Engine', return_value=SimpleNamespace(activate=AsyncMock())))
             mocks.enter_context(patch('tests.infra.runner.execution.with_maybe_knxd', daemon))
             mocks.enter_context(patch('tests.infra.runner.execution.with_maybe_mqtt', daemon))
             mocks.enter_context(patch('tests.infra.runner.execution.importlib.util.spec_from_file_location', return_value=spec))
@@ -208,10 +208,15 @@ async def check_runner_cleanup():
                 mocks.enter_context(patch('aiohttp.web.SockSite.start', new=AsyncMock(side_effect=LifecycleFailure)))
             if mode in ('compilation', 'program'):
                 failure = checks.assertRaisesRegex(AssertionError, 'compilation failed')
+            elif mode == 'assertions':
+                # The runner runs wrl/ tests in the task group of their activated engine.
+                failure = checks.assertRaises(ExceptionGroup)
             else:
                 failure = checks.assertRaises(LifecycleFailure)
             with failure:
                 await runner_run_test('wrl/std')
+            if mode == 'assertions':
+                assert failure.exception.subgroup(LifecycleFailure) is not None
             if mode != 'assertions':
                 construct.assert_not_called()
         assert sorted(started) == sorted(stopped)

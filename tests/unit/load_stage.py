@@ -10,6 +10,7 @@ from wirely.compiler import program as program_compiler
 from wirely.program.program import InputSource, RunStage
 from wirely.program.validation import validate_program
 from wirely.runtime.engine import Engine
+from wirely.runtime.loading import LoadedProgram
 from tests.infra.support import test_contracts, test_extension
 
 
@@ -136,7 +137,7 @@ with test_contracts(graph) as contracts:
         procedures={'TestLibrary.Choose:choose': ChooseChoose, 'TestLibrary.Probe:run': ProbeRun},
         resources={'TestLibrary.Handle': Handle}, contracts=contracts,
     )
-    engine = Engine(program, override_extensions=[extension])
+    engine = Engine(LoadedProgram.load(program, override_extensions=[extension]))
     first = engine.get_native_state('provider.first')
     second = engine.get_native_state('provider.second')
     assert second.first is first
@@ -156,7 +157,7 @@ with test_contracts(graph) as contracts:
     assert calls == loaded + [('run', first), ('run', first)]
     assert second.services is not first.services
     # Each engine loads independently and owns distinct resource objects.
-    other = Engine(program, override_extensions=[extension])
+    other = Engine(LoadedProgram.load(program, override_extensions=[extension]))
     assert other.get_native_state('provider.first') is not first
 
 # The runtime rejects malformed load schedules before executing native code.
@@ -173,6 +174,6 @@ with checks.assertRaisesRegex(ValueError, 'Unknown procedure name'):
 
 async def run_test():
     async with asyncio.TaskGroup() as task_group, contextlib.AsyncExitStack() as exit_stack:
-        await engine.start_tasks_async(task_group, exit_stack)
+        await engine.activate(task_group, exit_stack)
         assert lifecycle == ['first', 'second']
     assert lifecycle == ['first', 'second', 'stop second', 'stop first']

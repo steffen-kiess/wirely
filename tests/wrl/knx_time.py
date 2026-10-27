@@ -1,5 +1,4 @@
 import asyncio
-import contextlib
 import datetime
 
 import xknx
@@ -48,26 +47,23 @@ class MessageReceiver:
 
 
 async def run_test():
-    async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
-        await engine.start_tasks_async(tg, async_exit_stack)
+    knx = create_xknx(engine.get_native_state('bus.create').connection_config)
+    async with knx:
+        print(engine.get_native_state('bus.create').knx.current_address, knx.current_address)
 
-        knx = create_xknx(engine.get_native_state('bus.create').connection_config)
-        async with knx:
-            print(engine.get_native_state('bus.create').knx.current_address, knx.current_address)
+        engine.set_fake_wall_time(datetime.datetime(2026, 1, 1, 7, tzinfo=datetime.timezone.utc))
 
-            engine.set_fake_wall_time(datetime.datetime(2026, 1, 1, 7, tzinfo=datetime.timezone.utc))
+        event_sensor_recv = MessageReceiver(knx, 'event_sensor', "0/7/1", "binary")
 
-            event_sensor_recv = MessageReceiver(knx, 'event_sensor', "0/7/1", "binary")
+        await event_sensor_recv.expect()
 
-            await event_sensor_recv.expect()
+        engine.step()
+        engine.step()
+        engine.assert_is_idle()
+        await event_sensor_recv.expect()
 
-            engine.step()
-            engine.step()
-            engine.assert_is_idle()
-            await event_sensor_recv.expect()
-
-            engine.set_fake_wall_time(datetime.datetime(2026, 1, 1, 9, tzinfo=datetime.timezone.utc))
-            engine.step()
-            engine.step()
-            engine.assert_is_idle()
-            await event_sensor_recv.expect(True)
+        engine.set_fake_wall_time(datetime.datetime(2026, 1, 1, 9, tzinfo=datetime.timezone.utc))
+        engine.step()
+        engine.step()
+        engine.assert_is_idle()
+        await event_sensor_recv.expect(True)

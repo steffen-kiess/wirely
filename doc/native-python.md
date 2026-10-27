@@ -97,13 +97,22 @@ from acme.compiler.generated import extension as compiler_extension
 from wirely.compiler.compilation import compile_files
 from wirely.compiler.program import compile_nocatch
 from wirely.runtime.engine import Engine
+from wirely.runtime.loading import LoadedProgram
 
 
 graph = compile_files(['library.wrl', 'program.wrl'], extensions=[extension],
                       compiler_extensions=[compiler_extension])
 assert graph is not None
-engine = Engine(compile_nocatch(graph), extensions=[extension])
+loaded = LoadedProgram.load(compile_nocatch(graph), extensions=[extension])
+engine = Engine(loaded)
 ```
+
+`LoadedProgram.load()` links the program, runs its load stage, and prepares
+its procedures. It raises `LoadError` from `wirely.runtime.procedures` if the
+program does not load on this runtime; its subclass `LoadFailure` reports a
+failed `load assert` or `load fail`. A loaded program belongs to one engine.
+`engine.activate(task_group, async_exit_stack)` starts the native objects
+once per engine; to restart, load the program again.
 
 `RuntimeNativeExtension` in `wirely.runtime.extensions` contains `states`,
 `procedures`, `functions`, `resources`, `enums`, `structs`, and
@@ -128,7 +137,7 @@ Duplicate native names within a category are rejected. For replacements,
 pass `override_extensions` and, when compiling,
 `compiler_override_extensions`. Each override replaces a whole entry,
 including its signature; duplicate override names are also rejected.
-Bindings are local to each compilation or engine.
+Bindings are local to each compilation or loaded program.
 
 Generate an external package from its declarations:
 
@@ -167,7 +176,7 @@ Native procedures currently accept only single value/event reads.
 Use a Wirely procedure to aggregate multi value inputs.
 
 A native `stage load` procedure implements `load()` instead of `prepare()`
-and `run()`. The engine calls it once with all compile-time and fixed reads
+and `run()`. Loading calls it once with all compile-time and fixed reads
 and stores its returned fixed outputs. Its `PreparationServices` provides
 `name` and `native_types`, without triggers or wakeups. Load procedures are
 pure; use an initializer to own native state or asynchronous tasks.
@@ -442,10 +451,10 @@ resource output with this Python name, including consumers reached through
 a load selector returning that handle. Repeated triggers
 before execution schedule one invocation.
 
-Startup calls `start_tasks(task_group, async_exit_stack)`, then awaits
-`start_tasks_async(task_group, async_exit_stack)` on each native object.
-Startup follows successful loading of the whole program. Do not raise
-from these hooks or from tasks when a peer, file, or device is
+`Engine.activate()` calls `start_tasks(task_group, async_exit_stack)`, then
+awaits `start_tasks_async(task_group, async_exit_stack)` on each native
+object. Activation follows successful loading of the whole program. Do not
+raise from these hooks or from tasks when a peer, file, or device is
 unavailable; retry in a task, and report the condition through an output
 where procedures need it. Cleanup runs once; a native object is not
 started again afterwards.
@@ -531,8 +540,8 @@ and pure: the result depends only on the arguments, and calling the
 function has no side effects. They must return a value for every argument;
 return an `Option` when a result may be absent. An exception is an
 internal error: during compilation it stops compilation, and at runtime it
-propagates out of `Engine.step()`. An `Engine` resolves every function its
-program calls when it is constructed.
+propagates out of `Engine.step()`. Loading resolves every function the
+program calls.
 
 ### Constant functions
 

@@ -7,6 +7,7 @@ import wirely
 from wirely.compiler import program as program_compiler
 import wirely.compiler.compilation
 from wirely.runtime.engine import Engine
+from wirely.runtime.loading import LoadedProgram
 from tests.infra.support import test_contracts, test_extension
 
 
@@ -168,7 +169,7 @@ def make_engine(source, *, declarations=definitions):
     assert program is not None
     with test_contracts(graph) as contracts:
         bindings = test_extension(**implementations(contracts), contracts=contracts)
-        return Engine(program, override_extensions=[bindings])
+        return Engine(LoadedProgram.load(program, override_extensions=[bindings]))
 
 
 def check_old_snapshots():

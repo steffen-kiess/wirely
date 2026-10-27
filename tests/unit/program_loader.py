@@ -29,7 +29,8 @@ from wirely.program.generated import format as fmt
 from wirely.program.loader import load_program, read_build_id
 from wirely.program.writer import write_program
 from wirely.runtime.engine import Engine
-from wirely.runtime.procedures import LoadFailure
+from wirely.runtime.loading import LoadedProgram
+from wirely.runtime.procedures import LoadError, LoadFailure
 from tests.infra.bytecode import match_programs
 from tests.unit.program_writer import body_program, const, instruction, local, program, records
 
@@ -454,7 +455,7 @@ def check_shared_bodies():
     assert left.body is not right.body
     assert left.body.instructions[0].operands[1].constant.value is True
     assert right.body.instructions[0].operands[1].constant.value == -1
-    machine = Engine(loaded)
+    machine = Engine(LoadedProgram.load(loaded))
     machine.step()
     assert machine.cache[left.outputs[0].variable] is True
     assert machine.cache[right.outputs[0].variable] == -1
@@ -547,8 +548,8 @@ def check_native_registry():
     opaque = types.TypeStruct('Native', {'value': types.uint8}, native_name='Custom.Native', is_opaque=True)
     variable = Variable(opaque)
     loaded = load_program(write_program(state_program((variable,), {variable: (7,)})))
-    with checks.assertRaisesRegex(ValueError, 'Custom.Native'):
-        Engine(loaded)
+    with checks.assertRaisesRegex(LoadError, 'Custom.Native'):
+        LoadedProgram.load(loaded)
 
 
 async def check_service():
@@ -572,8 +573,8 @@ async def check_service():
                                        ([str(path), str(path)], 2)):
                 with contextlib.redirect_stderr(io.StringIO()):
                     assert await run_command.async_run(argparse.Namespace(**{**vars(args), 'input_filename': filenames})) == status
-            for error in (ValueError('link failure'), LoadFailure(Procedure((), (), name='test.load'), 0, 'load failure', ())):
-                with patch.object(run_command, 'Engine', side_effect=error), patch.object(run_command, 'run_engine', new_callable=AsyncMock, return_value=None) as run:
+            for error in (LoadError('link failure'), LoadFailure(Procedure((), (), name='test.load'), 0, 'load failure', ())):
+                with patch.object(run_command.LoadedProgram, 'load', side_effect=error), patch.object(run_command, 'run_engine', new_callable=AsyncMock, return_value=None) as run:
                     output = io.StringIO()
                     with contextlib.redirect_stderr(output):
                         assert await run_command.async_run(args) == 1

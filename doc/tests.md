@@ -69,6 +69,11 @@ in `unit/`, even when compilation provides their setup. Keep language checks
 in compiler fixtures rather than inspecting compiler representations in
 Python.
 
+The runner activates the engine of a `wrl/` runtime test before running its
+Python file. List tests that activate engines themselves, for example to
+test restarts with a new engine per run, in `manually_activated_tests` in
+`tests/infra/runner/registry.py`.
+
 ## Runtime clocks
 
 Call `engine.enable_fixed_monotonic_time()` to use the engine's existing

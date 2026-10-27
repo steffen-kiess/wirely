@@ -3,6 +3,7 @@ import wirely.compiler.compilation
 from wirely.compiler import program as program_compiler
 from wirely.runtime.native_api import FunctionImplementation
 from wirely.runtime.engine import Engine
+from wirely.runtime.loading import LoadedProgram
 from tests.infra.support import internal, test_extension, test_contracts, test_engine
 
 
@@ -304,7 +305,7 @@ def check_mixed_procedures():
                 return contracts.TestNodeTestProcedureResult(temp=self.value)
 
         bindings = test_extension(procedures={'TestLibrary.TestNode:test_procedure': Produce}, contracts=contracts)
-        mixed_engine = Engine(mixed_program, override_extensions=[bindings])
+        mixed_engine = Engine(LoadedProgram.load(mixed_program, override_extensions=[bindings]))
     mixed_engine.step()
     mixed_engine.assert_value_is('mixed', True)
     mixed_engine.assert_is_idle()

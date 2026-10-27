@@ -23,7 +23,8 @@ from wirely.control.framing import memory_framing_pair
 from wirely.control.server import ControlServer, serve_session
 from wirely.misc.state_directory import StateDirectoryLocked, lock_state_directory
 from wirely.runtime.engine import Engine
-from wirely.runtime.procedures import LoadFailure
+from wirely.runtime.loading import LoadedProgram
+from wirely.runtime.procedures import LoadError
 from wirely.program.loader import load_program, read_build_id
 from wirely.program.writer import program_build_id
 from wirely.program.container import SectionList
@@ -49,7 +50,7 @@ async def run_engine(engine: Engine, controller: RuntimeController | None = None
     try:
         # Note: async_exit_stack must be exited before tg (and therefore entered after tg), otherwise destroying exiting tg might hang because there are still some tasks running
         async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
-            await engine.start_tasks_async(tg, async_exit_stack)
+            await engine.activate(tg, async_exit_stack)
             tg.create_task(wirely.misc.service.should_never_return(engine.run()))
             if state_directory is not None:
                 assert controller is not None
@@ -136,8 +137,8 @@ async def async_run(args: argparse.Namespace) -> int | None:
                 names = compiled
                 if args.state_directory is not None or args.commands is not None:
                     build_id = program_build_id(prog)
-            eng = Engine(prog)
-        except (OSError, ValueError, LoadFailure) as error:
+            eng = Engine(LoadedProgram.load(prog))
+        except (OSError, ValueError, LoadError) as error:
             print(f'Error: {error}', file=sys.stderr)
             return 1
 

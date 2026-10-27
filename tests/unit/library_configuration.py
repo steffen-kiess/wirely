@@ -12,6 +12,7 @@ from wirely.compiler.compilation import compile_strs
 from wirely.compiler.sources import standard_library_sources
 from wirely.compiler import program as program_compiler
 from wirely.runtime.engine import Engine
+from wirely.runtime.loading import LoadedProgram
 from tests.infra.support import test_extension, test_contracts, test_engine
 
 
@@ -35,7 +36,7 @@ def settings_engine(program):
 
         bindings = test_extension(**registry, contracts=contracts)
         resource_bindings = test_extension(resources={'TwoN.Device': SettingsDevice}, contracts=contracts)
-        return Engine(program, override_extensions=[bindings, resource_bindings])
+        return Engine(LoadedProgram.load(program, override_extensions=[bindings, resource_bindings]))
 
 
 def compile_program(source, *, filename='<configuration>'):

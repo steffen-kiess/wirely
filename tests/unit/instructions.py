@@ -14,8 +14,9 @@ from wirely.program.program import (
 )
 from wirely.program.validation import validate_program
 from wirely.runtime.engine import Engine
+from wirely.runtime.loading import LoadedProgram
 from wirely.runtime.extensions import NativeTypes
-from wirely.runtime.procedures import execute_procedure
+from wirely.runtime.procedures import LoadError, execute_procedure
 
 
 checks = TestCase()
@@ -60,7 +61,7 @@ def make_program(instructions, *, local_types=(), output_types=(types.boolean,),
 def execute(instructions, *, override_extensions=(), **kwargs):
     program = make_program(instructions, **kwargs)
     from tests.infra.native_extension.generated import extension as fixture
-    machine = Engine(program, extensions=[fixture], override_extensions=override_extensions)
+    machine = Engine(LoadedProgram.load(program, extensions=[fixture], override_extensions=override_extensions))
     machine.step()
     return tuple(machine.get_value(name) for name in program.symbols.variable_aliases)
 
@@ -174,7 +175,7 @@ def check_calls():
 
     # Linking requires an implementation for every called function, even if unreachable.
     missing = Function('TestLibrary.Missing', (), types.boolean)
-    with checks.assertRaisesRegex(ValueError, "Cannot find the signature of native function `TestLibrary.Missing`"):
+    with checks.assertRaisesRegex(LoadError, "Cannot find the signature of native function `TestLibrary.Missing`"):
         execute([instruction(Opcode.RETURN), instruction(Opcode.CALL, output(0), missing, 0),
                  instruction(Opcode.RETURN)])
 
@@ -365,10 +366,10 @@ def check_branches():
 
 def expect_invalid(instructions, message, **kwargs):
     program = make_program(instructions, **kwargs)
-    for check in (validate_program, Engine):
+    for check in (validate_program, LoadedProgram.load):
         try:
             check(program)
-        except ValueError as error:
+        except (ValueError, LoadError) as error:
             assert message in str(error), (message, error)
         else:
             raise AssertionError('Invalid instructions were accepted')

@@ -9,6 +9,8 @@ from wirely.compiler import program as program_compiler
 import wirely.compiler.compilation
 from wirely.program.program import RunStage
 from wirely.runtime.engine import Engine
+from wirely.runtime.loading import LoadedProgram
+from wirely.runtime.procedures import LoadError
 from wirely.runtime.resources import ResourceValue
 from tests.infra.support import test_extension, test_contracts
 
@@ -111,7 +113,7 @@ def make_engine(graph):
         registry, resource_types = native_classes(contracts)
         bindings = test_extension(**registry, contracts=contracts)
         resource_bindings = test_extension(resources=resource_types, contracts=contracts)
-        return Engine(program_compiler.compile_nocatch(graph), override_extensions=[bindings, resource_bindings])
+        return Engine(LoadedProgram.load(program_compiler.compile_nocatch(graph), override_extensions=[bindings, resource_bindings]))
 
 
 def compile_resources(source):
@@ -289,7 +291,7 @@ namespace TestLibrary {
 }
 node source: TestLibrary.Incomplete {}
 ''')
-with checks.assertRaisesRegex(ValueError, "Native initializer `TestLibrary.Incomplete:create` of `source` must "
+with checks.assertRaisesRegex(LoadError, "Native initializer `TestLibrary.Incomplete:create` of `source` must "
                               'return a IncompleteCreateResult, got None'):
     make_engine(incomplete_graph)
 
@@ -317,7 +319,7 @@ namespace TestLibrary {
 node source: TestLibrary.WrongProvider {}
 ''')
 with checks.assertRaisesRegex(
-        ValueError, "invalid value for output `service`: Resource `TestLibrary.Service` requires a Service"):
+        LoadError, "invalid value for output `service`: Resource `TestLibrary.Service` requires a Service"):
     make_engine(wrong_graph)
 
 unknown_graph = compile_resources('''
@@ -330,7 +332,7 @@ namespace TestLibrary {
 }
 node source: TestLibrary.Provider {}
 ''')
-with checks.assertRaisesRegex(ValueError, "Cannot find native resource type `TestLibrary.Unknown`"):
+with checks.assertRaisesRegex(LoadError, "Cannot find native resource type `TestLibrary.Unknown`"):
     make_engine(unknown_graph)
 
 
@@ -397,7 +399,7 @@ with test_contracts(alias_graph) as contracts:
 
     bindings = test_extension(**alias_registry, contracts=contracts)
     resource_bindings = test_extension(resources={'TestLibrary.Service': Service}, contracts=contracts)
-    alias_resource_engine = Engine(alias_program, override_extensions=[bindings, resource_bindings])
+    alias_resource_engine = Engine(LoadedProgram.load(alias_program, override_extensions=[bindings, resource_bindings]))
 holder = alias_resource_engine.get_native_state('holder.create')
 assert alias_resource_engine.get_native_state('holder.child.create').service is holder
 source_state = alias_resource_engine.get_native_state('composite.source.create')
@@ -416,5 +418,5 @@ with checks.assertRaisesRegex(ValueError, 'refers to a resource'):
 
 async def run_test():
     async with asyncio.TaskGroup() as task_group, contextlib.AsyncExitStack() as exit_stack:
-        await native_resource_engine.start_tasks_async(task_group, exit_stack)
+        await native_resource_engine.activate(task_group, exit_stack)
         assert startup_inputs == [consumer.resources]

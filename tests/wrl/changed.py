@@ -1,5 +1,6 @@
 import wirely
 from wirely.runtime.engine import Engine
+from wirely.runtime.loading import LoadedProgram
 
 
 def check(runtime, value, previous, *, event=False):
@@ -37,7 +38,7 @@ check(engine, 1, 0)
 check(engine, 2, 1)
 settle(engine)
 # A fresh engine compares its first step against declared initial state.
-restarted = Engine(engine.program)
+restarted = Engine(LoadedProgram.load(engine.program))
 check(restarted, 7, 0)
 settle(restarted)
 

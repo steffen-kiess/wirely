@@ -5,6 +5,8 @@ import sys
 import types
 from unittest import mock
 
+from tests.infra.support import test_engine
+
 
 class Direction(enum.Enum):
     INPUT = 1
@@ -95,10 +97,9 @@ async def run_test():
     gpiod.line = line
 
     with mock.patch.dict(sys.modules, {'gpiod': gpiod, 'gpiod.line': line}):
-        output = engine.get_native_state('test_output.create')
         assert not Chip.instances
         async with asyncio.TaskGroup() as tasks, contextlib.AsyncExitStack() as stack:
-            await engine.start_tasks_async(tasks, stack)
+            await engine.activate(tasks, stack)
             chip = Chip.instances[-1]
             assert chip.path == '/dev/gpiochip-test'
             assert chip.lookups == ['LED']
@@ -128,10 +129,11 @@ async def run_test():
         assert chip.request.closed
         assert chip.closed
 
-        output.name = 'missing'
+        restarted = test_engine(engine.program)
+        restarted.get_native_state('test_output.create').name = 'missing'
         async with asyncio.TaskGroup() as tasks, contextlib.AsyncExitStack() as stack:
             try:
-                await engine.start_tasks_async(tasks, stack)
+                await restarted.activate(tasks, stack)
             except ValueError as exc:
                 assert "Cannot find GPIO 'missing'" in str(exc)
             else:

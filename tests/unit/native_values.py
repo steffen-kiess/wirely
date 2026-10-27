@@ -12,6 +12,7 @@ from wirely.compiler.compilation import compile_strs
 from wirely.compiler.sources import standard_library_sources
 from wirely.compiler import program as program_compiler
 from wirely.runtime.engine import Engine
+from wirely.runtime.loading import LoadedProgram
 from tests.infra.support import test_extension, test_constant_function, test_contracts
 from wirely.runtime.signatures import Builtin
 from wirely.runtime.extensions import NativeEnum, NativeOpaque, NativeStruct
@@ -163,7 +164,7 @@ connect provider -> second.Connection;
         registry, resource_types = value_classes(contracts)
         bindings = test_extension(**registry, contracts=contracts)
         resource_bindings = test_extension(resources=resource_types, contracts=contracts)
-        runtime = Engine(program, override_extensions=[enum_bindings, struct_bindings, bindings, resource_bindings])
+        runtime = Engine(LoadedProgram.load(program, override_extensions=[enum_bindings, struct_bindings, bindings, resource_bindings]))
     runtime.step()
     runtime.assert_value_is('first.Result', 7)
     runtime.assert_value_is('second.Result', 8)
@@ -207,7 +208,7 @@ def check_optional_values():
             registry['initializers']['TestLibrary.OptionalProbe:create'] = OptionalProbe
 
             bindings = test_extension(**registry, contracts=contracts)
-            runtime = Engine(program, override_extensions=[bindings])
+            runtime = Engine(LoadedProgram.load(program, override_extensions=[bindings]))
         values = runtime.get_native_state('forward.child.create').values
         assert values['Maybe'] == expected
         assert values[''] == expected

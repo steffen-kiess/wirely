@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from wirely.compiler import model
 from wirely.runtime.engine import Engine
+from wirely.runtime.loading import LoadedProgram
 from wirely.program.types import TypeStruct
 
 if TYPE_CHECKING:
@@ -109,7 +110,7 @@ def test_engine(program: Program, graph: object = None, **kwargs: Any) -> Engine
     from tests.infra.bytecode import bytecode_roundtrip_mode, roundtrip_program
     if bytecode_roundtrip_mode.get():
         program = roundtrip_program(program)
-    return Engine(program, extensions=[extension], **kwargs)
+    return Engine(LoadedProgram.load(program, extensions=[extension], **kwargs))
 
 
 def internal(value: Any) -> Any:

@@ -33,6 +33,7 @@ from wirely.program.writer import program_build_id, write_program
 from wirely.program.container import SectionList
 from wirely.program.loader import load_program
 from wirely.runtime.engine import Engine
+from wirely.runtime.loading import LoadedProgram
 
 program_path = os.path.join(os.path.dirname(__file__), 'control.wrl')
 
@@ -249,7 +250,7 @@ async def check_service_interactive():
         await asyncio.Event().wait()
 
     program = engine.program
-    runtime = Engine(program)
+    runtime = Engine(LoadedProgram.load(program))
     output = io.StringIO()
     with (contextlib.redirect_stdout(output), contextlib.redirect_stderr(output),
           unittest.mock.patch('sys.stdin', io.StringIO('pause\nset value 5\nget value\nquit\nresume\n')),
@@ -313,7 +314,7 @@ async def check_unnamed_native_commands():
     container = SectionList.from_bytes(write_program(engine.program))
     container.sections = [section for section in container.sections if section.section_type < 0x10000]
     program = load_program(container.to_bytes())
-    runtime = Engine(program)
+    runtime = Engine(LoadedProgram.load(program))
     controller = RuntimeController(runtime, program_build_id(program))
     value = instance_index('value.create')
     assert controller.handle(Op.NATIVE_COMMAND, {1: value, 2: 1, 3: {1: b'\x09\x00'}}, bound=True) == {1: {}}

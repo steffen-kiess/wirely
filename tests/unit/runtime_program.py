@@ -18,6 +18,8 @@ from wirely.program.writer import write_program
 from wirely.program.program import procedure_instances
 from wirely.runtime.linking import link_native_signatures
 from wirely.runtime.engine import Engine
+from wirely.runtime.loading import LoadedProgram
+from wirely.runtime.procedures import LoadError
 from tests.infra.support import test_extension, test_contracts, test_engine
 
 
@@ -66,7 +68,7 @@ node example: Uninstalled.Example {}
         program = program_compiler.compile_nocatch(graph)
     try:
         test_engine(program)
-    except ValueError as error:
+    except LoadError as error:
         assert 'Uninstalled.Example' in str(error), error
     else:
         raise AssertionError('Engine accepted an unavailable native implementation')
@@ -161,8 +163,8 @@ connect alias -> consumer.Service;
         resource_types = {'TestLibrary.Service': Provider, 'TestLibrary.ConsumerState': Consumer}
         bindings = test_extension(**registry, contracts=contracts)
         resource_bindings = test_extension(resources=resource_types, contracts=contracts)
-        first = Engine(program, override_extensions=[bindings, resource_bindings])
-        second = Engine(program, override_extensions=[bindings, resource_bindings])
+        first = Engine(LoadedProgram.load(program, override_extensions=[bindings, resource_bindings]))
+        second = Engine(LoadedProgram.load(program, override_extensions=[bindings, resource_bindings]))
     for runtime in (first, second):
         provider = runtime.get_native_state('TestLibrary.Provider:create')
         aliases = runtime.program.symbols.node_aliases
@@ -262,7 +264,7 @@ connect source -> sink.Service;
 
         bindings = test_extension(**registry, contracts=contracts)
         resource_bindings = test_extension(resources={'TestLibrary.Service': Provider}, contracts=contracts)
-        engine = Engine(program, override_extensions=[bindings, resource_bindings])
+        engine = Engine(LoadedProgram.load(program, override_extensions=[bindings, resource_bindings]))
     initializer = next(proc for proc in program.procs[RunStage.LOAD] if proc.node == 'source')
     assert initializer.native == NativeProcedureEntry('TestLibrary.Provider:create', (), ('service',), True)
     assert program.native_procedures == (
@@ -356,7 +358,7 @@ connect first -> seen;
     assert all(proc.name is None and proc.node is None for proc in instances)
     assert all(var.name is None for table in (loaded.state_variables, loaded.temporaries, loaded.fixed_values)
                for var in table.variables)
-    runtime = Engine(loaded)
+    runtime = Engine(LoadedProgram.load(loaded))
     first, second = loaded.procs[RunStage.LOAD]
     readers = loaded.procs[RunStage.INPUT]
     assert runtime.get_native_state(first) is not runtime.get_native_state(second)
@@ -388,7 +390,7 @@ connect first -> seen;
     assert runtime.step()[0] == 1
     duplicate_names = replace(loaded, procs={stage: tuple(replace(proc, name='same') for proc in schedule)
                                            for stage, schedule in loaded.procs.items()})
-    other = Engine(duplicate_names)
+    other = Engine(LoadedProgram.load(duplicate_names))
     with checks.assertRaisesRegex(ValueError, 'Ambiguous initializer name'):
         other.get_native_state('same')
     with checks.assertRaisesRegex(ValueError, 'Ambiguous procedure name'):
@@ -439,7 +441,7 @@ node second: TestLibrary.Probe {}
                 return contracts.ProbeRunResult()
 
         extension = test_extension(procedures={'TestLibrary.Probe:run': ProbeRun}, contracts=contracts)
-        runtime = Engine(loaded, override_extensions=[extension])
+        runtime = Engine(LoadedProgram.load(loaded, override_extensions=[extension]))
     runtime.enable_fixed_monotonic_time()
     runtime.set_fake_wall_time(base)
     assert runtime.step()[0] == 2

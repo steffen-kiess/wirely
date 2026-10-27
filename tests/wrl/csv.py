@@ -5,6 +5,13 @@ import os
 
 import wirely
 from wirely.program.program import RunStage
+from tests.infra.support import test_engine
+
+def restart(wall_time):
+    """Load the program again, as after a runtime restart, and use the new engine from now on."""
+    global engine
+    engine = test_engine(engine.program)
+    engine.set_fake_wall_time(wall_time)
 
 def assert_equals(value1, value2):
     if value1 != value2:
@@ -16,9 +23,10 @@ def assert_content_is(fn, value):
     if actual != value:
         raise Exception(f'Test failed: Expected content {value!r}, got {actual!r}')
 
-async def check_repeat_boundaries(filename):
+async def check_repeat_boundaries(filename, wall_time):
     with open(filename, 'rb') as file:
         expected = file.read().decode('utf-8')
+    restart(wall_time)
     source = engine.get_native_state('test_option_input.create')
 
     def step(row=None):
@@ -34,7 +42,7 @@ async def check_repeat_boundaries(filename):
         assert_content_is(filename, expected)
 
     async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
-        await engine.start_tasks_async(tg, async_exit_stack)
+        await engine.activate(tg, async_exit_stack)
         source.set_value(wirely.Some(False))
         step(('', 'false'))
         engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(3599))
@@ -70,8 +78,8 @@ async def check_repeat_boundaries(filename):
 
 
 async def run_test():
-    engine.set_fake_wall_time(datetime.datetime(
-        2026, 1, 1, 14, tzinfo=datetime.timezone(datetime.timedelta(hours=2))))
+    wall_time = datetime.datetime(2026, 1, 1, 14, tzinfo=datetime.timezone(datetime.timedelta(hours=2)))
+    engine.set_fake_wall_time(wall_time)
     fn = engine.get_native_state('test_value_writer.create').filename
     fn2 = engine.get_native_state('test_option_value_writer.create').filename
 
@@ -79,7 +87,7 @@ async def run_test():
     async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
         assert_equals(os.path.exists(fn), False)
 
-        await engine.start_tasks_async(tg, async_exit_stack)
+        await engine.activate(tg, async_exit_stack)
         assert_equals(os.path.getsize(fn), 0)
         expected = ''
 
@@ -145,10 +153,11 @@ async def run_test():
 
     # Re-open file after deleting it
     os.unlink(fn)
+    restart(wall_time)
     async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
         assert_equals(os.path.exists(fn), False)
 
-        await engine.start_tasks_async(tg, async_exit_stack)
+        await engine.activate(tg, async_exit_stack)
         assert_equals(os.path.getsize(fn), 0)
         expected = ''
 
@@ -168,8 +177,9 @@ async def run_test():
     assert_content_is(fn, expected)
 
     # Re-open file without deleting it
+    restart(wall_time)
     async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
-        await engine.start_tasks_async(tg, async_exit_stack)
+        await engine.activate(tg, async_exit_stack)
 
         engine.get_native_state('test_input.create').set_value(False)
 
@@ -191,8 +201,9 @@ async def run_test():
         file.write('some-data')
         expected += 'some-data'
     assert_content_is(fn, expected)
+    restart(wall_time)
     async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
-        await engine.start_tasks_async(tg, async_exit_stack)
+        await engine.activate(tg, async_exit_stack)
 
         expected += '\n'
         assert_content_is(fn, expected)
@@ -213,10 +224,11 @@ async def run_test():
     assert_content_is(fn, expected)
 
     os.unlink(fn2)
+    restart(wall_time)
     async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
         assert_equals(os.path.exists(fn2), False)
 
-        await engine.start_tasks_async(tg, async_exit_stack)
+        await engine.activate(tg, async_exit_stack)
         assert_equals(os.path.getsize(fn2), 0)
         expected = ''
 
@@ -326,13 +338,13 @@ async def run_test():
         assert_content_is(fn2, expected)
     # Note: No message on shutdown because old value is None
     assert_content_is(fn2, expected)
-    await check_repeat_boundaries(fn2)
+    await check_repeat_boundaries(fn2, wall_time)
 
     # Unknown time preserves transitions and monotonic repeats, with empty timestamps.
     os.unlink(fn2)
-    engine.set_fake_wall_time(None)
+    restart(None)
     async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
-        await engine.start_tasks_async(tg, async_exit_stack)
+        await engine.activate(tg, async_exit_stack)
         engine.get_native_state('test_option_input.create').set_value(wirely.Some(True))
         engine.step()
         engine.step()
@@ -352,9 +364,9 @@ async def run_test():
     expected += ',false,\r\n'
     assert_content_is(fn2, expected)
 
-    engine.set_fake_wall_time(datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc))
+    restart(datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc))
     async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
-        await engine.start_tasks_async(tg, async_exit_stack)
+        await engine.activate(tg, async_exit_stack)
         engine.get_native_state('test_option_input.create').set_value(wirely.Some(True))
         engine.step()
         engine.step()
