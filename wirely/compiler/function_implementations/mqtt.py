@@ -5,12 +5,39 @@ from typing import Any
 from wirely import Some
 from wirely.runtime.value_types import ValueType
 from wirely.generated.structs import MQTTTemplateParts
+from wirely.mqtt import settings
+from wirely.types.time import Duration
 
 from ..native_functions import FunctionServices
 
 
 def supports_type(value_type: ValueType[Any], *, services: FunctionServices) -> bool:
     return value_type.supports_json
+
+
+def check_uri(uri: str, *, services: FunctionServices) -> bool:
+    try:
+        settings.parse_uri(uri)
+    except ValueError as error:
+        raise services.error(str(error), argument=0) from error
+    return True
+
+
+def check_keep_alive(keep_alive: Duration, *, services: FunctionServices) -> bool:
+    try:
+        settings.keep_alive_seconds(keep_alive)
+    except ValueError as error:
+        raise services.error(str(error), argument=0) from error
+    return True
+
+
+def check_client_id(client_id: Some[str] | None, *, services: FunctionServices) -> bool:
+    if client_id is not None:
+        try:
+            settings.check_client_id(client_id.value)
+        except ValueError as error:
+            raise services.error(str(error), argument=0) from error
+    return True
 
 
 def parse_template(template: Some[str] | None, *, services: FunctionServices) -> MQTTTemplateParts:

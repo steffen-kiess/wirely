@@ -104,6 +104,7 @@ native_state_types: dict[str, Initializer] = {
         uses={
             'URI': Builtin('string'),
             'KeepAlive': Opaque('Std.Duration'),
+            'ClientID': Option(Builtin('string')),
         },
     ),
     'MQTT.EventReceiver:create': Initializer(
@@ -145,6 +146,8 @@ native_state_types: dict[str, Initializer] = {
             'Topic': Builtin('string'),
             'Format': Option(Enum('MQTT.Format')),
             'template_parts': Struct('MQTT.TemplateParts'),
+            'Retain': Builtin('boolean'),
+            'LastWill': Option(Option(TypeVar('Type'))),
         },
     ),
     'Process.LaunchOnEvent:create': Initializer(

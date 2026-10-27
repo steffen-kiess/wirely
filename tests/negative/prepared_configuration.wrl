@@ -16,6 +16,38 @@ assert KNX.SupportsValueType(string), "Unsupported value type for KNX";
 assert MQTT.SupportsType(Timer.MonotonicTime), "Unsupported type for MQTT";
 // ^E: Compile-time assertion failed: Unsupported type for MQTT
 
+// TEST: MQTT URI without scheme
+assert MQTT.CheckURI("localhost");
+// ^E: Not a URI (scheme is missing)
+
+// TEST: unknown MQTT URI scheme
+assert MQTT.CheckURI("http://localhost");
+// ^E: Unknown scheme 'http'
+
+// TEST: MQTT URI with path
+assert MQTT.CheckURI("mqtt://localhost/path");
+// ^E: Got a non-empty path
+
+// TEST: MQTT Unix URI without path
+assert MQTT.CheckURI("mqtt+unix:");
+// ^E: Missing path
+
+// TEST: zero MQTT keepalive
+assert MQTT.CheckKeepAlive("PT0S");
+// ^E: MQTT keepalive must not be zero
+
+// TEST: MQTT keepalive above the maximum
+assert MQTT.CheckKeepAlive("PT65536S");
+// ^E: is longer than 65535 seconds
+
+// TEST: MQTT keepalive rounded up above the maximum
+assert MQTT.CheckKeepAlive("PT65535.5S");
+// ^E: is longer than 65535 seconds
+
+// TEST: empty MQTT client ID
+assert MQTT.CheckClientID(Some(""));
+// ^E: MQTT client ID must not be empty
+
 // TEST: missing MQTT placeholder
 constant Parts: MQTT.TemplateParts = MQTT.ParseTemplate(Some("text"));
 // ^E: Got template string without %s

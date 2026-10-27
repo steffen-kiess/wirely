@@ -30,6 +30,24 @@ def _load_knx_value_type_name() -> ConstantFunctionImplementation:
     return _ValueTypeName.implementation(value_type_name)
 
 
+def _load_mqtt_check_client_id() -> ConstantFunctionImplementation:
+    from wirely.compiler.generated._contracts.mqtt import _CheckClientID
+    from wirely.compiler.function_implementations.mqtt import check_client_id
+    return _CheckClientID.implementation(check_client_id)
+
+
+def _load_mqtt_check_keep_alive() -> ConstantFunctionImplementation:
+    from wirely.compiler.generated._contracts.mqtt import _CheckKeepAlive
+    from wirely.compiler.function_implementations.mqtt import check_keep_alive
+    return _CheckKeepAlive.implementation(check_keep_alive)
+
+
+def _load_mqtt_check_uri() -> ConstantFunctionImplementation:
+    from wirely.compiler.generated._contracts.mqtt import _CheckURI
+    from wirely.compiler.function_implementations.mqtt import check_uri
+    return _CheckURI.implementation(check_uri)
+
+
 def _load_mqtt_parse_template() -> ConstantFunctionImplementation:
     from wirely.compiler.generated._contracts.mqtt import _ParseTemplate
     from wirely.compiler.function_implementations.mqtt import parse_template
@@ -137,6 +155,9 @@ functions: dict[str, Callable[[], ConstantFunctionImplementation]] = {
     'KNX.ParseGroupAddress': _load_knx_parse_group_address,
     'KNX.SupportsValueType': _load_knx_supports_value_type,
     'KNX.ValueTypeName': _load_knx_value_type_name,
+    'MQTT.CheckClientID': _load_mqtt_check_client_id,
+    'MQTT.CheckKeepAlive': _load_mqtt_check_keep_alive,
+    'MQTT.CheckURI': _load_mqtt_check_uri,
     'MQTT.ParseTemplate': _load_mqtt_parse_template,
     'MQTT.SupportsType': _load_mqtt_supports_type,
     'Path.Join': _load_path_join,

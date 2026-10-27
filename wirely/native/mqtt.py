@@ -1,7 +1,7 @@
 import asyncio
+import collections
 import json
 import dataclasses
-import urllib
 import contextlib
 from typing import Any, Literal
 
@@ -15,7 +15,8 @@ from wirely.native.support import check_state_type
 from wirely.generated.enums import MQTTFormat
 from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices
 from wirely.generated.structs import MQTTTemplateParts
-from wirely.types.time import TICKS_PER_SECOND, Duration
+from wirely.mqtt.settings import check_client_id, keep_alive_seconds, parse_uri
+from wirely.types.time import Duration
 from wirely.util import verbose_print
 
 
@@ -35,132 +36,33 @@ RECONNECT_DELAY_MIN = 1.0
 RECONNECT_DELAY_MAX = 60.0
 
 
-def _keep_alive_seconds(keep_alive: Duration) -> int:
-    """Round the keepalive interval up to whole seconds, as MQTT requires."""
-    if keep_alive.ticks == 0:
-        raise ValueError('MQTT keepalive must not be zero')
-    seconds = -(-keep_alive.ticks // TICKS_PER_SECOND)
-    if seconds > 65535:
-        raise ValueError(f'MQTT keepalive {keep_alive.to_iso()} is longer than 65535 seconds')
-    return seconds
-
-
-class MQTTUriParseException(Exception):
-    pass
-
-
 @dataclasses.dataclass(frozen=True)
-class ParsedMQTTUri:
-    transport: Literal['tcp', 'unix']
-    use_tls : bool
-    hostname: str
-    port: int
-
-
-def parse_mqtt_uri(uri: str) -> 'ParsedMQTTUri':
-    split = urllib.parse.urlsplit(uri)
-    if split.scheme == '':
-        raise MQTTUriParseException('Unable to parse MQTT URI {!r}: Not a URI (scheme is missing)'.format(uri))
-    scheme = split.scheme.lower()
-
-    if split.fragment != '':
-        raise MQTTUriParseException('Unable to parse MQTT URI {!r}: Got a non-empty fragment'.format(uri))
-    query = urllib.parse.parse_qs(split.query, keep_blank_values=True, errors='strict', strict_parsing=False)
-
-    def check_query(*allowed_keys: str) -> None:
-        allowed = set(allowed_keys)
-        for key in query:
-            if key not in allowed:
-                raise MQTTUriParseException('Unable to parse MQTT URI {!r}: Got unknown parameter {!r}'.format(uri, key))
-
-    def parse_path(path: str) -> str | None:
-        if path == '':
-            return None
-        if not path.startswith('/'):
-            raise Exception("not path.startswith('/')")
-        res = ''
-        for component in path[1:].split('/'):
-            if ';' in component:
-                raise MQTTUriParseException('Unable to parse MQTT URI {!r}: Got semicolon in path'.format(uri))
-            unq = urllib.parse.unquote(component, errors='strict')
-            if '\0' in unq:
-                raise MQTTUriParseException('Unable to parse MQTT URI {!r}: Got encoded NUL in path'.format(uri))
-            if '/' in unq:
-                raise MQTTUriParseException('Unable to parse MQTT URI {!r}: Got encoded slash in path'.format(uri))
-            res += '/' + unq
-        return res
-
-    if scheme in ['mqtt', 'mqtts']:
-        if scheme == 'mqtt':
-            use_tls = False
-        elif scheme == 'mqtts':
-            use_tls = True
-        else:
-            raise Exception('Should not be reached')
-
-        if split.path != '':
-            raise MQTTUriParseException('Unable to parse MQTT URI {!r}: Got a non-empty path'.format(uri))
-        if split.netloc == '':
-            raise MQTTUriParseException('Unable to parse MQTT URI {!r}: Authority is missing'.format(uri))
-        if split.username is not None:
-            raise MQTTUriParseException('Unable to parse MQTT URI {!r}: Got a non-empty username'.format(uri))
-        if split.password is not None:
-            raise MQTTUriParseException('Unable to parse MQTT URI {!r}: Got a non-empty password'.format(uri))
-        hostname = split.hostname
-        if hostname is None:
-            raise MQTTUriParseException('Unable to parse MQTT URI {!r}: Got no hostname'.format(uri))
-        port = split.port
-        if port is None:
-            if use_tls:
-                port = 8883
-            else:
-                port = 1883
-
-        check_query()
-
-        return ParsedMQTTUri(
-            transport='tcp',
-            use_tls=use_tls,
-            hostname=hostname,
-            port=port,
-        )
-    elif scheme in ['mqtt+unix']:
-        path = parse_path(split.path)
-        if path is None:
-            raise MQTTUriParseException('Unable to parse MQTT URI {!r}: Missing path'.format(uri))
-
-        check_query()
-
-        if split.netloc != '':
-            raise MQTTUriParseException('Unable to parse MQTT URI {!r}: Got non-empty authority'.format(uri))
-
-        return ParsedMQTTUri(
-            transport='unix',
-            use_tls=False,
-            hostname=path,
-            # Note: paho.mqtt does not like it if 0 is passed here
-            #port=0,
-            port=1,
-        )
-    else:
-        raise MQTTUriParseException('Unable to parse MQTT URI {!r}: Unknown scheme {!r}'.format(uri, scheme))
+class _Message:
+    topic: str
+    payload: bytes
+    retain: bool
+    # The provider of a value, None for an event.
+    provider: 'ValueOptionProviderCreate | None'
 
 
 class ConnectionCreate(contracts.ConnectionCreate):
     def initialize(self, *, services: StateServices[Literal['broker']],
-                   uri: str, keep_alive: Duration) -> contracts.ConnectionCreateResult:
+                   uri: str, keep_alive: Duration, client_id: Some[str] | None) -> contracts.ConnectionCreateResult:
         verbose_print('Create MQTT connection', flush=True)
 
         verbose_print(f'  Using URI: {uri!r}', flush=True)
 
         self.uri = uri
-        self.parsed_uri = parse_mqtt_uri(uri)
-        self.keep_alive = _keep_alive_seconds(keep_alive)
+        self.parsed_uri = parse_uri(uri)
+        self.keep_alive = keep_alive_seconds(keep_alive)
+        self.client_id = None if client_id is None else client_id.value
+        if self.client_id is not None:
+            check_client_id(self.client_id)
 
         # Clients register themselves while being initialized.
         self.receivers: dict[str, list[EventReceiverCreate]] = {}
         self.value_providers: list[ValueOptionProviderCreate] = []
-        self.event_senders: list[EventSenderCreate] = []
+        self.will_provider: ValueOptionProviderCreate | None = None
 
         # The client while connected, otherwise None.
         self.client: aiomqtt.Client | None = None
@@ -168,6 +70,11 @@ class ConnectionCreate(contracts.ConnectionCreate):
         self.connected_event = asyncio.Event()
         # Set on a disconnect until get_connected() has reported it.
         self.disconnect_pending = False
+
+        # Values and events to send, in order. Each provider has at most one entry.
+        self.send_queue: collections.deque[_Message] = collections.deque()
+        # Note: Use an event instead of a condition because setting an event does not require await
+        self.send_event = asyncio.Event()
 
         # The last connection error and how often it has been logged.
         self.last_error: str | None = None
@@ -184,12 +91,17 @@ class ConnectionCreate(contracts.ConnectionCreate):
         tls_params = None
         if self.parsed_uri.use_tls:
             tls_params = aiomqtt.TLSParameters()
-        return aiomqtt.Client(protocol=aiomqtt.ProtocolVersion.V5, transport=self.parsed_uri.transport, hostname=self.parsed_uri.hostname, port=self.parsed_uri.port, tls_params=tls_params, keepalive=self.keep_alive)
+        will = None
+        if self.will_provider is not None:
+            will = aiomqtt.Will(self.will_provider.topic, payload=self.will_provider.will_payload,
+                                retain=self.will_provider.retain)
+        return aiomqtt.Client(protocol=aiomqtt.ProtocolVersion.V5, transport=self.parsed_uri.transport, hostname=self.parsed_uri.hostname, port=self.parsed_uri.port, tls_params=tls_params, keepalive=self.keep_alive, identifier=self.client_id, will=will)
 
     def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)
 
         self.task = self.start_task(task_group, async_exit_stack, self.connection_task())
+        self.sender = self.start_task(task_group, async_exit_stack, self.sender_task())
 
     async def connection_task(self) -> None:
         delay = RECONNECT_DELAY_MIN
@@ -201,9 +113,6 @@ class ConnectionCreate(contracts.ConnectionCreate):
                 async with client:
                     try:
                         await self.restore(client)
-                        self.client = client
-                        self.connected_event.set()
-                        self.services.trigger('broker')
                         print(f'Connected to MQTT server {self.uri!r}', flush=True)
                         self.last_error = None
                         delay = RECONNECT_DELAY_MIN
@@ -214,23 +123,43 @@ class ConnectionCreate(contracts.ConnectionCreate):
                     except aiomqtt.MqttError:
                         self.set_disconnected()
                         raise
+                    except asyncio.CancelledError:
+                        # Cancelling makes the client disconnect cleanly, which suppresses the will, also when the
+                        # runtime stops because of an exception. Publish the will value explicitly instead.
+                        await self.publish_will(client)
+                        raise
             except aiomqtt.MqttError as e:
-                self.log_error(str(e))
+                self.log_error(e)
             await asyncio.sleep(delay)
             delay = min(delay * 2, RECONNECT_DELAY_MAX)
 
     async def restore(self, client: aiomqtt.Client) -> None:
-        """Publish the current values and subscribe to all topics after connecting."""
-        for provider in self.value_providers:
-            # A pending value is replaced by the current one.
-            provider.value_to_send = None
-            if provider.current_payload is not None:
-                await client.publish(provider.topic, payload=provider.current_payload)
+        """Publish the current values, subscribe to all topics, and start sending after connecting."""
+        self.send_queue.clear()
+        providers = [provider for provider in self.value_providers if provider is not self.will_provider]
+        if self.will_provider is not None:
+            # The will value is sent after the other values, so that it marks them as valid.
+            providers.append(self.will_provider)
+        published: list[tuple[ValueOptionProviderCreate, bytes | None]] = []
+        for provider in providers:
+            provider.queued = False
+            payload = provider.current_payload
+            if payload is not None:
+                await client.publish(provider.topic, payload=payload, retain=provider.retain)
+            published.append((provider, payload))
         for topic in self.receivers:
             reason_codes = await client.subscribe(topic)
             for code in reason_codes:
                 if not isinstance(code, int) and code.is_failure:
                     print(f'Warning: Subscribing to MQTT topic {topic!r} failed: {code}', flush=True)
+
+        self.client = client
+        self.connected_event.set()
+        self.services.trigger('broker')
+        # Send values set while publishing or subscribing.
+        for provider, payload in published:
+            if provider.current_payload != payload:
+                self.enqueue_value(provider)
 
     def set_disconnected(self) -> None:
         if self.client is None:
@@ -238,12 +167,74 @@ class ConnectionCreate(contracts.ConnectionCreate):
         self.client = None
         self.connected_event.clear()
         self.disconnect_pending = True
-        # Events are dropped instead of being sent when they might be outdated.
-        for sender in self.event_senders:
-            sender.values_to_send.clear()
+        # Events are dropped instead of being sent when they might be outdated. Values are published again
+        # after connecting.
+        self.send_queue.clear()
+        for provider in self.value_providers:
+            provider.queued = False
         self.services.trigger('broker')
 
-    def log_error(self, error: str) -> None:
+    def enqueue(self, message: _Message) -> None:
+        queue = self.send_queue
+        if (self.will_provider is not None and message.provider is not self.will_provider
+                and len(queue) > 0 and queue[-1].provider is self.will_provider):
+            # Keep the will value after the other values.
+            queue.insert(len(queue) - 1, message)
+        else:
+            queue.append(message)
+        self.send_event.set()
+
+    def enqueue_value(self, provider: 'ValueOptionProviderCreate') -> None:
+        """Queue the current value of a provider unless it is already queued."""
+        if provider.queued or not self.connected or provider.current_payload is None:
+            return
+        provider.queued = True
+        self.enqueue(_Message(provider.topic, provider.current_payload, provider.retain, provider))
+
+    async def sender_task(self) -> None:
+        while True:
+            while len(self.send_queue) == 0:
+                # Note: This relies on the fact that everything is running on one thread and therefore everything without await is atomic with regard to other tasks
+                self.send_event.clear()
+                await self.send_event.wait()
+            await self.connected_event.wait()
+            client = self.client
+            if client is None or len(self.send_queue) == 0:
+                continue
+            message = self.send_queue.popleft()
+
+            verbose_print(f'Sending {message.payload!r} to {message.topic}', flush=True)
+            sent = False
+            try:
+                await client.publish(message.topic, payload=message.payload, retain=message.retain)
+                sent = True
+                verbose_print(f'Sending {message.payload!r} to {message.topic} done', flush=True)
+            except aiomqtt.MqttError as e:
+                # Events are dropped instead of being sent again when they might be outdated.
+                verbose_print(f'Sending {message.payload!r} to {message.topic} failed: {e}', flush=True)
+            provider = message.provider
+            if provider is not None:
+                provider.queued = False
+                # Send a value set while this one was queued.
+                if not sent or provider.current_payload != message.payload:
+                    self.enqueue_value(provider)
+
+    async def publish_will(self, client: aiomqtt.Client) -> None:
+        provider = self.will_provider
+        if provider is None:
+            return
+        try:
+            await client.publish(provider.topic, payload=provider.will_payload, retain=provider.retain, timeout=1)
+        except aiomqtt.MqttError as e:
+            verbose_print(f'Publishing the will to {provider.topic} failed: {e}', flush=True)
+
+    def log_error(self, e: aiomqtt.MqttError) -> None:
+        error = str(e)
+        cause = e.__cause__
+        if cause is not None:
+            error += f': {cause}'
+        if isinstance(cause, aiomqtt.MqttCodeError) and cause.rc == 0x8E:
+            error += ' (another client probably uses the same ClientID)'
         if error != self.last_error:
             self.last_error = error
             self.last_error_count = 1
@@ -265,28 +256,31 @@ class ConnectionGetConnected(contracts.ConnectionGetConnected):
         return contracts.ConnectionGetConnectedResult(connected=broker.connected)
 
 
-# TODO: Should this be persistent? If so, should it be cleared by the last will message?
+def _encode(value: Some[DynamicValue] | None, format: str | None, template_prefix: str, template_suffix: str) -> bytes:
+    """Encode a value as JSON in its template; None is an empty payload."""
+    if value is None:
+        return b''
+    text = json.dumps(value.value.json_encode(format), ensure_ascii=False, allow_nan=False, sort_keys=True)
+    return bytes(template_prefix + text + template_suffix, 'utf-8')
 
 
 class ValueOptionProviderCreate(contracts.ValueOptionProviderCreate):
     def initialize(self, *, services: StateServices[Literal['state']], broker: ConnectionCreate, type: ValueType[Any],
-                   topic: str, format: Some[MQTTFormat] | None,
-                   template_parts: MQTTTemplateParts) -> contracts.ValueOptionProviderCreateResult:
+                   topic: str, format: Some[MQTTFormat] | None, template_parts: MQTTTemplateParts,
+                   retain: bool, last_will: Some[Some[DynamicValue] | None] | None,
+                   ) -> contracts.ValueOptionProviderCreateResult:
         self.current_value = None
-        # Task is needed for sending out values
-        self.task: asyncio.Task | None = None
-        self.value_to_send: bytes | None = None
         # The last value set, published again after each connect; None until a value is set.
         self.current_payload: bytes | None = None
-        # Note: Use an event instead of a condition because setting an event does not require await
-        # self.condition_var = asyncio.Condition()
-        self.event = asyncio.Event()
+        # Whether the send queue contains a value of this provider.
+        self.queued = False
 
         self.value_type = type
         self.topic = topic
         self.format = _json_format(format)
         self.template_prefix = template_parts.prefix
         self.template_suffix = template_parts.suffix
+        self.retain = retain
 
         verbose_print('Create MQTT ValueOptionProvider', flush=True)
 
@@ -297,38 +291,24 @@ class ValueOptionProviderCreate(contracts.ValueOptionProviderCreate):
         self.native_server = broker
         verbose_print(f'  Using native server object: {self.native_server}', flush=True)
         broker.value_providers.append(self)
+
+        if last_will is not None:
+            # TODO: Reconsider requiring a ClientID. With a random ID, after a half-open connection the broker can
+            # publish the will of the old session after the new connection has published its values, which leaves
+            # the will value until the next reconnect. Subscribing to the will topic and publishing the current value
+            # again when our own will payload arrives within 1.5 * KeepAlive after connecting would avoid that
+            # without an ID.
+            if broker.client_id is None:
+                raise ValueError(f'MQTT LastWill on topic {topic!r} requires a ClientID on its connection')
+            if broker.will_provider is not None:
+                raise ValueError(f'MQTT connection already has a LastWill on topic {broker.will_provider.topic!r}, '
+                                 f'cannot add one on topic {topic!r}')
+            broker.will_provider = self
+            self.will_payload = self.encode(last_will.value)
         return contracts.ValueOptionProviderCreateResult(state=self)
 
-    def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
-        super().start_tasks(task_group, async_exit_stack)
-
-        if self.task is not None:
-            raise Exception('self.task is not None')
-
-        self.task = self.start_task(task_group, async_exit_stack, self.run_task())
-
-    async def run_task(self) -> None:
-        while True:
-            while self.value_to_send is None:
-                # Note: This relies on the fact that everything is running on one thread and therefore everything without await is atomic with regard to other tasks
-                self.event.clear()
-                await self.event.wait()
-            # While disconnected, the value stays pending; the connection publishes the current value after connecting.
-            await self.native_server.connected_event.wait()
-            client = self.native_server.client
-            value = self.value_to_send
-            if client is None or value is None:
-                continue
-            self.value_to_send = None
-
-            verbose_print(f'Sending {value!r} to {self.topic}', flush=True)
-            try:
-                await client.publish(self.topic, payload=value)
-            except aiomqtt.MqttError as e:
-                # The connection publishes the current value again after reconnecting.
-                verbose_print(f'Sending {value!r} to {self.topic} failed: {e}', flush=True)
-                continue
-            verbose_print(f'Sending {value!r} to {self.topic} done', flush=True)
+    def encode(self, value: Some[DynamicValue] | None) -> bytes:
+        return _encode(value, self.format, self.template_prefix, self.template_suffix)
 
 
 class ValueOptionProviderSetValue(contracts.ValueOptionProviderSetValue):
@@ -340,22 +320,15 @@ class ValueOptionProviderSetValue(contracts.ValueOptionProviderSetValue):
             input: Some[DynamicValue] | None, type: ValueType[Any]) -> contracts.ValueOptionProviderSetValueResult:
         # TODO: Add checks whether everything is running?
 
-        # TODO: Is this correct or should this distinguish between a value which has not yet been sent/received and an empty string?
-        if input is None:
-            value_bytes = b''
-        else:
-            value = json.dumps(input.value.json_encode(state.format),
-                               ensure_ascii=False, allow_nan=False, sort_keys=True)
-            value = state.template_prefix + value + state.template_suffix
-            value_bytes = bytes(value, 'utf-8')
+        value_bytes = state.encode(input)
 
-        verbose_print(f'Setting output {state.topic} to {value_bytes!r}, old value_to_send is {state.value_to_send!r}', flush=True)
+        verbose_print(f'Setting output {state.topic} to {value_bytes!r}, already queued: {state.queued}', flush=True)
 
-        # Note: This can overwrite a non-None value if sending is too slow. In this case, the overwritten value will be discarded and not sent at all.
+        # Note: If sending is too slow, a value set while another value of this provider is queued is only sent when
+        # it is still current after the queued value has been sent. Values in between are not sent at all.
         # TODO: Provide some notification if this is happening?
-        state.value_to_send = value_bytes
         state.current_payload = value_bytes
-        state.event.set()
+        state.native_server.enqueue_value(state)
         return contracts.ValueOptionProviderSetValueResult()
 
 
@@ -364,12 +337,6 @@ class EventSenderCreate(contracts.EventSenderCreate):
                    topic: str, format: Some[MQTTFormat] | None,
                    template_parts: MQTTTemplateParts) -> contracts.EventSenderCreateResult:
         self.current_value = None
-        # Task is needed for sending out values
-        self.task: asyncio.Task | None = None
-        self.values_to_send: list[bytes] = []
-        # Note: Use an event instead of a condition because setting an event does not require await
-        # self.condition_var = asyncio.Condition()
-        self.event = asyncio.Event()
 
         self.value_type = type
         self.topic = topic
@@ -385,37 +352,7 @@ class EventSenderCreate(contracts.EventSenderCreate):
 
         self.native_server = broker
         verbose_print(f'  Using native server object: {self.native_server}', flush=True)
-        broker.event_senders.append(self)
         return contracts.EventSenderCreateResult(state=self)
-
-    def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
-        super().start_tasks(task_group, async_exit_stack)
-
-        if self.task is not None:
-            raise Exception('self.task is not None')
-
-        self.task = self.start_task(task_group, async_exit_stack, self.run_task())
-
-    async def run_task(self) -> None:
-        while True:
-            while len(self.values_to_send) == 0:
-                # Note: This relies on the fact that everything is running on one thread and therefore everything without await is atomic with regard to other tasks
-                self.event.clear()
-                await self.event.wait()
-            client = self.native_server.client
-            if client is None:
-                self.values_to_send.clear()
-                continue
-            value = self.values_to_send.pop(0)
-
-            verbose_print(f'Sending {value!r} to {self.topic}', flush=True)
-            try:
-                await client.publish(self.topic, payload=value)
-            except aiomqtt.MqttError as e:
-                # Events are dropped instead of being sent again when they might be outdated.
-                verbose_print(f'Sending {value!r} to {self.topic} failed: {e}', flush=True)
-                continue
-            verbose_print(f'Sending {value!r} to {self.topic} done', flush=True)
 
 
 class EventSenderSendValue(contracts.EventSenderSendValue):
@@ -429,22 +366,17 @@ class EventSenderSendValue(contracts.EventSenderSendValue):
         # TODO: Is this correct or should this distinguish between a value which has not yet been sent/received and an empty string?
         if input is None:
             return contracts.EventSenderSendValueResult()
-        else:
-            value = json.dumps(input.value.json_encode(state.format),
-                               ensure_ascii=False, allow_nan=False, sort_keys=True)
-            value = state.template_prefix + value + state.template_suffix
-            value_bytes = bytes(value, 'utf-8')
+        value_bytes = _encode(input, state.format, state.template_prefix, state.template_suffix)
 
         if not state.native_server.connected:
             # Events are dropped instead of being sent after reconnecting when they might be outdated.
             verbose_print(f'Dropping event {state.topic} {value_bytes!r} while disconnected', flush=True)
         else:
-            verbose_print(f'Sending event {state.topic} to {value_bytes!r}, old values_to_send is {state.values_to_send}', flush=True)
+            verbose_print(f'Sending event {state.topic} to {value_bytes!r}, {len(state.native_server.send_queue)} messages queued', flush=True)
 
             # Note: If sending is too slow, there might be multiple events queued up.
             # TODO: Provide a notification in this case?
-            state.values_to_send.append(value_bytes)
-            state.event.set()
+            state.native_server.enqueue(_Message(state.topic, value_bytes, False, None))
 
         # This makes sure that the value is sent again if the input does not change
         services.trigger_self()
@@ -474,6 +406,10 @@ class EventReceiverCreate(contracts.EventReceiverCreate):
         return contracts.EventReceiverCreateResult(state=self)
 
     def handle_message(self, message: aiomqtt.Message) -> None:
+        if message.retain:
+            # The broker sends retained messages when subscribing; they are not events.
+            verbose_print(f'Ignoring retained MQTT message: topic {message.topic.value!r} data {message.payload!r}', flush=True)
+            return
         try:
             verbose_print(f'Received MQTT message: topic {message.topic.value!r} data {message.payload!r}', flush=True)
 

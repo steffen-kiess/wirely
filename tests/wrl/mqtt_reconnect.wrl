@@ -1,12 +1,33 @@
 node server: MQTT.Connection {
   URI: Test.ReplaceMQTTURI("mqtt://localhost"),
+  ClientID: "wirely-test-reconnect",
 }
 
-node provider_input: Std.DebugValueSource { Type: boolean, Initial: false }
+node a_input: Std.DebugValueSource { Type: Option[boolean], Initial: None }
 
-node provider: MQTT.ValueProvider { Topic: "test/value", Type: boolean }
-connect provider_input -> provider;
-connect server -> provider.Broker;
+node a: MQTT.ValueOptionProvider { Topic: "test/a", Type: boolean }
+connect a_input -> a;
+connect server -> a.Broker;
+
+node status_input: Std.DebugValueSource {
+  Type: Option[boolean],
+  Initial: Some(true),
+}
+
+// Registered before b, but sent after the other values.
+node status: MQTT.ValueOptionProvider {
+  Topic: "test/status",
+  Type: boolean,
+  LastWill: None,
+}
+connect status_input -> status;
+connect server -> status.Broker;
+
+node b_input: Std.DebugValueSource { Type: boolean, Initial: false }
+
+node b: MQTT.ValueProvider { Topic: "test/b", Type: boolean, Retain: false }
+connect b_input -> b;
+connect server -> b.Broker;
 
 node event_source: Std.DebugEventSource { Type: boolean }
 

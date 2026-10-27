@@ -177,9 +177,9 @@ string controlling JSON output. A template embeds the encoded value at one
 
 | Node type | Parameters | Ports and behavior |
 | --- | --- | --- |
-| `Connection` | `URI: string`, `KeepAlive: Std.Duration = "PT60S"` | Out: `fixed MQTT.Broker`; named out `Connected: value boolean`. Connects to a broker. |
-| `ValueOptionProvider` | `Type: type`, `Topic: string`, optional `Format: MQTT.Format`, `Template: string` | Named in: `Broker`; in: `value Option[Type]`. Publishes JSON; `None` publishes an empty payload. |
-| `ValueProvider` | Same as `ValueOptionProvider` | Named in: `Broker`; in: `value Type`. Publishes the value as JSON. |
+| `Connection` | `URI: string`, `KeepAlive: Std.Duration = "PT60S"`, optional `ClientID: string` | Out: `fixed MQTT.Broker`; named out `Connected: value boolean`. Connects to a broker. |
+| `ValueOptionProvider` | `Type: type`, `Topic: string`, optional `Format: MQTT.Format`, `Template: string`, `Retain: boolean = true`, optional `LastWill: Option[Type]` | Named in: `Broker`; in: `value Option[Type]`. Publishes JSON; `None` publishes an empty payload, which also removes a retained value. |
+| `ValueProvider` | Same as `ValueOptionProvider`, without `LastWill` | Named in: `Broker`; in: `value Type`. Publishes the value as JSON. |
 | `EventSender` | `Type: type`, `Topic: string`, optional `Format: MQTT.Format`, `Template: string` | Named in: `Broker`; in: `event Type`. Publishes each event as JSON. |
 | `EventReceiver` | `Type: type`, `Topic: string`, optional `Format: MQTT.Format` | Named in: `Broker`; out: `event Type`. Emits decoded messages received on the topic. |
 
@@ -192,6 +192,18 @@ step after each disconnect; noticing a lost connection can take up to 1.5
 times `KeepAlive`, which is rounded up to whole seconds. After each connect,
 providers publish their current value again. `EventSender` drops events
 while disconnected. Messages can be lost around a disconnect.
+
+Values and events of a connection are sent in order. While a value of a
+provider waits to be sent, newer values of that provider are not queued;
+the current value is sent after it if it differs. `EventReceiver` ignores
+retained messages.
+
+The broker publishes the `LastWill` of a provider when the connection is
+lost, and the connection publishes it when the runtime stops. Use it, for
+example, to mark the other values as unavailable. A connection allows one
+`LastWill`, which requires a `ClientID`; its provider's value is sent after
+the other values. Use a different `ClientID` for each connection to a
+broker.
 
 ## CSV
 

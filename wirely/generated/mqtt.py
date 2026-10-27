@@ -58,6 +58,7 @@ class ConnectionCreate(NativeState[Literal['broker']], abc.ABC):
         services: StateServices[Literal['broker']],
         uri: str,
         keep_alive: Duration,
+        client_id: Some[str] | None,
     ) -> ConnectionCreateResult:
         ...
 
@@ -72,6 +73,7 @@ class _ConnectionCreateAdapter(InitializerAdapter):
             services=services,
             uri=cast('str', binding.use('URI')),
             keep_alive=cast('Duration', binding.use('KeepAlive')),
+            client_id=cast('Some[str] | None', binding.use('ClientID')),
         )
         binding.check_result(result, ConnectionCreateResult)
         return {
@@ -191,6 +193,8 @@ class ValueOptionProviderCreate(NativeState[Literal['state']], abc.ABC):
         topic: str,
         format: Some[MQTTFormat] | None,
         template_parts: MQTTTemplateParts,
+        retain: bool,
+        last_will: Some[Some[DynamicValue] | None] | None,
     ) -> ValueOptionProviderCreateResult:
         ...
 
@@ -208,6 +212,8 @@ class _ValueOptionProviderCreateAdapter(InitializerAdapter):
             topic=cast('str', binding.use('Topic')),
             format=cast('Some[MQTTFormat] | None', binding.use('Format')),
             template_parts=cast('MQTTTemplateParts', binding.use('template_parts')),
+            retain=cast('bool', binding.use('Retain')),
+            last_will=cast('Some[Some[DynamicValue] | None] | None', binding.use('LastWill')),
         )
         binding.check_result(result, ValueOptionProviderCreateResult)
         return {

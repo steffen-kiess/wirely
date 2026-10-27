@@ -11,6 +11,10 @@ assert MQTT.ParseTemplate(Some(r#"{"quoted":"%s", "value":%s}"#))
     prefix: r#"{"quoted":"%s", "value":"#,
     suffix: "}",
   };
+assert MQTT.CheckURI("mqtt://localhost") && MQTT.CheckURI("mqtts://host:1234")
+  && MQTT.CheckURI("mqtt+unix:///run/mosquitto/socket");
+assert MQTT.CheckKeepAlive("PT0.1S") && MQTT.CheckKeepAlive("PT65535S");
+assert MQTT.CheckClientID(None) && MQTT.CheckClientID(Some("wirely"));
 
 assert Std.ParseFormat("text", unit)
   == Std.FormatParts { prefix: "text", suffix: "", has_value: false };

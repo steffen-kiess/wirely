@@ -4,15 +4,102 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any, Protocol, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from wirely.compiler.native_functions import ConstantFunctionContract, FunctionServices
 from wirely.generated.structs import MQTTTemplateParts
 from wirely.runtime.value_types import ValueType
 from wirely.types.option import Some
 
+if TYPE_CHECKING:
+    from wirely.native.std import Duration
+
 __all__ = [
 ]
+
+
+class _CheckClientIDImplementation(Protocol):
+    """Implementations of constant function MQTT.CheckClientID, receiving its arguments in order."""
+
+    def __call__(
+        self,
+        argument_0: Some[str] | None,
+        /, *,
+        services: FunctionServices,
+    ) -> bool:
+        ...
+
+
+def _call__check_client_id(
+    implementation: _CheckClientIDImplementation,
+    arguments: Sequence[object],
+    services: FunctionServices,
+) -> object:
+    return implementation(
+        cast('Some[str] | None', arguments[0]),
+        services=services,
+    )
+
+
+# Constant function MQTT.CheckClientID.
+_CheckClientID: ConstantFunctionContract[_CheckClientIDImplementation] = ConstantFunctionContract(
+    'MQTT.CheckClientID', _call__check_client_id)
+
+
+class _CheckKeepAliveImplementation(Protocol):
+    """Implementations of constant function MQTT.CheckKeepAlive, receiving its arguments in order."""
+
+    def __call__(
+        self,
+        argument_0: Duration,
+        /, *,
+        services: FunctionServices,
+    ) -> bool:
+        ...
+
+
+def _call__check_keep_alive(
+    implementation: _CheckKeepAliveImplementation,
+    arguments: Sequence[object],
+    services: FunctionServices,
+) -> object:
+    return implementation(
+        cast('Duration', arguments[0]),
+        services=services,
+    )
+
+
+# Constant function MQTT.CheckKeepAlive.
+_CheckKeepAlive: ConstantFunctionContract[_CheckKeepAliveImplementation] = ConstantFunctionContract(
+    'MQTT.CheckKeepAlive', _call__check_keep_alive)
+
+
+class _CheckURIImplementation(Protocol):
+    """Implementations of constant function MQTT.CheckURI, receiving its arguments in order."""
+
+    def __call__(
+        self,
+        argument_0: str,
+        /, *,
+        services: FunctionServices,
+    ) -> bool:
+        ...
+
+
+def _call__check_uri(
+    implementation: _CheckURIImplementation,
+    arguments: Sequence[object],
+    services: FunctionServices,
+) -> object:
+    return implementation(
+        cast('str', arguments[0]),
+        services=services,
+    )
+
+
+# Constant function MQTT.CheckURI.
+_CheckURI: ConstantFunctionContract[_CheckURIImplementation] = ConstantFunctionContract(
+    'MQTT.CheckURI', _call__check_uri)
 
 
 class _ParseTemplateImplementation(Protocol):
