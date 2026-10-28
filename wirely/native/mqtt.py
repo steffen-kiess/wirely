@@ -13,7 +13,7 @@ from wirely.runtime.value_types import DynamicValue, ValueType
 from wirely.generated import mqtt as contracts
 from wirely.native.support import check_state_type
 from wirely.generated.enums import MQTTFormat
-from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices
+from wirely.runtime.native_api import NativeState, PreparationServices, ProcedureServices, StateServices
 from wirely.generated.structs import MQTTTemplateParts
 from wirely.misc.repeated_errors import RepeatedError
 from wirely.mqtt.settings import check_client_id, check_topic, keep_alive_seconds, parse_uri
@@ -64,7 +64,7 @@ class ConnectionCreate(contracts.ConnectionCreate):
             check_client_id(self.client_id)
 
         # Clients register themselves while being initialized.
-        self.receivers: dict[str, list[EventReceiverCreate]] = {}
+        self.receivers: dict[str, list[_Receiver]] = {}
         self.value_providers: list[ValueOptionProviderCreate] = []
         self.will_provider: ValueOptionProviderCreate | None = None
 
@@ -128,6 +128,10 @@ class ConnectionCreate(contracts.ConnectionCreate):
                         print(f'Connected to MQTT server {self.uri!r}', flush=True)
                         delay = RECONNECT_DELAY_MIN
 
+                        # TODO: Consider preserving the order of received messages across topics, by delivering at
+                        # most one event per step for the whole connection instead of one per receiver. This keeps
+                        # the order a broker such as mosquitto keeps for one publisher, but handling a burst of
+                        # messages takes more steps and is slower.
                         async for message in client.messages:
                             for receiver in self.receivers.get(message.topic.value, ()):
                                 receiver.handle_message(message)
@@ -222,6 +226,7 @@ class ConnectionCreate(contracts.ConnectionCreate):
         for receivers in self.receivers.values():
             for receiver in receivers:
                 receiver.disconnect_pending = True
+                receiver.disconnected()
                 receiver.services.trigger('state')
         self.accepted = {}
         self.subscription_retry.clear()
@@ -436,19 +441,19 @@ class EventSenderSendValue(contracts.EventSenderSendValue):
         return contracts.EventSenderSendValueResult()
 
 
-class EventReceiverCreate(contracts.EventReceiverCreate):
-    def initialize(self, *, services: StateServices[Literal['state']], broker: ConnectionCreate, type: ValueType[Any],
-                   topic: str, format: Some[MQTTFormat] | None) -> contracts.EventReceiverCreateResult:
-        self.received_values: list[DynamicValue] = []
+class _Receiver(NativeState[Literal['state']]):
+    """The state of a node that receives messages on a topic."""
 
+    def setup(self, kind: str, broker: ConnectionCreate, type: ValueType[Any], topic: str,
+              format: Some[MQTTFormat] | None, template_parts: MQTTTemplateParts) -> None:
         self.value_type = type
         check_topic(topic)
         self.topic = topic
         self.format = _json_format(format)
-        self.template_prefix = ''
-        self.template_suffix = ''
+        self.template_prefix = template_parts.prefix
+        self.template_suffix = template_parts.suffix
 
-        verbose_print('Create MQTT EventReceiver', flush=True)
+        verbose_print(f'Create MQTT {kind}', flush=True)
 
         verbose_print(f'  Using topic: {self.topic!r}', flush=True)
         verbose_print(f'  Using type: {self.value_type!r}', flush=True)
@@ -457,42 +462,65 @@ class EventReceiverCreate(contracts.EventReceiverCreate):
         self.native_server = broker
         verbose_print(f'  Using native server object: {self.native_server}', flush=True)
         broker.receivers.setdefault(self.topic, []).append(self)
-        # Set on a disconnect until get_subscribed() has reported it.
+        # Set on a disconnect until the Subscribed output has reported it.
         self.disconnect_pending = False
-        return contracts.EventReceiverCreateResult(state=self)
 
     @property
     def subscribed(self) -> bool:
         return self.native_server.connected and self.native_server.accepted.get(self.topic, False)
 
     def handle_message(self, message: aiomqtt.Message) -> None:
+        raise NotImplementedError
+
+    def disconnected(self) -> None:
+        """Called when the connection is lost."""
+
+    def decode(self, message: aiomqtt.Message) -> DynamicValue:
+        value_bytes = message.payload
+        if not isinstance(value_bytes, bytes):
+            raise Exception(f'Unexpected payload type {type(value_bytes)}')
+        value = str(value_bytes, 'utf-8')
+
+        # TODO: Parse the message as JSON and take the value from the template's position, instead of matching the
+        # text around it exactly. A publisher with different whitespace or key order does not match the template.
+        if not value.startswith(self.template_prefix):
+            raise Exception(f'Message {value!r} does not start with prefix {self.template_prefix!r}')
+        value = value[len(self.template_prefix):]
+        if not value.endswith(self.template_suffix):
+            raise Exception(f'Message {value!r} does not end with suffix {self.template_suffix!r}')
+        if len(self.template_suffix):
+            value = value[:-len(self.template_suffix)]
+
+        return self.value_type.json_decode(json.loads(value), self.format)
+
+    @staticmethod
+    def warn(message: aiomqtt.Message, error: Exception) -> None:
+        # TODO: Do something else here?
+        # TODO: Print stack trace?
+        print(f'Warning: Error while parsing received MQTT message topic {message.topic.value!r} data {message.payload!r}: {error}', flush=True)
+
+
+class EventReceiverCreate(contracts.EventReceiverCreate, _Receiver):
+    def initialize(self, *, services: StateServices[Literal['state']], broker: ConnectionCreate, type: ValueType[Any],
+                   topic: str, format: Some[MQTTFormat] | None,
+                   template_parts: MQTTTemplateParts) -> contracts.EventReceiverCreateResult:
+        self.received_values: list[DynamicValue] = []
+        self.setup('EventReceiver', broker, type, topic, format, template_parts)
+        return contracts.EventReceiverCreateResult(state=self)
+
+    def handle_message(self, message: aiomqtt.Message) -> None:
         if message.retain:
             # The broker sends retained messages when subscribing; they are not events.
             verbose_print(f'Ignoring retained MQTT message: topic {message.topic.value!r} data {message.payload!r}', flush=True)
             return
+        verbose_print(f'Received MQTT message: topic {message.topic.value!r} data {message.payload!r}', flush=True)
         try:
-            verbose_print(f'Received MQTT message: topic {message.topic.value!r} data {message.payload!r}', flush=True)
-
-            value_bytes = message.payload
-            if not isinstance(value_bytes, bytes):
-                raise Exception(f'Unexpected payload type {type(value_bytes)}')
-            value = str(value_bytes, 'utf-8')
-
-            # TODO: Do JSON parsing here?
-            if not value.startswith(self.template_prefix):
-                raise Exception(f'Message {value!r} does not start with prefix {self.template_prefix!r}')
-            value = value[len(self.template_prefix):]
-            if not value.endswith(self.template_suffix):
-                raise Exception(f'Message {value!r} does not end with suffix {self.template_suffix!r}')
-            if len(self.template_suffix):
-                value = value[:-len(self.template_suffix)]
-
-            self.received_values.append(self.value_type.json_decode(json.loads(value), self.format))
-            self.services.trigger('state')
+            value = self.decode(message)
         except Exception as e:
-            # TODO: Do something else here?
-            # TODO: Print stack trace?
-            print(f'Warning: Error while parsing received MQTT message topic {message.topic.value!r} data {message.payload!r}: {e}', flush=True)
+            self.warn(message, e)
+            return
+        self.received_values.append(value)
+        self.services.trigger('state')
 
 
 class EventReceiverGetValue(contracts.EventReceiverGetValue):
@@ -526,7 +554,51 @@ class EventReceiverGetSubscribed(contracts.EventReceiverGetSubscribed):
         return contracts.EventReceiverGetSubscribedResult(subscribed=state.subscribed)
 
 
+class ValueReceiverCreate(contracts.ValueReceiverCreate, _Receiver):
+    def initialize(self, *, services: StateServices[Literal['state']], broker: ConnectionCreate, type: ValueType[Any],
+                   topic: str, format: Some[MQTTFormat] | None,
+                   template_parts: MQTTTemplateParts) -> contracts.ValueReceiverCreateResult:
+        # The last value received on the current connection, None if there is none.
+        self.value: DynamicValue | None = None
+        self.setup('ValueReceiver', broker, type, topic, format, template_parts)
+        return contracts.ValueReceiverCreateResult(state=self)
+
+    def handle_message(self, message: aiomqtt.Message) -> None:
+        verbose_print(f'Received MQTT message: topic {message.topic.value!r} data {message.payload!r}', flush=True)
+        if message.payload == b'':
+            # The publisher says that there is no value.
+            self.value = None
+        else:
+            try:
+                self.value = self.decode(message)
+            except Exception as e:
+                # Like after a reconnect, which would receive the same message again.
+                self.warn(message, e)
+                self.value = None
+        self.services.trigger('state')
+
+    def disconnected(self) -> None:
+        self.value = None
+
+
+class ValueReceiverGetValue(contracts.ValueReceiverGetValue):
+    def prepare(self, *, services: PreparationServices, state: 'ValueReceiverCreate', type: ValueType[Any]) -> None:
+        check_state_type(services.name, type, state.value_type)
+
+    def run(self, *, services: ProcedureServices,
+            state: 'ValueReceiverCreate', type: ValueType[Any]) -> contracts.ValueReceiverGetValueResult:
+        if state.disconnect_pending:
+            # Report each disconnect for at least one step, even if the subscription was restored since.
+            state.disconnect_pending = False
+            services.trigger_self()
+            return contracts.ValueReceiverGetValueResult(output=None, subscribed=False)
+        subscribed = state.subscribed
+        output = wirely.Some(state.value) if subscribed and state.value is not None else None
+        return contracts.ValueReceiverGetValueResult(output=output, subscribed=subscribed)
+
+
 Broker = ConnectionCreate  # Used as a resource type.
 ValueOptionProviderState = ValueOptionProviderCreate  # Used as a resource type.
 EventSenderState = EventSenderCreate  # Used as a resource type.
 EventReceiverState = EventReceiverCreate  # Used as a resource type.
+ValueReceiverState = ValueReceiverCreate  # Used as a resource type.

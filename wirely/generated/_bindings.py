@@ -116,6 +116,16 @@ def _load_states_mqtt_value_option_provider_create() -> StateImplementation:
     return StateImplementation(create, ValueOptionProviderCreate._adapter)
 
 
+def _load_states_mqtt_value_receiver_create() -> StateImplementation:
+    from wirely.generated.mqtt import ValueReceiverCreate
+    from wirely.native.mqtt import ValueReceiverCreate as Implementation
+
+    def create() -> ValueReceiverCreate:
+        return Implementation()
+
+    return StateImplementation(create, ValueReceiverCreate._adapter)
+
+
 def _load_states_process_launch_on_event_create() -> StateImplementation:
     from wirely.generated.process import LaunchOnEventCreate
     from wirely.native.process import LaunchOnEventCreate as Implementation
@@ -218,6 +228,7 @@ states: dict[str, Callable[[], StateImplementation]] = {
     'MQTT.EventReceiver:create': _load_states_mqtt_event_receiver_create,
     'MQTT.EventSender:create': _load_states_mqtt_event_sender_create,
     'MQTT.ValueOptionProvider:create': _load_states_mqtt_value_option_provider_create,
+    'MQTT.ValueReceiver:create': _load_states_mqtt_value_receiver_create,
     'Process.LaunchOnEvent:create': _load_states_process_launch_on_event_create,
     'Std.DebugEventSource:create': _load_states_std_debug_event_source_create,
     'Std.DebugValueSource:create': _load_states_std_debug_value_source_create,
@@ -338,6 +349,16 @@ def _load_procedures_mqtt_value_option_provider_set_value() -> ProcedureImplemen
         return Implementation()
 
     return ProcedureImplementation(create, ValueOptionProviderSetValue._adapter)
+
+
+def _load_procedures_mqtt_value_receiver_get_value() -> ProcedureImplementation:
+    from wirely.generated.mqtt import ValueReceiverGetValue
+    from wirely.native.mqtt import ValueReceiverGetValue as Implementation
+
+    def create() -> ValueReceiverGetValue:
+        return Implementation()
+
+    return ProcedureImplementation(create, ValueReceiverGetValue._adapter)
 
 
 def _load_procedures_process_launch_on_event_run() -> ProcedureImplementation:
@@ -502,6 +523,7 @@ procedures: dict[str, Callable[[], ProcedureImplementation]] = {
     'MQTT.EventReceiver:get_value': _load_procedures_mqtt_event_receiver_get_value,
     'MQTT.EventSender:send_value': _load_procedures_mqtt_event_sender_send_value,
     'MQTT.ValueOptionProvider:set_value': _load_procedures_mqtt_value_option_provider_set_value,
+    'MQTT.ValueReceiver:get_value': _load_procedures_mqtt_value_receiver_get_value,
     'Process.LaunchOnEvent:run': _load_procedures_process_launch_on_event_run,
     'Schedule.IsInDailyInterval:run': _load_procedures_schedule_is_in_daily_interval_run,
     'Schedule.TimeOfDayMinute:get_value': _load_procedures_schedule_time_of_day_minute_get_value,
@@ -761,6 +783,11 @@ def _load_resource_mqtt_value_option_provider_state() -> type:
     return ValueOptionProviderState
 
 
+def _load_resource_mqtt_value_receiver_state() -> type:
+    from wirely.native.mqtt import ValueReceiverState
+    return ValueReceiverState
+
+
 def _load_resource_process_launch_on_event_state() -> type:
     from wirely.native.process import LaunchOnEventState
     return LaunchOnEventState
@@ -818,6 +845,7 @@ resources: dict[str, Callable[[], type]] = {
     'MQTT.EventReceiverState': _load_resource_mqtt_event_receiver_state,
     'MQTT.EventSenderState': _load_resource_mqtt_event_sender_state,
     'MQTT.ValueOptionProviderState': _load_resource_mqtt_value_option_provider_state,
+    'MQTT.ValueReceiverState': _load_resource_mqtt_value_receiver_state,
     'Process.LaunchOnEventState': _load_resource_process_launch_on_event_state,
     'Std.DebugEventSourceState': _load_resource_std_debug_event_source_state,
     'Std.DebugValueSourceState': _load_resource_std_debug_value_source_state,

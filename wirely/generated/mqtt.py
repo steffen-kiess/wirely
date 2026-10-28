@@ -19,7 +19,9 @@ from wirely.runtime.value_types import DynamicValue, ValueType
 from wirely.types.option import Some
 
 if TYPE_CHECKING:
-    from wirely.native.mqtt import Broker, EventReceiverState, EventSenderState, ValueOptionProviderState
+    from wirely.native.mqtt import (
+    Broker, EventReceiverState, EventSenderState, ValueOptionProviderState, ValueReceiverState,
+)
     from wirely.native.std import Duration
 
 __all__ = [
@@ -31,6 +33,8 @@ __all__ = [
     'EventSenderCreate',
     'ValueOptionProviderCreateResult',
     'ValueOptionProviderCreate',
+    'ValueReceiverCreateResult',
+    'ValueReceiverCreate',
     'ConnectionGetConnectedResult',
     'ConnectionGetConnected',
     'EventReceiverGetSubscribedResult',
@@ -41,6 +45,8 @@ __all__ = [
     'EventSenderSendValue',
     'ValueOptionProviderSetValueResult',
     'ValueOptionProviderSetValue',
+    'ValueReceiverGetValueResult',
+    'ValueReceiverGetValue',
 ]
 
 
@@ -104,6 +110,7 @@ class EventReceiverCreate(NativeState[Literal['state']], abc.ABC):
         type: ValueType[Any],
         topic: str,
         format: Some[MQTTFormat] | None,
+        template_parts: MQTTTemplateParts,
     ) -> EventReceiverCreateResult:
         ...
 
@@ -120,6 +127,7 @@ class _EventReceiverCreateAdapter(InitializerAdapter):
             type=cast('ValueType[Any]', binding.use('Type')),
             topic=cast('str', binding.use('Topic')),
             format=cast('Some[MQTTFormat] | None', binding.use('Format')),
+            template_parts=cast('MQTTTemplateParts', binding.use('template_parts')),
         )
         binding.check_result(result, EventReceiverCreateResult)
         return {
@@ -224,6 +232,52 @@ class _ValueOptionProviderCreateAdapter(InitializerAdapter):
 
 
 ValueOptionProviderCreate._adapter = _ValueOptionProviderCreateAdapter()
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ValueReceiverCreateResult:
+    """Fixed outputs of native initializer MQTT.ValueReceiver:create."""
+
+    state: ValueReceiverState
+
+
+class ValueReceiverCreate(NativeState[Literal['state']], abc.ABC):
+    """Native initializer MQTT.ValueReceiver:create; initialize() returns its fixed outputs."""
+
+    @abc.abstractmethod
+    def initialize(
+        self, *,
+        services: StateServices[Literal['state']],
+        broker: Broker,
+        type: ValueType[Any],
+        topic: str,
+        format: Some[MQTTFormat] | None,
+        template_parts: MQTTTemplateParts,
+    ) -> ValueReceiverCreateResult:
+        ...
+
+
+class _ValueReceiverCreateAdapter(InitializerAdapter):
+    output_keys = {'state': 'state'}
+
+    def initialize(self, state: NativeState[Any], services: StateServices[Any],
+                   binding: InterfaceBinding) -> dict[str, InternalValue]:
+        assert isinstance(state, ValueReceiverCreate)
+        result = state.initialize(
+            services=services,
+            broker=cast('Broker', binding.fixed('Broker')),
+            type=cast('ValueType[Any]', binding.use('Type')),
+            topic=cast('str', binding.use('Topic')),
+            format=cast('Some[MQTTFormat] | None', binding.use('Format')),
+            template_parts=cast('MQTTTemplateParts', binding.use('template_parts')),
+        )
+        binding.check_result(result, ValueReceiverCreateResult)
+        return {
+            'state': binding.output('state', result.state),
+        }
+
+
+ValueReceiverCreate._adapter = _ValueReceiverCreateAdapter()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -490,3 +544,61 @@ class _ValueOptionProviderSetValueAdapter(ProcedureAdapter):
 
 
 ValueOptionProviderSetValue._adapter = _ValueOptionProviderSetValueAdapter()
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ValueReceiverGetValueResult:
+    """Outputs of native procedure MQTT.ValueReceiver:get_value."""
+
+    output: Some[DynamicValue] | None
+    subscribed: bool
+
+
+class ValueReceiverGetValue(NativeProcedure, abc.ABC):
+    """Native procedure MQTT.ValueReceiver:get_value."""
+
+    @abc.abstractmethod
+    def prepare(
+        self, *,
+        services: PreparationServices,
+        state: ValueReceiverState,
+        type: ValueType[Any],
+    ) -> None:
+        ...
+
+    @abc.abstractmethod
+    def run(
+        self, *,
+        services: ProcedureServices,
+        state: ValueReceiverState,
+        type: ValueType[Any],
+    ) -> ValueReceiverGetValueResult:
+        ...
+
+
+class _ValueReceiverGetValueAdapter(ProcedureAdapter):
+    def prepare(self, procedure: NativeProcedure, services: PreparationServices,
+                binding: InterfaceBinding) -> None:
+        assert isinstance(procedure, ValueReceiverGetValue)
+        procedure.prepare(
+            services=services,
+            state=cast('ValueReceiverState', binding.fixed('state')),
+            type=cast('ValueType[Any]', binding.use('Type')),
+        )
+
+    def run(self, procedure: NativeProcedure, services: ProcedureServices, binding: InterfaceBinding,
+            inputs: Mapping[str, InternalValue]) -> dict[str, InternalValue]:
+        assert isinstance(procedure, ValueReceiverGetValue)
+        result = procedure.run(
+            services=services,
+            state=cast('ValueReceiverState', binding.fixed('state')),
+            type=cast('ValueType[Any]', binding.use('Type')),
+        )
+        binding.check_result(result, ValueReceiverGetValueResult)
+        return {
+            'output': binding.output('output', result.output),
+            'subscribed': binding.output('subscribed', result.subscribed),
+        }
+
+
+ValueReceiverGetValue._adapter = _ValueReceiverGetValueAdapter()

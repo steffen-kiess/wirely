@@ -173,7 +173,8 @@ MQTT nodes use a `MQTT.Connection` and a named
 default JSON formatting or `MQTT.Format.SnakeCase` enum encoding. Omitting
 `Format` is equivalent to `MQTT.Format.Default`. `Template` is an optional
 string controlling JSON output. A template embeds the encoded value at one
-`%s` placeholder; `%%` represents a literal percent sign. The `URI` accepts `mqtt://host`, `mqtts://host`, or `mqtt+unix:///path`.
+`%s` placeholder; `%%` represents a literal percent sign. Received messages
+must match the text around the placeholder exactly. The `URI` accepts `mqtt://host`, `mqtts://host`, or `mqtt+unix:///path`.
 
 | Node type | Parameters | Ports and behavior |
 | --- | --- | --- |
@@ -181,7 +182,8 @@ string controlling JSON output. A template embeds the encoded value at one
 | `ValueOptionProvider` | `Type: type`, `Topic: string`, optional `Format: MQTT.Format`, `Template: string`, `Retain: boolean = true`, optional `LastWill: Option[Type]` | Named in: `Broker`; in: `value Option[Type]`. Publishes JSON; `None` publishes an empty payload, which also removes a retained value. |
 | `ValueProvider` | Same as `ValueOptionProvider`, without `LastWill` | Named in: `Broker`; in: `value Type`. Publishes the value as JSON. |
 | `EventSender` | `Type: type`, `Topic: string`, optional `Format: MQTT.Format`, `Template: string` | Named in: `Broker`; in: `event Type`. Publishes each event as JSON. |
-| `EventReceiver` | `Type: type`, `Topic: string`, optional `Format: MQTT.Format` | Named in: `Broker`; out: `event Type`; named out `Subscribed: value boolean`. Emits decoded messages received on the topic. |
+| `EventReceiver` | `Type: type`, `Topic: string`, optional `Format: MQTT.Format`, `Template: string` | Named in: `Broker`; out: `event Type`; named out `Subscribed: value boolean`. Emits decoded messages received on the topic. |
+| `ValueReceiver` | Same as `EventReceiver` | Named in: `Broker`; out: `value Option[Type]`; named out `Subscribed: value boolean`. The last value received on the topic, including a retained one. |
 
 Use types with [JSON support](value-types.md#json-and-csv-support). MQTT
 requires the `aiomqtt` package.
@@ -197,6 +199,10 @@ Values and events of a connection are sent in order. While a value of a
 provider waits to be sent, newer values of that provider are not queued;
 the current value is sent after it if it differs. `EventReceiver` ignores
 retained messages.
+
+`ValueReceiver` is `None` until the first message after connecting, for an
+empty payload or a message that cannot be decoded, and whenever `Subscribed`
+is false.
 
 `Subscribed` is true while connected and the broker accepted the
 subscription, and, like `Connected`, false for at least one step after each

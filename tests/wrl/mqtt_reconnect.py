@@ -64,6 +64,7 @@ async def collect(client):
 
 def assert_subscribed(receiver, denied):
     engine.assert_value_is('receiver.Subscribed', receiver)
+    engine.assert_value_is('value_receiver.Subscribed', receiver)
     engine.assert_value_is('denied.Subscribed', denied)
 
 
@@ -127,6 +128,7 @@ async def run_test():
                     engine.step()
                     engine.assert_value_is('server.Connected', False)
                     assert_subscribed(False, False)
+                    engine.assert_value_is('value_receiver', None)
                     await expect_msgs()
 
                     # After connecting, the current values are published, the will provider's value last. A retained
@@ -169,13 +171,15 @@ async def run_test():
                     set_value('status', wirely.Some(True))
                     await expect_msgs(('test/status', b'true'))
 
-                    # A live message arrives as an event.
+                    # A live message arrives as an event and as a value, which stays.
                     await observer.publish('test/received', payload=b'true', retain=True)
                     await expect_msgs(('test/received', b'true'))
                     engine.step()
                     engine.assert_value_is('receiver', wirely.Some(True))
+                    engine.assert_value_is('value_receiver', wirely.Some(True))
                     engine.step()
                     engine.assert_value_is('receiver', None)
+                    engine.assert_value_is('value_receiver', wirely.Some(True))
 
                     # After a reconnect, Connected is false for one step and the values are published again. The broker
                     # publishes the will first.
@@ -186,17 +190,27 @@ async def run_test():
                     engine.step()
                     engine.assert_value_is('server.Connected', False)
                     assert_subscribed(False, False)
+                    engine.assert_value_is('value_receiver', None)
                     engine.step()
                     engine.assert_value_is('server.Connected', True)
                     assert_subscribed(True, False)
 
-                    # The retained message that the broker sends when subscribing again is not an event, but the
-                    # subscription is restored.
+                    # The retained message that the broker sends when subscribing again is not an event, but it is
+                    # the value again. The subscription is restored.
                     engine.assert_value_is('receiver', None)
+                    engine.assert_value_is('value_receiver', wirely.Some(True))
                     await observer.publish('test/received', payload=b'false')
                     await expect_msgs(('test/received', b'false'))
                     engine.step()
                     engine.assert_value_is('receiver', wirely.Some(False))
+                    engine.assert_value_is('value_receiver', wirely.Some(False))
+
+                    # An empty payload and a message that cannot be decoded mean that there is no value.
+                    for payload in (b'', b'3', b'true'):
+                        await observer.publish('test/received', payload=payload)
+                        await expect_msgs(('test/received', payload))
+                        engine.step()
+                        engine.assert_value_is('value_receiver', wirely.Some(True) if payload == b'true' else None)
 
                     # When the access rules change, the plugin disconnects the affected clients. After reconnecting,
                     # subscribing to the topic succeeds and its messages arrive.

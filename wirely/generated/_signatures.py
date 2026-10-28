@@ -118,6 +118,7 @@ native_state_types: dict[str, Initializer] = {
             'Type': Builtin('type'),
             'Topic': Builtin('string'),
             'Format': Option(Enum('MQTT.Format')),
+            'template_parts': Struct('MQTT.TemplateParts'),
         },
     ),
     'MQTT.EventSender:create': Initializer(
@@ -148,6 +149,20 @@ native_state_types: dict[str, Initializer] = {
             'template_parts': Struct('MQTT.TemplateParts'),
             'Retain': Builtin('boolean'),
             'LastWill': Option(Option(TypeVar('Type'))),
+        },
+    ),
+    'MQTT.ValueReceiver:create': Initializer(
+        depends={
+            'Broker': Port('resource', ResourceType('MQTT.Broker')),
+        },
+        produces={
+            'state': Port('resource', ResourceType('MQTT.ValueReceiverState')),
+        },
+        uses={
+            'Type': Builtin('type'),
+            'Topic': Builtin('string'),
+            'Format': Option(Enum('MQTT.Format')),
+            'template_parts': Struct('MQTT.TemplateParts'),
         },
     ),
     'Process.LaunchOnEvent:create': Initializer(
@@ -369,6 +384,19 @@ native_procedures: dict[str, Procedure] = {
             'input': Port('value', Option(TypeVar('Type'))),
         },
         produces={},
+        uses={
+            'Type': Builtin('type'),
+        },
+    ),
+    'MQTT.ValueReceiver:get_value': Procedure(
+        stage='input',
+        depends={
+            'state': Port('resource', ResourceType('MQTT.ValueReceiverState')),
+        },
+        produces={
+            'output': Port('value', Option(TypeVar('Type'))),
+            'subscribed': Port('value', Builtin('boolean')),
+        },
         uses={
             'Type': Builtin('type'),
         },

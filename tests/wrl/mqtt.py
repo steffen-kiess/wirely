@@ -313,8 +313,8 @@ async def run_test():
         engine.assert_value_is('template_event_receiver', None)
         await expect_msgs()
 
-        await client.publish('test/t7', payload=b'true')
-        await expect_msgs(('test/t7', b'true'))
+        await client.publish('test/t7', payload=b'{"value": true, "other": "%s"}')
+        await expect_msgs(('test/t7', b'{"value": true, "other": "%s"}'))
 
         # TODO: How long should this sleep?
         await asyncio.sleep(0.1)
@@ -327,9 +327,9 @@ async def run_test():
         engine.assert_value_is('template_event_receiver', None)
         await expect_msgs()
 
-        # Note: This should be ignored
-        await client.publish('test/t7', payload=b'3')
-        await expect_msgs(('test/t7', b'3'))
+        # Note: This should be ignored, because it does not match the template
+        await client.publish('test/t7', payload=b'true')
+        await expect_msgs(('test/t7', b'true'))
 
         # TODO: How long should this sleep?
         await asyncio.sleep(0.1)
@@ -337,6 +337,29 @@ async def run_test():
         engine.step()
         engine.assert_value_is('template_event_receiver', None)
         await expect_msgs()
+
+        # Test TemplateValueReceiver
+
+        engine.step()
+        engine.assert_value_is('template_value_receiver', None)
+        engine.assert_value_is('template_value_receiver.Subscribed', True)
+
+        await client.publish('test/t8', payload=b'{"value": false, "other": "%s"}')
+        await expect_msgs(('test/t8', b'{"value": false, "other": "%s"}'))
+        await asyncio.sleep(0.1)
+        engine.step()
+        engine.assert_value_is('template_value_receiver', wirely.Some(False))
+
+        # The value stays until the next message.
+        engine.step()
+        engine.assert_value_is('template_value_receiver', wirely.Some(False))
+
+        # A message that does not match the template means that there is no value.
+        await client.publish('test/t8', payload=b'false')
+        await expect_msgs(('test/t8', b'false'))
+        await asyncio.sleep(0.1)
+        engine.step()
+        engine.assert_value_is('template_value_receiver', None)
 
         print('c', flush=True)
     print('d', flush=True)

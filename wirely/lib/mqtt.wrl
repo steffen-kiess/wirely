@@ -139,10 +139,13 @@ namespace MQTT {
     #[Diagram.ShowValue]
     parameter Topic: string;
     optional parameter Format: MQTT.Format;
-    // TODO optional parameter Template : string;
+    optional parameter Template: string;
 
     assert SupportsType(Type), "Unsupported type for MQTT";
     assert CheckTopic(Topic);
+
+    constant template_parts: TemplateParts =
+      ParseTemplate(optional(Template));
 
     input Broker: fixed Broker;
     default output: event Type;
@@ -150,7 +153,7 @@ namespace MQTT {
 
     binding state: fixed EventReceiverState;
     native initializer create
-      reads Broker, Type, Topic, optional(Format) as Format
+      reads Broker, Type, Topic, optional(Format) as Format, template_parts
       writes state as "state";
 
     native procedure get_value stage input
@@ -160,5 +163,37 @@ namespace MQTT {
     native procedure get_subscribed stage input
       reads state as "state"
       writes Subscribed as "subscribed";
+  }
+
+  #[Internal]
+  resource type ValueReceiverState;
+
+  node type ValueReceiver {
+    parameter Type: type;
+    #[Diagram.ShowValue]
+    parameter Topic: string;
+    optional parameter Format: MQTT.Format;
+    optional parameter Template: string;
+
+    assert SupportsType(Type), "Unsupported type for MQTT";
+    assert CheckTopic(Topic);
+
+    constant template_parts: TemplateParts =
+      ParseTemplate(optional(Template));
+
+    input Broker: fixed Broker;
+    default output: value Option[Type];
+    output Subscribed: value boolean;
+
+    binding state: fixed ValueReceiverState;
+    native initializer create
+      reads Broker, Type, Topic, optional(Format) as Format, template_parts
+      writes state as "state";
+
+    // One procedure writes both outputs, so that the value is never Some
+    // while Subscribed is false.
+    native procedure get_value stage input
+      reads state as "state", Type
+      writes default output as "output", Subscribed as "subscribed";
   }
 }

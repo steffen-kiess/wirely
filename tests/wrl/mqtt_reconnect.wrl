@@ -47,3 +47,10 @@ connect server -> denied.Broker;
 
 node denied_printer: Std.DebugEventPrinter { Type: boolean }
 connect denied -> denied_printer;
+
+// Shares its topic with receiver.
+node value_receiver: MQTT.ValueReceiver { Topic: "test/received", Type: boolean }
+connect server -> value_receiver.Broker;
+
+node value_receiver_printer: Std.DebugValuePrinter { Type: Option[boolean] }
+connect value_receiver -> value_receiver_printer;

@@ -93,12 +93,22 @@ connect server -> event_receiver.Broker;
 node event_receiver_prnt: Std.DebugEventPrinter { Type: boolean }
 connect event_receiver -> event_receiver_prnt;
 
-// TODO: Actually use template here
 node template_event_receiver: MQTT.EventReceiver {
   Topic: "test/t7",
   Type: boolean,
+  Template: r#"{"value": %s, "other": "%s"}"#,
 }
 connect server -> template_event_receiver.Broker;
 
 node template_event_receiver_prnt: Std.DebugEventPrinter { Type: boolean }
 connect template_event_receiver -> template_event_receiver_prnt;
+
+node template_value_receiver: MQTT.ValueReceiver {
+  Topic: "test/t8",
+  Type: boolean,
+  Template: r#"{"value": %s, "other": "%s"}"#,
+}
+connect server -> template_value_receiver.Broker;
+
+node template_value_receiver_prnt: Std.DebugValuePrinter { Type: Option[boolean] }
+connect template_value_receiver -> template_value_receiver_prnt;
