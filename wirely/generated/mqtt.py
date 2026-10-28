@@ -33,6 +33,8 @@ __all__ = [
     'ValueOptionProviderCreate',
     'ConnectionGetConnectedResult',
     'ConnectionGetConnected',
+    'EventReceiverGetSubscribedResult',
+    'EventReceiverGetSubscribed',
     'EventReceiverGetValueResult',
     'EventReceiverGetValue',
     'EventSenderSendValueResult',
@@ -273,6 +275,57 @@ class _ConnectionGetConnectedAdapter(ProcedureAdapter):
 
 
 ConnectionGetConnected._adapter = _ConnectionGetConnectedAdapter()
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class EventReceiverGetSubscribedResult:
+    """Outputs of native procedure MQTT.EventReceiver:get_subscribed."""
+
+    subscribed: bool
+
+
+class EventReceiverGetSubscribed(NativeProcedure, abc.ABC):
+    """Native procedure MQTT.EventReceiver:get_subscribed."""
+
+    def prepare(
+        self, *,
+        services: PreparationServices,
+        state: EventReceiverState,
+    ) -> None:
+        pass
+
+    @abc.abstractmethod
+    def run(
+        self, *,
+        services: ProcedureServices,
+        state: EventReceiverState,
+    ) -> EventReceiverGetSubscribedResult:
+        ...
+
+
+class _EventReceiverGetSubscribedAdapter(ProcedureAdapter):
+    def prepare(self, procedure: NativeProcedure, services: PreparationServices,
+                binding: InterfaceBinding) -> None:
+        assert isinstance(procedure, EventReceiverGetSubscribed)
+        procedure.prepare(
+            services=services,
+            state=cast('EventReceiverState', binding.fixed('state')),
+        )
+
+    def run(self, procedure: NativeProcedure, services: ProcedureServices, binding: InterfaceBinding,
+            inputs: Mapping[str, InternalValue]) -> dict[str, InternalValue]:
+        assert isinstance(procedure, EventReceiverGetSubscribed)
+        result = procedure.run(
+            services=services,
+            state=cast('EventReceiverState', binding.fixed('state')),
+        )
+        binding.check_result(result, EventReceiverGetSubscribedResult)
+        return {
+            'subscribed': binding.output('subscribed', result.subscribed),
+        }
+
+
+EventReceiverGetSubscribed._adapter = _EventReceiverGetSubscribedAdapter()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

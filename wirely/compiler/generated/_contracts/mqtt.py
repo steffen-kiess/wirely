@@ -74,6 +74,34 @@ _CheckKeepAlive: ConstantFunctionContract[_CheckKeepAliveImplementation] = Const
     'MQTT.CheckKeepAlive', _call__check_keep_alive)
 
 
+class _CheckTopicImplementation(Protocol):
+    """Implementations of constant function MQTT.CheckTopic, receiving its arguments in order."""
+
+    def __call__(
+        self,
+        argument_0: str,
+        /, *,
+        services: FunctionServices,
+    ) -> bool:
+        ...
+
+
+def _call__check_topic(
+    implementation: _CheckTopicImplementation,
+    arguments: Sequence[object],
+    services: FunctionServices,
+) -> object:
+    return implementation(
+        cast('str', arguments[0]),
+        services=services,
+    )
+
+
+# Constant function MQTT.CheckTopic.
+_CheckTopic: ConstantFunctionContract[_CheckTopicImplementation] = ConstantFunctionContract(
+    'MQTT.CheckTopic', _call__check_topic)
+
+
 class _CheckURIImplementation(Protocol):
     """Implementations of constant function MQTT.CheckURI, receiving its arguments in order."""
 

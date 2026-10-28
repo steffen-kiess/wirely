@@ -48,6 +48,22 @@ assert MQTT.CheckKeepAlive("PT65535.5S");
 assert MQTT.CheckClientID(Some(""));
 // ^E: MQTT client ID must not be empty
 
+// TEST: empty MQTT topic
+assert MQTT.CheckTopic("");
+// ^E: MQTT topic must not be empty
+
+// TEST: MQTT topic with single-level wildcard
+assert MQTT.CheckTopic("a/+");
+// ^E: must not contain wildcard +
+
+// TEST: MQTT topic with multi-level wildcard
+assert MQTT.CheckTopic("#");
+// ^E: must not contain wildcard #
+
+// TEST: MQTT topic with NUL
+assert MQTT.CheckTopic("a\0b");
+// ^E: must not contain NUL
+
 // TEST: missing MQTT placeholder
 constant Parts: MQTT.TemplateParts = MQTT.ParseTemplate(Some("text"));
 // ^E: Got template string without %s

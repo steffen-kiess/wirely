@@ -23,6 +23,14 @@ def check_uri(uri: str, *, services: FunctionServices) -> bool:
     return True
 
 
+def check_topic(topic: str, *, services: FunctionServices) -> bool:
+    try:
+        settings.check_topic(topic)
+    except ValueError as error:
+        raise services.error(str(error), argument=0) from error
+    return True
+
+
 def check_keep_alive(keep_alive: Duration, *, services: FunctionServices) -> bool:
     try:
         settings.keep_alive_seconds(keep_alive)

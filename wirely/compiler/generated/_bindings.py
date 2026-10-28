@@ -42,6 +42,12 @@ def _load_mqtt_check_keep_alive() -> ConstantFunctionImplementation:
     return _CheckKeepAlive.implementation(check_keep_alive)
 
 
+def _load_mqtt_check_topic() -> ConstantFunctionImplementation:
+    from wirely.compiler.generated._contracts.mqtt import _CheckTopic
+    from wirely.compiler.function_implementations.mqtt import check_topic
+    return _CheckTopic.implementation(check_topic)
+
+
 def _load_mqtt_check_uri() -> ConstantFunctionImplementation:
     from wirely.compiler.generated._contracts.mqtt import _CheckURI
     from wirely.compiler.function_implementations.mqtt import check_uri
@@ -157,6 +163,7 @@ functions: dict[str, Callable[[], ConstantFunctionImplementation]] = {
     'KNX.ValueTypeName': _load_knx_value_type_name,
     'MQTT.CheckClientID': _load_mqtt_check_client_id,
     'MQTT.CheckKeepAlive': _load_mqtt_check_keep_alive,
+    'MQTT.CheckTopic': _load_mqtt_check_topic,
     'MQTT.CheckURI': _load_mqtt_check_uri,
     'MQTT.ParseTemplate': _load_mqtt_parse_template,
     'MQTT.SupportsType': _load_mqtt_supports_type,

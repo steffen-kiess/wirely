@@ -15,7 +15,8 @@ from wirely.native.support import check_state_type
 from wirely.generated.enums import MQTTFormat
 from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices
 from wirely.generated.structs import MQTTTemplateParts
-from wirely.mqtt.settings import check_client_id, keep_alive_seconds, parse_uri
+from wirely.misc.repeated_errors import RepeatedError
+from wirely.mqtt.settings import check_client_id, check_topic, keep_alive_seconds, parse_uri
 from wirely.types.time import Duration
 from wirely.util import verbose_print
 
@@ -34,6 +35,9 @@ def _json_format(option: Some[MQTTFormat] | None) -> str | None:
 # Delay before the first reconnection attempt, doubled after each failed attempt up to the maximum.
 RECONNECT_DELAY_MIN = 1.0
 RECONNECT_DELAY_MAX = 60.0
+# Delay before subscribing again to a topic that the broker rejected, in seconds. A rejection is almost always caused
+# by the broker's configuration, so this does not back off.
+SUBSCRIBE_RETRY_INTERVAL = 600.0
 
 
 @dataclasses.dataclass(frozen=True)
@@ -76,9 +80,15 @@ class ConnectionCreate(contracts.ConnectionCreate):
         # Note: Use an event instead of a condition because setting an event does not require await
         self.send_event = asyncio.Event()
 
-        # The last connection error and how often it has been logged.
-        self.last_error: str | None = None
-        self.last_error_count = 0
+        # Whether the broker accepted the subscription of each topic, while connected.
+        self.accepted: dict[str, bool] = {}
+        # Set while the broker rejects a subscription of the current connection.
+        self.subscription_retry = asyncio.Event()
+        # Counts the connections, so that a retry can tell whether it still uses the same one.
+        self.connection_number = 0
+
+        self.errors = RepeatedError(f'MQTT connection to {uri!r}')
+        self.subscription_errors: dict[str, RepeatedError] = {}
         return contracts.ConnectionCreateResult(broker=self)
 
     @property
@@ -102,6 +112,7 @@ class ConnectionCreate(contracts.ConnectionCreate):
 
         self.task = self.start_task(task_group, async_exit_stack, self.connection_task())
         self.sender = self.start_task(task_group, async_exit_stack, self.sender_task())
+        self.subscription_retrier = self.start_task(task_group, async_exit_stack, self.subscription_retry_task())
 
     async def connection_task(self) -> None:
         delay = RECONNECT_DELAY_MIN
@@ -113,8 +124,8 @@ class ConnectionCreate(contracts.ConnectionCreate):
                 async with client:
                     try:
                         await self.restore(client)
+                        self.errors.end()
                         print(f'Connected to MQTT server {self.uri!r}', flush=True)
-                        self.last_error = None
                         delay = RECONNECT_DELAY_MIN
 
                         async for message in client.messages:
@@ -147,19 +158,58 @@ class ConnectionCreate(contracts.ConnectionCreate):
             if payload is not None:
                 await client.publish(provider.topic, payload=payload, retain=provider.retain)
             published.append((provider, payload))
-        for topic in self.receivers:
-            reason_codes = await client.subscribe(topic)
-            for code in reason_codes:
-                if not isinstance(code, int) and code.is_failure:
-                    print(f'Warning: Subscribing to MQTT topic {topic!r} failed: {code}', flush=True)
+        accepted = {topic: await self.subscribe(client, topic) for topic in self.receivers}
 
+        # The subscription states change together with Connected.
+        self.accepted = accepted
         self.client = client
+        self.connection_number += 1
         self.connected_event.set()
         self.services.trigger('broker')
+        for receivers in self.receivers.values():
+            for receiver in receivers:
+                receiver.services.trigger('state')
+        if not all(accepted.values()):
+            self.subscription_retry.set()
         # Send values set while publishing or subscribing.
         for provider, payload in published:
             if provider.current_payload != payload:
                 self.enqueue_value(provider)
+
+    async def subscribe(self, client: aiomqtt.Client, topic: str) -> bool:
+        """Subscribe to a topic and log a rejection; return whether the broker accepted it."""
+        errors = self.subscription_errors.setdefault(
+            topic, RepeatedError(f'Subscribing to MQTT topic {topic!r} on {self.uri!r}'))
+        reason_codes = await client.subscribe(topic)
+        for code in reason_codes:
+            if not isinstance(code, int) and code.is_failure:
+                errors.report(str(code))
+                return False
+        errors.end()
+        return True
+
+    async def subscription_retry_task(self) -> None:
+        while True:
+            await self.subscription_retry.wait()
+            number = self.connection_number
+            await asyncio.sleep(SUBSCRIBE_RETRY_INTERVAL)
+            client = self.client
+            if client is None or self.connection_number != number:
+                continue
+            try:
+                for topic, accepted in list(self.accepted.items()):
+                    if accepted:
+                        continue
+                    if await self.subscribe(client, topic) and self.connection_number == number:
+                        self.accepted[topic] = True
+                        print(f'Subscribed to MQTT topic {topic!r} on {self.uri!r}', flush=True)
+                        for receiver in self.receivers[topic]:
+                            receiver.services.trigger('state')
+            except aiomqtt.MqttError as e:
+                # The connection notices the disconnect.
+                verbose_print(f'Subscribing again on {self.uri!r} failed: {e}', flush=True)
+            if self.connection_number == number and all(self.accepted.values()):
+                self.subscription_retry.clear()
 
     def set_disconnected(self) -> None:
         if self.client is None:
@@ -167,6 +217,14 @@ class ConnectionCreate(contracts.ConnectionCreate):
         self.client = None
         self.connected_event.clear()
         self.disconnect_pending = True
+        # Report each disconnect for at least one step on all receivers, like Connected, so that Subscribed is never
+        # true while Connected reports the disconnect.
+        for receivers in self.receivers.values():
+            for receiver in receivers:
+                receiver.disconnect_pending = True
+                receiver.services.trigger('state')
+        self.accepted = {}
+        self.subscription_retry.clear()
         # Events are dropped instead of being sent when they might be outdated. Values are published again
         # after connecting.
         self.send_queue.clear()
@@ -235,14 +293,7 @@ class ConnectionCreate(contracts.ConnectionCreate):
             error += f': {cause}'
         if isinstance(cause, aiomqtt.MqttCodeError) and cause.rc == 0x8E:
             error += ' (another client probably uses the same ClientID)'
-        if error != self.last_error:
-            self.last_error = error
-            self.last_error_count = 1
-            print(f'Warning: MQTT connection to {self.uri!r} failed: {error}', flush=True)
-        elif self.last_error_count == 1:
-            self.last_error_count = 2
-            print(f'Warning: MQTT connection to {self.uri!r} failed: {error} '
-                  '(further identical errors are suppressed)', flush=True)
+        self.errors.report(error)
 
 
 class ConnectionGetConnected(contracts.ConnectionGetConnected):
@@ -276,6 +327,7 @@ class ValueOptionProviderCreate(contracts.ValueOptionProviderCreate):
         self.queued = False
 
         self.value_type = type
+        check_topic(topic)
         self.topic = topic
         self.format = _json_format(format)
         self.template_prefix = template_parts.prefix
@@ -339,6 +391,7 @@ class EventSenderCreate(contracts.EventSenderCreate):
         self.current_value = None
 
         self.value_type = type
+        check_topic(topic)
         self.topic = topic
         self.format = _json_format(format)
         self.template_prefix = template_parts.prefix
@@ -389,6 +442,7 @@ class EventReceiverCreate(contracts.EventReceiverCreate):
         self.received_values: list[DynamicValue] = []
 
         self.value_type = type
+        check_topic(topic)
         self.topic = topic
         self.format = _json_format(format)
         self.template_prefix = ''
@@ -403,7 +457,13 @@ class EventReceiverCreate(contracts.EventReceiverCreate):
         self.native_server = broker
         verbose_print(f'  Using native server object: {self.native_server}', flush=True)
         broker.receivers.setdefault(self.topic, []).append(self)
+        # Set on a disconnect until get_subscribed() has reported it.
+        self.disconnect_pending = False
         return contracts.EventReceiverCreateResult(state=self)
+
+    @property
+    def subscribed(self) -> bool:
+        return self.native_server.connected and self.native_server.accepted.get(self.topic, False)
 
     def handle_message(self, message: aiomqtt.Message) -> None:
         if message.retain:
@@ -453,6 +513,17 @@ class EventReceiverGetValue(contracts.EventReceiverGetValue):
         services.trigger_self()
 
         return contracts.EventReceiverGetValueResult(output=res_opt)
+
+
+class EventReceiverGetSubscribed(contracts.EventReceiverGetSubscribed):
+    def run(self, *, services: ProcedureServices,
+            state: 'EventReceiverCreate') -> contracts.EventReceiverGetSubscribedResult:
+        if state.disconnect_pending:
+            # Report each disconnect for at least one step, even if the subscription was restored since.
+            state.disconnect_pending = False
+            services.trigger_self()
+            return contracts.EventReceiverGetSubscribedResult(subscribed=False)
+        return contracts.EventReceiverGetSubscribedResult(subscribed=state.subscribed)
 
 
 Broker = ConnectionCreate  # Used as a resource type.

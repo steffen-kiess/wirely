@@ -300,6 +300,16 @@ def _load_procedures_mqtt_connection_get_connected() -> ProcedureImplementation:
     return ProcedureImplementation(create, ConnectionGetConnected._adapter)
 
 
+def _load_procedures_mqtt_event_receiver_get_subscribed() -> ProcedureImplementation:
+    from wirely.generated.mqtt import EventReceiverGetSubscribed
+    from wirely.native.mqtt import EventReceiverGetSubscribed as Implementation
+
+    def create() -> EventReceiverGetSubscribed:
+        return Implementation()
+
+    return ProcedureImplementation(create, EventReceiverGetSubscribed._adapter)
+
+
 def _load_procedures_mqtt_event_receiver_get_value() -> ProcedureImplementation:
     from wirely.generated.mqtt import EventReceiverGetValue
     from wirely.native.mqtt import EventReceiverGetValue as Implementation
@@ -488,6 +498,7 @@ procedures: dict[str, Callable[[], ProcedureImplementation]] = {
     'KNX.ValueOptionProvider:set_value': _load_procedures_knx_value_option_provider_set_value,
     'KNX.ValueReceiver:get_value': _load_procedures_knx_value_receiver_get_value,
     'MQTT.Connection:get_connected': _load_procedures_mqtt_connection_get_connected,
+    'MQTT.EventReceiver:get_subscribed': _load_procedures_mqtt_event_receiver_get_subscribed,
     'MQTT.EventReceiver:get_value': _load_procedures_mqtt_event_receiver_get_value,
     'MQTT.EventSender:send_value': _load_procedures_mqtt_event_sender_send_value,
     'MQTT.ValueOptionProvider:set_value': _load_procedures_mqtt_value_option_provider_set_value,

@@ -14,6 +14,7 @@ extension = CompilerNativeExtension(functions={
     'KNX.ValueTypeName': NativeConstantFunction(Function((Builtin('type'),), Builtin('string')), _bindings.functions['KNX.ValueTypeName']),
     'MQTT.CheckClientID': NativeConstantFunction(Function((Option(Builtin('string')),), Builtin('boolean')), _bindings.functions['MQTT.CheckClientID']),
     'MQTT.CheckKeepAlive': NativeConstantFunction(Function((Opaque('Std.Duration'),), Builtin('boolean')), _bindings.functions['MQTT.CheckKeepAlive']),
+    'MQTT.CheckTopic': NativeConstantFunction(Function((Builtin('string'),), Builtin('boolean')), _bindings.functions['MQTT.CheckTopic']),
     'MQTT.CheckURI': NativeConstantFunction(Function((Builtin('string'),), Builtin('boolean')), _bindings.functions['MQTT.CheckURI']),
     'MQTT.ParseTemplate': NativeConstantFunction(Function((Option(Builtin('string')),), Struct('MQTT.TemplateParts')), _bindings.functions['MQTT.ParseTemplate']),
     'MQTT.SupportsType': NativeConstantFunction(Function((Builtin('type'),), Builtin('boolean')), _bindings.functions['MQTT.SupportsType']),

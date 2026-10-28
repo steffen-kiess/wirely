@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import contextlib
+import hashlib
+import json
 import os
 import pwd
 import shlex
@@ -105,6 +108,41 @@ path = {socket_path}
         print('Done stopping knxd.', flush=True)
 
 
+# Dynamic security client of the test broker that may change its access rules.
+MQTT_ADMIN_USERNAME = 'admin'
+MQTT_ADMIN_PASSWORD = 'admin'
+# A topic that anonymous clients may not subscribe to.
+MQTT_DENIED_TOPIC = 'test/denied'
+
+
+def mqtt_dynamic_security_config() -> dict[str, object]:
+    """Allow everything except subscribing to MQTT_DENIED_TOPIC for anonymous clients."""
+    salt = b'wirely-tests'
+    password = hashlib.pbkdf2_hmac('sha512', MQTT_ADMIN_PASSWORD.encode('utf-8'), salt, 101)
+    return {
+        'defaultACLAccess': {'publishClientSend': True, 'publishClientReceive': True,
+                             'subscribe': True, 'unsubscribe': True},
+        'clients': [{
+            'username': MQTT_ADMIN_USERNAME,
+            'password': base64.b64encode(password).decode('ascii'),
+            'salt': base64.b64encode(salt).decode('ascii'),
+            'iterations': 101,
+            'roles': [{'rolename': 'admin'}],
+        }],
+        'groups': [{'groupname': 'anonymous', 'roles': [{'rolename': 'anonymous'}]}],
+        'anonymousGroup': 'anonymous',
+        'roles': [
+            {'rolename': 'admin', 'acls': [
+                {'acltype': acltype, 'topic': '$CONTROL/dynamic-security/#', 'allow': True}
+                for acltype in ('publishClientSend', 'publishClientReceive', 'subscribePattern')
+            ]},
+            {'rolename': 'anonymous', 'acls': [
+                {'acltype': 'subscribePattern', 'topic': MQTT_DENIED_TOPIC, 'priority': 1, 'allow': False},
+            ]},
+        ],
+    }
+
+
 @contextlib.asynccontextmanager
 async def with_maybe_mqtt(socket_path: str | None) -> AsyncIterator[str | None]:
     if socket_path is None:
@@ -115,6 +153,7 @@ async def with_maybe_mqtt(socket_path: str | None) -> AsyncIterator[str | None]:
 
     tmp = os.path.dirname(socket_path)
     config_path = os.path.join(tmp, 'mosquitto.conf')
+    dynamic_security_path = os.path.join(tmp, 'dynamic-security.json')
 
     config_data = f'''
 pid_file {tmp}/mosquitto.pid
@@ -122,10 +161,16 @@ persistence false
 log_dest file {tmp}/mosquitto.log
 listener 0 {socket_path}
 allow_anonymous true
+plugin mosquitto_dynamic_security.so
+plugin_opt_config_file {dynamic_security_path}
 '''
 
     with open(config_path, 'w', encoding='utf-8') as file:
         file.write(config_data)
+    # The plugin writes this file after changes; mosquitto warns about access files readable by others.
+    fd = os.open(dynamic_security_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, 'w', encoding='utf-8') as file:
+        json.dump(mqtt_dynamic_security_config(), file)
 
     if os.geteuid() == 0:
         # Mosquitto drops root privileges before writing in this directory.
@@ -135,6 +180,7 @@ allow_anonymous true
             broker_user = pwd.getpwnam('nobody')
         os.chown(tmp, broker_user.pw_uid, broker_user.pw_gid)
         os.chown(config_path, broker_user.pw_uid, broker_user.pw_gid)
+        os.chown(dynamic_security_path, broker_user.pw_uid, broker_user.pw_gid)
 
     print('Starting mosquitto...', flush=True)
     # TODO: Avoid non-async waiting?

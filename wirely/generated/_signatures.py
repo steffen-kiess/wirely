@@ -329,6 +329,16 @@ native_procedures: dict[str, Procedure] = {
         },
         uses={},
     ),
+    'MQTT.EventReceiver:get_subscribed': Procedure(
+        stage='input',
+        depends={
+            'state': Port('resource', ResourceType('MQTT.EventReceiverState')),
+        },
+        produces={
+            'subscribed': Port('value', Builtin('boolean')),
+        },
+        uses={},
+    ),
     'MQTT.EventReceiver:get_value': Procedure(
         stage='input',
         depends={

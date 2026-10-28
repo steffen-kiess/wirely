@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import json
 import os
 from unittest import mock
 
@@ -7,6 +8,7 @@ import aiomqtt
 
 import wirely
 import wirely.native.mqtt
+from tests.infra.runner.services import MQTT_ADMIN_PASSWORD, MQTT_ADMIN_USERNAME, MQTT_DENIED_TOPIC
 
 
 class Proxy:
@@ -60,6 +62,27 @@ async def collect(client):
     return received
 
 
+def assert_subscribed(receiver, denied):
+    engine.assert_value_is('receiver.Subscribed', receiver)
+    engine.assert_value_is('denied.Subscribed', denied)
+
+
+async def allow_denied_topic(path):
+    """Allow anonymous clients to subscribe to MQTT_DENIED_TOPIC."""
+    async with aiomqtt.Client(transport='unix', hostname=path, port=1, username=MQTT_ADMIN_USERNAME,
+                              password=MQTT_ADMIN_PASSWORD) as admin:
+        await admin.subscribe('$CONTROL/dynamic-security/v1/response')
+        await admin.publish('$CONTROL/dynamic-security/v1', json.dumps({'commands': [{
+            'command': 'removeRoleACL', 'rolename': 'anonymous', 'acltype': 'subscribePattern',
+            'topic': MQTT_DENIED_TOPIC}]}))
+        async with asyncio.timeout(5):
+            async for message in admin.messages:
+                response = json.loads(message.payload)
+                if 'error' in response['responses'][0]:
+                    raise Exception(f'Changing the access rules failed: {response}')
+                break
+
+
 def set_value(name, value):
     engine.get_native_state(f'{name}_input.create').set_value(value)
     engine.step()
@@ -73,7 +96,9 @@ async def run_test():
     os.rename(path, broker_path)
     proxy = Proxy(path, broker_path)
 
-    observer = aiomqtt.Client(transport='unix', hostname=broker_path, port=1)
+    # The observer logs in, so that it is not disconnected when the access rules of anonymous clients change.
+    observer = aiomqtt.Client(transport='unix', hostname=broker_path, port=1, username=MQTT_ADMIN_USERNAME,
+                              password=MQTT_ADMIN_PASSWORD)
 
     async def expect_msgs(*expected):
         received = [(message.topic.value, message.payload) for message in await collect(observer)]
@@ -88,7 +113,8 @@ async def run_test():
             raise Exception(f'Expected retained messages {expected!r}, got {retained!r}')
 
     with (mock.patch.object(wirely.native.mqtt, 'RECONNECT_DELAY_MIN', 0.01),
-          mock.patch.object(wirely.native.mqtt, 'RECONNECT_DELAY_MAX', 0.01)):
+          mock.patch.object(wirely.native.mqtt, 'RECONNECT_DELAY_MAX', 0.01),
+          mock.patch.object(wirely.native.mqtt, 'SUBSCRIBE_RETRY_INTERVAL', 0.01)):
         async with observer:
             await observer.subscribe('test/#')
             # Close the proxy only after the engine's tasks have finished, so that they can disconnect cleanly.
@@ -100,6 +126,7 @@ async def run_test():
                     engine.get_native_state('event_source.create').send_event(wirely.Some(True))
                     engine.step()
                     engine.assert_value_is('server.Connected', False)
+                    assert_subscribed(False, False)
                     await expect_msgs()
 
                     # After connecting, the current values are published, the will provider's value last. A retained
@@ -108,6 +135,8 @@ async def run_test():
                     await wait_until(lambda: server.connected)
                     engine.step()
                     engine.assert_value_is('server.Connected', True)
+                    # The broker rejects subscribing to the denied topic.
+                    assert_subscribed(True, False)
                     await expect_msgs(('test/a', b''), ('test/b', b'false'), ('test/status', b'true'))
                     await expect_retained({'test/status': b'true'})
 
@@ -156,8 +185,10 @@ async def run_test():
                                       ('test/status', b'true'))
                     engine.step()
                     engine.assert_value_is('server.Connected', False)
+                    assert_subscribed(False, False)
                     engine.step()
                     engine.assert_value_is('server.Connected', True)
+                    assert_subscribed(True, False)
 
                     # The retained message that the broker sends when subscribing again is not an event, but the
                     # subscription is restored.
@@ -166,6 +197,24 @@ async def run_test():
                     await expect_msgs(('test/received', b'false'))
                     engine.step()
                     engine.assert_value_is('receiver', wirely.Some(False))
+
+                    # When the access rules change, the plugin disconnects the affected clients. After reconnecting,
+                    # subscribing to the topic succeeds and its messages arrive.
+                    number = server.connection_number
+                    await allow_denied_topic(broker_path)
+                    await wait_until(lambda: server.connection_number > number)
+                    engine.step()
+                    engine.assert_value_is('server.Connected', False)
+                    assert_subscribed(False, False)
+                    engine.step()
+                    engine.assert_value_is('server.Connected', True)
+                    assert_subscribed(True, True)
+                    # The plugin disconnects without the will.
+                    await expect_msgs(('test/a', b'false'), ('test/b', b'true'), ('test/status', b'true'))
+                    await observer.publish(MQTT_DENIED_TOPIC, payload=b'true')
+                    await expect_msgs((MQTT_DENIED_TOPIC, b'true'))
+                    engine.step()
+                    engine.assert_value_is('denied', wirely.Some(True))
 
             # Stopping publishes the will.
             await expect_msgs(('test/status', b''))

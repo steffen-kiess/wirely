@@ -21,6 +21,8 @@ namespace MQTT {
   native constant function CheckKeepAlive(keep_alive: Std.Duration): boolean;
   #[Internal]
   native constant function CheckClientID(client_id: Option[string]): boolean;
+  #[Internal]
+  native constant function CheckTopic(topic: string): boolean;
 
   resource type Broker;
 
@@ -58,6 +60,7 @@ namespace MQTT {
     optional parameter LastWill: Option[Type];
 
     assert SupportsType(Type), "Unsupported type for MQTT";
+    assert CheckTopic(Topic);
 
     constant template_parts: TemplateParts =
       ParseTemplate(optional(Template));
@@ -111,6 +114,7 @@ namespace MQTT {
     optional parameter Template: string;
 
     assert SupportsType(Type), "Unsupported type for MQTT";
+    assert CheckTopic(Topic);
 
     constant template_parts: TemplateParts =
       ParseTemplate(optional(Template));
@@ -138,9 +142,11 @@ namespace MQTT {
     // TODO optional parameter Template : string;
 
     assert SupportsType(Type), "Unsupported type for MQTT";
+    assert CheckTopic(Topic);
 
     input Broker: fixed Broker;
     default output: event Type;
+    output Subscribed: value boolean;
 
     binding state: fixed EventReceiverState;
     native initializer create
@@ -150,5 +156,9 @@ namespace MQTT {
     native procedure get_value stage input
       reads state as "state", Type
       writes default output as "output";
+
+    native procedure get_subscribed stage input
+      reads state as "state"
+      writes Subscribed as "subscribed";
   }
 }

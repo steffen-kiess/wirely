@@ -40,3 +40,10 @@ connect server -> receiver.Broker;
 
 node receiver_printer: Std.DebugEventPrinter { Type: boolean }
 connect receiver -> receiver_printer;
+
+// Anonymous clients may not subscribe to this topic on the test broker.
+node denied: MQTT.EventReceiver { Topic: "test/denied", Type: boolean }
+connect server -> denied.Broker;
+
+node denied_printer: Std.DebugEventPrinter { Type: boolean }
+connect denied -> denied_printer;

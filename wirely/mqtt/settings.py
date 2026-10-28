@@ -121,3 +121,14 @@ def parse_uri(uri: str) -> ParsedMQTTUri:
 def check_client_id(client_id: str) -> None:
     if client_id == '':
         raise ValueError('MQTT client ID must not be empty')
+
+
+def check_topic(topic: str) -> None:
+    """Check a topic for publishing or for receiving by exact name."""
+    if topic == '':
+        raise ValueError('MQTT topic must not be empty')
+    for character, name in (('\0', 'NUL'), ('+', 'wildcard +'), ('#', 'wildcard #')):
+        if character in topic:
+            raise ValueError(f'MQTT topic {topic!r} must not contain {name}')
+    if len(topic.encode('utf-8')) > 65535:
+        raise ValueError('MQTT topic must be at most 65535 bytes long in UTF-8')

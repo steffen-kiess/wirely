@@ -52,6 +52,10 @@ def check_settings():
     assert settings.keep_alive_seconds(Duration(ticks=65535 * TICKS_PER_SECOND)) == 65535
     with checks.assertRaisesRegex(ValueError, 'must not be empty'):
         settings.check_client_id('')
+    for topic in ['', 'a/+', '#', 'a\0b', 'x' * 65536]:
+        with checks.assertRaises(ValueError):
+            settings.check_topic(topic)
+    settings.check_topic('x' * 65535)
 
 
 async def run_test():
