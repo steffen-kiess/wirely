@@ -2,6 +2,9 @@ import asyncio
 
 import xknx
 import xknx.tools
+from xknx.core import ValueReader
+from xknx.dpt import DPTBase
+from xknx.telegram import GroupAddress
 from wirely.generated import extension as builtin_extension
 import wirely
 from wirely.knx.connection_adapter import StreamConnectionConfig, create_xknx
@@ -187,6 +190,28 @@ async def check_type_conversions(knx):
             engine.get_native_state((case.prefix + '.event_input') + '.create').send_event(wirely.Some(value))
         engine.step()
         await asyncio.gather(*(case.event_monitor.expect(value) for case, value in active))
+
+    async def read(case, timeout):
+        reader = ValueReader(knx, GroupAddress(f'0/{case.index}/22'), timeout_in_seconds=timeout)
+        response = await reader.read()
+        # Some monitors also record responses.
+        case.value_monitor.values.clear()
+        if response is None:
+            return None
+        payload = response.payload.value
+        return payload.value == 1 if case.dpt == 'binary' else DPTBase.parse_transcoder(case.dpt).from_knx(payload)
+
+    # Providers answer reads while they have a value. After None, a provider behaves as if it never had a value, so
+    # the same value is sent again.
+    assert await asyncio.gather(*(read(case, 5) for case in all_cases)) == [case.values[-1] for case in all_cases]
+    for case in all_cases:
+        engine.get_native_state((case.prefix + '.value_input') + '.create').set_value(None)
+    engine.step()
+    assert await asyncio.gather(*(read(case, 0.2) for case in all_cases)) == [None] * len(all_cases)
+    for case in all_cases:
+        engine.get_native_state((case.prefix + '.value_input') + '.create').set_value(wirely.Some(case.values[-1]))
+    engine.step()
+    await asyncio.gather(*(case.value_monitor.expect(case.values[-1]) for case in all_cases))
 
 
 async def run_test():

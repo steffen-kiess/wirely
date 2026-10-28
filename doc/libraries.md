@@ -152,6 +152,20 @@ Choose one connection mode:
 Choose parameters for one connection mode. For example,
 `KNX.Connection { UnixPath: "/run/knxnet" }` uses a local socket.
 
+A `ValueOptionProvider` must be the only sender on its group address; use
+`EventSender` for addresses that other devices write too. A connection
+allows one `ValueOptionProvider` per group address. A provider answers
+reads while its value is not `None`. If sending falls behind, only the
+newest value is sent. A provider sends its value again after about 50
+minutes without sending it.
+
+`ValueReceiver` includes values written by the program itself. After each
+connect, it reads its group address unless a value arrives first, and it
+reads again when no value was seen on the address for about an hour.
+
+After each connect, providers send their current value. Telegrams are
+dropped while disconnected.
+
 ## ABB.JRA
 
 These nodes decode a 16-bit ABB JRA status word into named boolean outputs.

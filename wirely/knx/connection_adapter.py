@@ -89,9 +89,9 @@ class StreamKNXIPInterface(KNXIPInterface):
         await self._interface.connect()
 
 
-def create_xknx(connection_config: ConnectionConfig) -> xknx.XKNX:
+def create_xknx(connection_config: ConnectionConfig, *, state_updater: bool = True) -> xknx.XKNX:
     """Create xknx with the stream interface when the configuration needs one."""
-    knx = xknx.XKNX(connection_config=connection_config)
+    knx = xknx.XKNX(connection_config=connection_config, state_updater=state_updater)
     if isinstance(connection_config, StreamConnectionConfig):
         knx.knxip_interface = StreamKNXIPInterface(knx, connection_config)
     return knx

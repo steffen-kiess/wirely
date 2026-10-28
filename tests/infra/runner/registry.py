@@ -7,6 +7,7 @@ python_only_tests = [
     'unit/load_stage',
     'unit/load_checks',
     'unit/mqtt_loading',
+    'unit/knx_loading',
     'unit/repeated_errors',
     'unit/wall_clock',
     'unit/compiler_api',
