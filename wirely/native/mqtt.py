@@ -121,6 +121,9 @@ class ConnectionCreate(contracts.ConnectionCreate):
             try:
                 # Note: Has to be done here so that asyncio.get_event_loop() is correct
                 client = self.create_client()
+                # TODO: If this task is cancelled while connecting, aiomqtt's __aenter__ does not clean up: the socket
+                # and its background task stay until paho gives up or the process exits. This matters once engines are
+                # torn down without the process exiting (transitions, restarting failed native objects).
                 async with client:
                     try:
                         await self.restore(client)
