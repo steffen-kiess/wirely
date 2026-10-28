@@ -15,16 +15,22 @@ import wirely
 from wirely import Some, UInt16
 from wirely.runtime.value_types import DynamicValue, ValueType
 from wirely.generated import knx as contracts
-from wirely.knx.connection_adapter import create_xknx
-from wirely.knx.connection_config import create_connection_config
+from wirely.knx.connection_adapter import WirelyKNXIPInterface, create_xknx
+from wirely.knx.connection_config import connection_config_from_settings
+from wirely.knx.settings import check_connection, describe_connection
 from wirely.knx.value_types import KNXValueType, get_value_type
 from wirely.native.support import check_state_type
 from wirely.generated.enums import KNXProtocol
 from wirely.runtime.extensions import NativeTypes
+from wirely.misc.repeated_errors import RepeatedError
 from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices
 from wirely.util import verbose_print
 
 
+# Delay before the first reconnection attempt, doubled after each failed attempt up to the maximum. Each delay is
+# shortened randomly by up to a fifth, so that devices started together spread out.
+RECONNECT_DELAY_MIN = 1.0
+RECONNECT_DELAY_MAX = 60.0
 # How long a read waits for a write or response on its address, in seconds.
 READ_TIMEOUT = 2.0
 # How many reads of a connection wait for an answer at the same time.
@@ -113,7 +119,7 @@ class ConnectionCreate(contracts.ConnectionCreate):
         def parameter(value: Some[str] | None) -> str | None:
             return None if value is None else value.value
 
-        self.connection_config = create_connection_config(
+        settings = check_connection(
             host=parameter(host),
             protocol=_protocol_name(protocol),
             port=None if port is None else port.value.value,
@@ -121,13 +127,24 @@ class ConnectionCreate(contracts.ConnectionCreate):
             ssh_target=parameter(ssh_target),
             individual_address=parameter(individual_address),
         )
-        # Reads and devices are handled here instead of by xknx.
-        self.knx = create_xknx(self.connection_config, state_updater=False)
+        self.settings = settings
+        self.description = describe_connection(settings)
+        self.connection_config = connection_config_from_settings(settings)
+        # Reads and devices are handled here instead of by xknx, and connection_task() connects.
+        self.knx = create_xknx(self.connection_config, state_updater=False, connect_later=True)
+        assert isinstance(self.knx.knxip_interface, WirelyKNXIPInterface)
+        self.interface = self.knx.knxip_interface
 
         # Clients register themselves while being initialized.
         self.addresses: dict[int, _Address] = {}
 
         self.connected = False
+        # Set on a disconnect until get_connected() has reported it.
+        self.disconnect_pending = False
+        # Set while not connected.
+        self.lost = asyncio.Event()
+        self.lost.set()
+        self.errors = RepeatedError(f'KNX connection to {self.description}')
         # Counts the connections, so that a task can tell whether it still uses the same one.
         self.connection_number = 0
 
@@ -155,18 +172,35 @@ class ConnectionCreate(contracts.ConnectionCreate):
     def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)
 
+        self.task = self.start_task(task_group, async_exit_stack, self.connection_task())
         self.sender = self.start_task(task_group, async_exit_stack, self.sender_task())
         self.readers = [self.start_task(task_group, async_exit_stack, self.reader_task())
                         for _ in range(MAX_OUTSTANDING_READS)]
         async_exit_stack.callback(self.unregister)
 
-    # TODO: Do start() later, while everything is already running?
-    async def start_tasks_async(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
-        await super().start_tasks_async(task_group=task_group, async_exit_stack=async_exit_stack)
-
-        verbose_print('Connecting to KNX bus', flush=True)
-        await async_exit_stack.enter_async_context(self.knx)
-        verbose_print('Connecting to KNX bus done', flush=True)
+    async def connection_task(self) -> None:
+        # xknx is started once, also while not connected; only the interface connects again.
+        async with self.knx:
+            delay = RECONNECT_DELAY_MIN
+            while True:
+                verbose_print(f'Connecting to KNX bus at {self.description}', flush=True)
+                try:
+                    await self.interface.connect()
+                except (XKNXException, OSError) as e:
+                    error = str(e) or type(e).__name__
+                    if e.__cause__ is not None:
+                        error += f': {e.__cause__}'
+                    self.errors.report(error)
+                    await self.interface.stop()
+                else:
+                    self.errors.end()
+                    print(f'Connected to KNX bus at {self.description}', flush=True)
+                    delay = RECONNECT_DELAY_MIN
+                    await self.lost.wait()
+                    self.errors.report('Connection lost')
+                    await self.interface.stop()
+                await asyncio.sleep(delay * random.uniform(0.8, 1.0))
+                delay = min(delay * 2, RECONNECT_DELAY_MAX)
 
     def unregister(self) -> None:
         if not self.registered:
@@ -186,7 +220,9 @@ class ConnectionCreate(contracts.ConnectionCreate):
         if self.connected:
             return
         self.connected = True
+        self.lost.clear()
         self.connection_number += 1
+        self.services.trigger('bus')
         # Send the current values for listeners that started while disconnected, then read the values that might
         # have changed meanwhile.
         # TODO: Should sending and reading after connecting be paced, for example with a random delay, so that many
@@ -202,6 +238,9 @@ class ConnectionCreate(contracts.ConnectionCreate):
         if not self.connected:
             return
         self.connected = False
+        self.lost.set()
+        self.disconnect_pending = True
+        self.services.trigger('bus')
         # Telegrams are dropped instead of being sent when they might be outdated. Values are sent again after
         # connecting.
         for queued in self.send_queue:
@@ -350,6 +389,17 @@ class ConnectionCreate(contracts.ConnectionCreate):
                 # An answer armed the timer already.
                 if not answered:
                     self.arm_reread(entry)
+
+
+class ConnectionGetConnected(contracts.ConnectionGetConnected):
+    def run(self, *, services: ProcedureServices,
+            bus: ConnectionCreate) -> contracts.ConnectionGetConnectedResult:
+        if bus.disconnect_pending:
+            # Report each disconnect for at least one step, even if the connection was restored since.
+            bus.disconnect_pending = False
+            services.trigger_self()
+            return contracts.ConnectionGetConnectedResult(connected=False)
+        return contracts.ConnectionGetConnectedResult(connected=bus.connected)
 
 
 class ValueReceiverCreate(contracts.ValueReceiverCreate):

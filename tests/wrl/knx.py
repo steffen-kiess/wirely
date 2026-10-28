@@ -224,6 +224,8 @@ async def run_test():
     # TODO: Add timeouts?
     # TODO: Make sure that exceptions in KNX callbacks cause the test to fail?
     print('a', flush=True)
+    # Activation does not wait for the connection.
+    await wait_for(lambda: engine.get_native_state('bus.create').connected)
     knx = create_xknx(engine.get_native_state('bus.create').connection_config)
     async with knx:
         print('b', flush=True)

@@ -126,7 +126,7 @@ KNX nodes use a `KNX.Connection` node and a named
 
 | Node type | Parameters | Ports and behavior |
 | --- | --- | --- |
-| `Connection` | Optional `Host: string`, `Protocol: KNX.Protocol`, `Port: uint16`, `UnixPath: string`, `SSHTarget: string`, `IndividualAddress: string` | Out: `fixed KNX.Bus`. Opens a KNX connection. |
+| `Connection` | Optional `Host: string`, `Protocol: KNX.Protocol`, `Port: uint16`, `UnixPath: string`, `SSHTarget: string`, `IndividualAddress: string` | Out: `fixed KNX.Bus`; named out `Connected: value boolean`. Connects to a KNX interface. |
 | `ValueReceiver` | `Type: type`, `GroupAddress: string` | Named in: `Bus`; out: `value Option[Type]`. Reads the latest value, with `None` before one is available. |
 | `ValueOptionProvider` | `Type: type`, `GroupAddress: string` | Named in: `Bus`; in: `value Option[Type]`. Exposes an optional value on the bus. |
 | `ValueProvider` | `Type: type`, `GroupAddress: string` | Named in: `Bus`; in: `value Type`. Exposes a value on the bus. |
@@ -146,7 +146,8 @@ Choose one connection mode:
   `Protocol = KNX.Protocol.Unix`.
 - `SSHTarget` opens a Unix socket on a remote host over SSH. It requires
   `Protocol = KNX.Protocol.Unix` unless `UnixPath` is also supplied.
-- `Protocol = KNX.Protocol.Auto` uses automatic discovery.
+- `Protocol = KNX.Protocol.Auto` discovers a tunnelling interface without
+  KNX Secure.
 
 `IndividualAddress` is supported for TCP and Unix socket connections.
 Choose parameters for one connection mode. For example,
@@ -163,8 +164,13 @@ minutes without sending it.
 connect, it reads its group address unless a value arrives first, and it
 reads again when no value was seen on the address for about an hour.
 
-After each connect, providers send their current value. Telegrams are
-dropped while disconnected.
+`Connection` retries connecting until it succeeds, also after losing the
+connection. `Connected` is true while connected and false for at least one
+step after each disconnect. A closed connection is noticed when the
+operating system reports it; otherwise, a lost tunnel is noticed through its
+heartbeat within about two minutes. Through knxd, `Connected`
+refers to the connection to knxd. After each connect, providers send their
+current value. Telegrams are dropped while disconnected.
 
 ## ABB.JRA
 

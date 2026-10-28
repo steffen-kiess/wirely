@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import functools
 import itertools
@@ -143,3 +144,57 @@ def library_type(name: str) -> TypeStruct:
     for namespace in namespaces:
         scope = scope.libraries[namespace]
     return scope.struct_types[type_name].resolve_fields()
+
+
+class Proxy:
+    """Forward connections at a Unix socket path to a service, until they are cut.
+
+    With forward set to False, new connections are accepted but not forwarded, so that connecting hangs.
+    """
+
+    def __init__(self, path: str, target: str) -> None:
+        self.path = path
+        self.target = target
+        self.forward = True
+        self.server: asyncio.Server | None = None
+        self.writers: set[asyncio.StreamWriter] = set()
+        # The number of connections from clients that are still open.
+        self.clients = 0
+
+    async def start(self) -> None:
+        self.server = await asyncio.start_unix_server(self.handle, path=self.path)
+
+    def cut(self) -> None:
+        for writer in self.writers:
+            writer.transport.abort()
+        self.writers.clear()
+
+    def close(self) -> None:
+        """Cut the connections and stop listening; start() listens again."""
+        self.cut()
+        if self.server is not None:
+            self.server.close()
+            self.server = None
+
+    async def handle(self, client_reader: asyncio.StreamReader, client_writer: asyncio.StreamWriter) -> None:
+        self.clients += 1
+        try:
+            if not self.forward:
+                self.writers.add(client_writer)
+                with contextlib.suppress(OSError):
+                    while await client_reader.read(65536):
+                        pass
+                return
+            service_reader, service_writer = await asyncio.open_unix_connection(self.target)
+            self.writers.update((client_writer, service_writer))
+
+            async def forward(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+                with contextlib.suppress(OSError):
+                    while data := await reader.read(65536):
+                        writer.write(data)
+                        await writer.drain()
+                writer.transport.abort()
+
+            await asyncio.gather(forward(client_reader, service_writer), forward(service_reader, client_writer))
+        finally:
+            self.clients -= 1

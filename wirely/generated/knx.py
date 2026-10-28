@@ -34,6 +34,8 @@ __all__ = [
     'ValueOptionProviderCreate',
     'ValueReceiverCreateResult',
     'ValueReceiverCreate',
+    'ConnectionGetConnectedResult',
+    'ConnectionGetConnected',
     'EventReceiverGetValueResult',
     'EventReceiverGetValue',
     'EventSenderSendValueResult',
@@ -267,6 +269,57 @@ class _ValueReceiverCreateAdapter(InitializerAdapter):
 
 
 ValueReceiverCreate._adapter = _ValueReceiverCreateAdapter()
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ConnectionGetConnectedResult:
+    """Outputs of native procedure KNX.Connection:get_connected."""
+
+    connected: bool
+
+
+class ConnectionGetConnected(NativeProcedure, abc.ABC):
+    """Native procedure KNX.Connection:get_connected."""
+
+    def prepare(
+        self, *,
+        services: PreparationServices,
+        bus: Bus,
+    ) -> None:
+        pass
+
+    @abc.abstractmethod
+    def run(
+        self, *,
+        services: ProcedureServices,
+        bus: Bus,
+    ) -> ConnectionGetConnectedResult:
+        ...
+
+
+class _ConnectionGetConnectedAdapter(ProcedureAdapter):
+    def prepare(self, procedure: NativeProcedure, services: PreparationServices,
+                binding: InterfaceBinding) -> None:
+        assert isinstance(procedure, ConnectionGetConnected)
+        procedure.prepare(
+            services=services,
+            bus=cast('Bus', binding.fixed('bus')),
+        )
+
+    def run(self, procedure: NativeProcedure, services: ProcedureServices, binding: InterfaceBinding,
+            inputs: Mapping[str, InternalValue]) -> dict[str, InternalValue]:
+        assert isinstance(procedure, ConnectionGetConnected)
+        result = procedure.run(
+            services=services,
+            bus=cast('Bus', binding.fixed('bus')),
+        )
+        binding.check_result(result, ConnectionGetConnectedResult)
+        return {
+            'connected': binding.output('connected', result.connected),
+        }
+
+
+ConnectionGetConnected._adapter = _ConnectionGetConnectedAdapter()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

@@ -47,6 +47,10 @@ class MessageReceiver:
 
 
 async def run_test():
+    # Activation does not wait for the connection.
+    async with asyncio.timeout(5):
+        while not engine.get_native_state('bus.create').connected:
+            await asyncio.sleep(0.01)
     knx = create_xknx(engine.get_native_state('bus.create').connection_config)
     async with knx:
         print(engine.get_native_state('bus.create').knx.current_address, knx.current_address)

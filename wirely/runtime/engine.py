@@ -110,7 +110,7 @@ class Engine:
 
         async_exit_stack.callback(finish_task_cleanup)
 
-        # TODO: Currently this (e.g. connecting to knxd) is blocking and done sequentially. Should ths be non-blocking instead? (I.e. should the connection be created on the background task and should start_tasks_async() be removed?)
+        # TODO: Currently this (e.g. connecting to a 2N device) is blocking and done sequentially. Should ths be non-blocking instead? (I.e. should the connection be created on the background task and should start_tasks_async() be removed?)
         for state in self.native_states.values():
             if state is not None:
                 state.start_tasks(task_group, async_exit_stack)

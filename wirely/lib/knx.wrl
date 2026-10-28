@@ -42,6 +42,7 @@ namespace KNX {
     );
 
     default output: fixed Bus;
+    output Connected: value boolean;
 
     native initializer create
       reads optional(Host) as Host,
@@ -51,6 +52,10 @@ namespace KNX {
         optional(SSHTarget) as SSHTarget,
         optional(IndividualAddress) as IndividualAddress
       writes default output as "bus";
+
+    native procedure get_connected stage input
+      reads default output as "bus"
+      writes Connected as "connected";
   }
 
   #[Internal]

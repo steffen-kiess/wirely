@@ -9,42 +9,7 @@ import aiomqtt
 import wirely
 import wirely.native.mqtt
 from tests.infra.runner.services import MQTT_ADMIN_PASSWORD, MQTT_ADMIN_USERNAME, MQTT_DENIED_TOPIC
-
-
-class Proxy:
-    """Forward connections at a Unix socket path to the broker, until they are cut."""
-
-    def __init__(self, path, target):
-        self.path = path
-        self.target = target
-        self.server = None
-        self.writers = set()
-
-    async def start(self):
-        self.server = await asyncio.start_unix_server(self.handle, path=self.path)
-
-    def cut(self):
-        for writer in self.writers:
-            writer.transport.abort()
-        self.writers.clear()
-
-    def close(self):
-        self.cut()
-        if self.server is not None:
-            self.server.close()
-
-    async def handle(self, client_reader, client_writer):
-        broker_reader, broker_writer = await asyncio.open_unix_connection(self.target)
-        self.writers.update((client_writer, broker_writer))
-
-        async def forward(reader, writer):
-            with contextlib.suppress(OSError):
-                while data := await reader.read(65536):
-                    writer.write(data)
-                    await writer.drain()
-            writer.transport.abort()
-
-        await asyncio.gather(forward(client_reader, broker_writer), forward(broker_reader, client_writer))
+from tests.infra.support import Proxy
 
 
 async def wait_until(condition):

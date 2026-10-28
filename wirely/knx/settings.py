@@ -87,3 +87,14 @@ def check_connection(*, host: str | None = None, protocol: str | None = None, po
         raise ConnectionConfigError('Host and Port are not supported with Protocol Unix')
     path = unix_path if unix_path is not None else '/run/knxnet'
     return ConnectionSettings('Unix', None, None, path, ssh_target, address)
+
+
+def describe_connection(settings: ConnectionSettings) -> str:
+    """Describe a connection for log messages."""
+    if settings.protocol == 'Auto':
+        return 'an automatically discovered interface'
+    if settings.protocol == 'TCP' or settings.protocol == 'UDP':
+        return f'{settings.host}:{settings.port} over {settings.protocol}'
+    if settings.ssh_target is not None:
+        return f'{settings.unix_path} on {settings.ssh_target}'
+    return f'{settings.unix_path}'

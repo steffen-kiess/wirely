@@ -288,6 +288,16 @@ native_procedures: dict[str, Procedure] = {
         produces={},
         uses={},
     ),
+    'KNX.Connection:get_connected': Procedure(
+        stage='input',
+        depends={
+            'bus': Port('resource', ResourceType('KNX.Bus')),
+        },
+        produces={
+            'connected': Port('value', Builtin('boolean')),
+        },
+        uses={},
+    ),
     'KNX.EventReceiver:get_value': Procedure(
         stage='input',
         depends={

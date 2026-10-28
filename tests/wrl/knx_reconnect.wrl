@@ -1,0 +1,17 @@
+node bus: KNX.Connection { UnixPath: Test.ReplaceKNXPath("/run/knxnet") }
+
+node value_input: Std.DebugValueSource {
+  Type: Option[boolean],
+  Initial: Some(true),
+}
+node provider: KNX.ValueOptionProvider { GroupAddress: "0/0/1", Type: boolean }
+connect value_input -> provider;
+connect bus -> provider.Bus;
+
+node receiver: KNX.ValueReceiver { GroupAddress: "0/0/2", Type: boolean }
+connect bus -> receiver.Bus;
+
+node event_input: Std.DebugEventSource { Type: boolean }
+node event_sender: KNX.EventSender { GroupAddress: "0/0/3", Type: boolean }
+connect event_input -> event_sender;
+connect bus -> event_sender.Bus;

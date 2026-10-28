@@ -261,6 +261,16 @@ def _load_procedures_gpio_output_set_value() -> ProcedureImplementation:
     return ProcedureImplementation(create, OutputSetValue._adapter)
 
 
+def _load_procedures_knx_connection_get_connected() -> ProcedureImplementation:
+    from wirely.generated.knx import ConnectionGetConnected
+    from wirely.native.knx import ConnectionGetConnected as Implementation
+
+    def create() -> ConnectionGetConnected:
+        return Implementation()
+
+    return ProcedureImplementation(create, ConnectionGetConnected._adapter)
+
+
 def _load_procedures_knx_event_receiver_get_value() -> ProcedureImplementation:
     from wirely.generated.knx import EventReceiverGetValue
     from wirely.native.knx import EventReceiverGetValue as Implementation
@@ -514,6 +524,7 @@ def _load_procedures_two_n_switch_state_get_value() -> ProcedureImplementation:
 procedures: dict[str, Callable[[], ProcedureImplementation]] = {
     'CSV.ValueWriter:run': _load_procedures_csv_value_writer_run,
     'GPIO.Output:set_value': _load_procedures_gpio_output_set_value,
+    'KNX.Connection:get_connected': _load_procedures_knx_connection_get_connected,
     'KNX.EventReceiver:get_value': _load_procedures_knx_event_receiver_get_value,
     'KNX.EventSender:send_value': _load_procedures_knx_event_sender_send_value,
     'KNX.ValueOptionProvider:set_value': _load_procedures_knx_value_option_provider_set_value,
