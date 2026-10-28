@@ -12,6 +12,15 @@ namespace KNX {
   native constant function ValueTypeName(type: type): string;
   #[Internal]
   native constant function SupportsValueType(type: type): boolean;
+  #[Internal]
+  native constant function CheckConnection(
+    host: Option[string],
+    protocol: Option[KNX.Protocol],
+    port: Option[uint16],
+    unix_path: Option[string],
+    ssh_target: Option[string],
+    individual_address: Option[string],
+  ): boolean;
 
   resource type Bus;
 
@@ -22,6 +31,15 @@ namespace KNX {
     optional parameter UnixPath: string;
     optional parameter SSHTarget: string;
     optional parameter IndividualAddress: string;
+
+    assert CheckConnection(
+      optional(Host),
+      optional(Protocol),
+      optional(Port),
+      optional(UnixPath),
+      optional(SSHTarget),
+      optional(IndividualAddress),
+    );
 
     default output: fixed Bus;
 

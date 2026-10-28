@@ -12,6 +12,12 @@ def _load_csv_supports_type() -> ConstantFunctionImplementation:
     return _SupportsType.implementation(supports_type)
 
 
+def _load_knx_check_connection() -> ConstantFunctionImplementation:
+    from wirely.compiler.generated._contracts.knx import _CheckConnection
+    from wirely.compiler.function_implementations.knx import check_connection
+    return _CheckConnection.implementation(check_connection)
+
+
 def _load_knx_parse_group_address() -> ConstantFunctionImplementation:
     from wirely.compiler.generated._contracts.knx import _ParseGroupAddress
     from wirely.compiler.function_implementations.knx import parse_group_address
@@ -158,6 +164,7 @@ def _load_two_n_read_credentials() -> ConstantFunctionImplementation:
 
 functions: dict[str, Callable[[], ConstantFunctionImplementation]] = {
     'CSV.SupportsType': _load_csv_supports_type,
+    'KNX.CheckConnection': _load_knx_check_connection,
     'KNX.ParseGroupAddress': _load_knx_parse_group_address,
     'KNX.SupportsValueType': _load_knx_supports_value_type,
     'KNX.ValueTypeName': _load_knx_value_type_name,

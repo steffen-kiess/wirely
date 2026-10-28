@@ -8,7 +8,8 @@ from xknx.telegram import GroupAddress
 from wirely.generated import extension as builtin_extension
 import wirely
 from wirely.knx.connection_adapter import StreamConnectionConfig, create_xknx
-from wirely.knx.connection_config import ConnectionConfigError, create_connection_config
+from wirely.knx.connection_config import create_connection_config
+from wirely.knx.settings import ConnectionConfigError
 
 
 async def check_connection_parameters():
@@ -67,6 +68,9 @@ async def check_connection_parameters():
         {'unix_path': 'relative'},
         {'ssh_target': '-invalid'},
         {'host': 'localhost', 'protocol': 'TCP', 'port': 0},
+        {'unix_path': '/run/knxnet', 'individual_address': '16.0.0'},
+        {'unix_path': '/run/knxnet', 'individual_address': '1.1.１'},
+        {'unix_path': '/run/knxnet', 'individual_address': '1.1.1\n'},
     )
     for parameters in invalid:
         try:

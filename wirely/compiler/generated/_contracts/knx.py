@@ -7,11 +7,51 @@ from collections.abc import Sequence
 from typing import Any, Protocol, cast
 
 from wirely.compiler.native_functions import ConstantFunctionContract, FunctionServices
+from wirely.generated.enums import KNXProtocol
 from wirely.runtime.value_types import ValueType
 from wirely.types.integers import UInt16
+from wirely.types.option import Some
 
 __all__ = [
 ]
+
+
+class _CheckConnectionImplementation(Protocol):
+    """Implementations of constant function KNX.CheckConnection, receiving its arguments in order."""
+
+    def __call__(
+        self,
+        argument_0: Some[str] | None,
+        argument_1: Some[KNXProtocol] | None,
+        argument_2: Some[UInt16] | None,
+        argument_3: Some[str] | None,
+        argument_4: Some[str] | None,
+        argument_5: Some[str] | None,
+        /, *,
+        services: FunctionServices,
+    ) -> bool:
+        ...
+
+
+def _call__check_connection(
+    implementation: _CheckConnectionImplementation,
+    arguments: Sequence[object],
+    services: FunctionServices,
+) -> object:
+    return implementation(
+        cast('Some[str] | None', arguments[0]),
+        cast('Some[KNXProtocol] | None', arguments[1]),
+        cast('Some[UInt16] | None', arguments[2]),
+        cast('Some[str] | None', arguments[3]),
+        cast('Some[str] | None', arguments[4]),
+        cast('Some[str] | None', arguments[5]),
+        services=services,
+    )
+
+
+# Constant function KNX.CheckConnection.
+_CheckConnection: ConstantFunctionContract[_CheckConnectionImplementation] = ConstantFunctionContract(
+    'KNX.CheckConnection', _call__check_connection)
 
 
 class _ParseGroupAddressImplementation(Protocol):

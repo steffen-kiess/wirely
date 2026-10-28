@@ -10,15 +10,7 @@ from typing import Any
 import xknx
 
 from wirely.knx.connection_adapter import ConnectCallback, StreamConnectionConfig
-
-
-class ConnectionConfigError(ValueError):
-    pass
-
-
-def _check_text(name: str, value: str) -> None:
-    if value == '' or '\0' in value:
-        raise ConnectionConfigError(f'{name} must be a non-empty string without NUL')
+from wirely.knx.settings import check_connection
 
 
 def _ssh_connect_callback(target: str, path: str) -> ConnectCallback:
@@ -81,61 +73,31 @@ def create_connection_config(*, host: str | None = None, protocol: str | None = 
                              unix_path: str | None = None, ssh_target: str | None = None,
                              individual_address: str | None = None) -> xknx.io.ConnectionConfig:
     """Select one connection mode from the supplied KNX node parameters."""
-    for name, value in (
-        ('Host', host), ('UnixPath', unix_path),
-        ('SSHTarget', ssh_target), ('IndividualAddress', individual_address),
-    ):
-        if value is not None:
-            _check_text(name, value)
+    settings = check_connection(host=host, protocol=protocol, port=port, unix_path=unix_path,
+                                ssh_target=ssh_target, individual_address=individual_address)
+    address = (None if settings.individual_address is None
+               else xknx.telegram.address.IndividualAddress(settings.individual_address.value))
 
-    if unix_path is not None and not unix_path.startswith('/'):
-        raise ConnectionConfigError('UnixPath must be an absolute path')
-    if ssh_target is not None and ssh_target.startswith('-'):
-        raise ConnectionConfigError('SSHTarget cannot start with a hyphen')
-
-    if protocol is None:
-        if unix_path is None:
-            raise ConnectionConfigError('Protocol is required when UnixPath is absent')
-        protocol = 'Unix'
-    elif protocol not in ('TCP', 'UDP', 'Unix', 'Auto'):
-        raise ConnectionConfigError(f'Unknown Protocol: {protocol!r}')
-
-    if protocol == 'Auto':
-        if any(value is not None for value in (
-            host, port, unix_path, ssh_target, individual_address,
-        )):
-            raise ConnectionConfigError('Protocol Auto cannot be combined with other connection parameters')
+    if settings.protocol == 'Auto':
         return xknx.io.ConnectionConfig(
             connection_type=xknx.io.ConnectionType.AUTOMATIC,
         )
 
-    if protocol in ('TCP', 'UDP'):
-        if host is None:
-            raise ConnectionConfigError(f'Protocol {protocol} requires Host')
-        if unix_path is not None or ssh_target is not None:
-            raise ConnectionConfigError('Host cannot be combined with UnixPath or SSHTarget')
-        if protocol == 'UDP' and individual_address is not None:
-            raise ConnectionConfigError('IndividualAddress is not supported with UDP')
-        if port is None:
-            port = 3671
-        if port < 1 or port > 65535:
-            raise ConnectionConfigError('Port must be between 1 and 65535')
+    if settings.protocol == 'TCP' or settings.protocol == 'UDP':
+        assert settings.port is not None
         return xknx.io.ConnectionConfig(
             connection_type=(xknx.io.ConnectionType.TUNNELING_TCP
-                             if protocol == 'TCP'
+                             if settings.protocol == 'TCP'
                              else xknx.io.ConnectionType.TUNNELING),
-            gateway_ip=host,
-            gateway_port=port,
-            individual_address=_parse_individual_address(individual_address),
+            gateway_ip=settings.host,
+            gateway_port=settings.port,
+            individual_address=address,
         )
 
-    if host is not None or port is not None:
-        raise ConnectionConfigError('Host and Port are not supported with Protocol Unix')
-
-    address = _parse_individual_address(individual_address)
-    path = unix_path if unix_path is not None else '/run/knxnet'
-    if ssh_target is not None:
-        connect_cb = _ssh_connect_callback(ssh_target, path)
+    path = settings.unix_path
+    assert path is not None
+    if settings.ssh_target is not None:
+        connect_cb = _ssh_connect_callback(settings.ssh_target, path)
     else:
         connect_cb = lambda loop, factory: loop.create_unix_connection(
             factory, path=path
@@ -144,12 +106,3 @@ def create_connection_config(*, host: str | None = None, protocol: str | None = 
         connect_cb=connect_cb,
         individual_address=address,
     )
-
-
-def _parse_individual_address(value: str | None) -> Any:
-    if value is None:
-        return None
-    try:
-        return xknx.telegram.address.IndividualAddress(value)
-    except xknx.exceptions.exception.CouldNotParseAddress as error:
-        raise ConnectionConfigError(f'Invalid IndividualAddress: {value!r}') from error

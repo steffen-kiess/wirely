@@ -12,6 +12,34 @@ constant Name: string = KNX.ValueTypeName(string);
 assert KNX.SupportsValueType(string), "Unsupported value type for KNX";
 // ^E: Compile-time assertion failed: Unsupported value type for KNX
 
+// TEST: KNX connection without protocol
+assert KNX.CheckConnection(None, None, None, None, None, None);
+// ^E: Protocol is required when UnixPath is absent
+
+// TEST: KNX Auto with host
+assert KNX.CheckConnection(Some("h"), Some(KNX.Protocol.Auto), None, None, None, None);
+// ^E: Protocol Auto cannot be combined with other connection parameters
+
+// TEST: relative KNX Unix path
+assert KNX.CheckConnection(None, None, None, Some("knxnet"), None, None);
+// ^E: UnixPath must be an absolute path
+
+// TEST: KNX SSH target with hyphen
+assert KNX.CheckConnection(None, Some(KNX.Protocol.Unix), None, None, Some("-x"), None);
+// ^E: SSHTarget cannot start with a hyphen
+
+// TEST: KNX individual address out of range
+assert KNX.CheckConnection(None, None, None, Some("/run/knxnet"), None, Some("16.0.0"));
+// ^E: Area out of range (0..15)
+
+// TEST: KNX port zero
+assert KNX.CheckConnection(Some("h"), Some(KNX.Protocol.TCP), Some(0), None, None, None);
+// ^E: Port must be between 1 and 65535
+
+// TEST: KNX individual address with UDP
+assert KNX.CheckConnection(Some("h"), Some(KNX.Protocol.UDP), None, None, None, Some("1.1.1"));
+// ^E: IndividualAddress is not supported with UDP
+
 // TEST: unsupported MQTT JSON type
 assert MQTT.SupportsType(Timer.MonotonicTime), "Unsupported type for MQTT";
 // ^E: Compile-time assertion failed: Unsupported type for MQTT
@@ -142,6 +170,18 @@ constant Address: uint16 = KNX.ParseGroupAddress("-1");
 
 // TEST: empty group address
 constant Address: uint16 = KNX.ParseGroupAddress("");
+// ^E: Invalid format for KNX group address
+
+// TEST: non-ASCII digits in group address
+constant Address: uint16 = KNX.ParseGroupAddress("１２３");
+// ^E: Invalid format for KNX group address
+
+// TEST: non-ASCII digit in group address part
+constant Address: uint16 = KNX.ParseGroupAddress("1/2/３");
+// ^E: Invalid format for KNX group address
+
+// TEST: trailing newline in group address
+constant Address: uint16 = KNX.ParseGroupAddress("1/2/3\n");
 // ^E: Invalid format for KNX group address
 
 // TEST: leading space

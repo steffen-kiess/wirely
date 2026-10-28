@@ -16,6 +16,14 @@ assert MQTT.CheckURI("mqtt://localhost") && MQTT.CheckURI("mqtts://host:1234")
 assert MQTT.CheckKeepAlive("PT0.1S") && MQTT.CheckKeepAlive("PT65535S");
 assert MQTT.CheckClientID(None) && MQTT.CheckClientID(Some("wirely"));
 assert MQTT.CheckTopic("a") && MQTT.CheckTopic("home/living room/$temperature");
+assert KNX.CheckConnection(
+  Some("localhost"), Some(KNX.Protocol.TCP), Some(1234), None, None, Some("1.1.1"),
+);
+assert KNX.CheckConnection(None, None, None, Some("/run/knxnet"), None, None);
+assert KNX.CheckConnection(
+  None, Some(KNX.Protocol.Unix), None, None, Some("user@host"), Some("4660"),
+);
+assert KNX.CheckConnection(None, Some(KNX.Protocol.Auto), None, None, None, None);
 
 assert Std.ParseFormat("text", unit)
   == Std.FormatParts { prefix: "text", suffix: "", has_value: false };

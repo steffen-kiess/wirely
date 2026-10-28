@@ -9,6 +9,7 @@ __all__ = ["extension"]
 
 extension = CompilerNativeExtension(functions={
     'CSV.SupportsType': NativeConstantFunction(Function((Builtin('type'),), Builtin('boolean')), _bindings.functions['CSV.SupportsType']),
+    'KNX.CheckConnection': NativeConstantFunction(Function((Option(Builtin('string')), Option(Enum('KNX.Protocol')), Option(Int(16, False)), Option(Builtin('string')), Option(Builtin('string')), Option(Builtin('string'))), Builtin('boolean')), _bindings.functions['KNX.CheckConnection']),
     'KNX.ParseGroupAddress': NativeConstantFunction(Function((Builtin('string'),), Int(16, False)), _bindings.functions['KNX.ParseGroupAddress']),
     'KNX.SupportsValueType': NativeConstantFunction(Function((Builtin('type'),), Builtin('boolean')), _bindings.functions['KNX.SupportsValueType']),
     'KNX.ValueTypeName': NativeConstantFunction(Function((Builtin('type'),), Builtin('string')), _bindings.functions['KNX.ValueTypeName']),
