@@ -13,6 +13,8 @@ class LaunchOnEventCreate(contracts.LaunchOnEventCreate):
     def initialize(self, *, services: StateServices[Literal['state']],
                    shell_command: str) -> contracts.LaunchOnEventCreateResult:
         self.shell_command = shell_command
+        # The shell that runs the command.
+        self.shell = '/bin/sh'
         self.task: asyncio.Task | None = None
         self.pending = False
         self.event = asyncio.Event()
@@ -35,7 +37,14 @@ class LaunchOnEventCreate(contracts.LaunchOnEventCreate):
             self.pending = False
 
             verbose_print(f"Launching command {self.shell_command!r}", flush=True)
-            proc = await asyncio.create_subprocess_exec('/bin/sh', '-c', self.shell_command)
+            try:
+                proc = await asyncio.create_subprocess_exec(self.shell, '-c', self.shell_command)
+            except OSError as e:
+                # For example, too many processes or too little memory; the launch is dropped.
+                print(f'Warning: Process.LaunchOnEvent: Starting {self.shell_command!r} failed: {e}', flush=True)
+                continue
+            # When torn down, this task stops waiting; asyncio kills a command that is still running when its
+            # transport is closed or garbage-collected.
             code = await proc.wait()
             if code != 0:
                 print(f"Command {self.shell_command!r} finished with exit code {code}", flush=True)

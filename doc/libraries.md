@@ -341,6 +341,8 @@ Events received while a launch is pending may be combined into one launch.
 It takes `ShellCommand: string` and `Type: type = unit`, with a default
 `event Type` input. The event payload is ignored. The command is passed to
 `sh -c` in the output stage and runs with the service process's permissions.
+If the command cannot be started, a warning is logged and the event is
+dropped. A command that is still running when the runtime stops is killed.
 
 ## Matter
 

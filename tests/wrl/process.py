@@ -66,3 +66,21 @@ async def run_test():
         await asyncio.sleep(0.4)
 
         check_content('A\nx\nx\nx\n')
+
+        # A command that cannot be started is dropped, and later events still launch it.
+        prog1.shell = '/nonexistent/sh'
+        engine.get_native_state('evsrc.create').send_event(wirely.Some(wirely.Unit()))
+        engine.step()
+        engine.step()
+        engine.assert_is_idle()
+        async with asyncio.timeout(5):
+            while prog1.pending:
+                await asyncio.sleep(0.01)
+        prog1.shell = '/bin/sh'
+        engine.get_native_state('evsrc.create').send_event(wirely.Some(wirely.Unit()))
+        engine.step()
+        engine.step()
+        engine.assert_is_idle()
+        await asyncio.sleep(0.2)
+
+        check_content('A\nx\nx\nx\nx\n')
