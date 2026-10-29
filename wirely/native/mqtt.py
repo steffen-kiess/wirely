@@ -32,6 +32,11 @@ def _json_format(option: Some[MQTTFormat] | None) -> str | None:
     return _JSON_FORMATS[option.value]
 
 
+def _check_type(value_type: ValueType[Any]) -> None:
+    if not value_type.supports_json:
+        raise ValueError(f'Unsupported type for MQTT: {value_type}')
+
+
 # Delay before the first reconnection attempt, doubled after each failed attempt up to the maximum.
 RECONNECT_DELAY_MIN = 1.0
 RECONNECT_DELAY_MAX = 60.0
@@ -335,6 +340,7 @@ class ValueOptionProviderCreate(contracts.ValueOptionProviderCreate):
         self.queued = False
 
         self.value_type = type
+        _check_type(type)
         check_topic(topic)
         self.topic = topic
         self.format = _json_format(format)
@@ -399,6 +405,7 @@ class EventSenderCreate(contracts.EventSenderCreate):
         self.current_value = None
 
         self.value_type = type
+        _check_type(type)
         check_topic(topic)
         self.topic = topic
         self.format = _json_format(format)
@@ -450,6 +457,7 @@ class _Receiver(NativeState[Literal['state']]):
     def setup(self, kind: str, broker: ConnectionCreate, type: ValueType[Any], topic: str,
               format: Some[MQTTFormat] | None, template_parts: MQTTTemplateParts) -> None:
         self.value_type = type
+        _check_type(type)
         check_topic(topic)
         self.topic = topic
         self.format = _json_format(format)
