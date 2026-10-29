@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import io
+import socket
 from unittest import mock
 
 import wirely
@@ -103,13 +104,40 @@ async def run_steps():
             engine.step()
             assert_states(True, wirely.Some(True), wirely.Some(True), wirely.Some(False))
 
+            # A refused connection is retried. The socket is bound but does not listen, so it refuses connections.
+            number = device.connection_number
+            port = device.client.port
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as refusing:
+                refusing.bind(('127.0.0.1', 0))
+                device.client.port = refusing.getsockname()[1]
+                server.drop_subscriptions()
+                await wait_until(lambda: 'Cannot connect to host' in (device.errors._error or ''))
+                engine.step()
+                assert_states(False, None, None, None)
+                device.client.port = port
+            await wait_until(lambda: device.connection_number == number + 1)
+            engine.step()
+            assert_states(True, wirely.Some(True), wirely.Some(True), wirely.Some(False))
+
+            # Stopping while a state read hangs closes the session without waiting for the read.
+            server.hanging = {'/api/io/status'}
+            server.drop_subscriptions()
+            await wait_until(lambda: len(server.hanging_requests) == 1 and not device.connected)
+            stopping = asyncio.get_running_loop().time()
+    # The subscription is ended in less than its timeout, since only the read hangs.
+    assert asyncio.get_running_loop().time() - stopping < 0.5
+    assert device.client.client_session is None
+    assert device.task.done()
+
 
 async def run_test():
     output = io.StringIO()
     try:
         with contextlib.redirect_stdout(output):
-            await run_steps()
+            async with asyncio.timeout(30):
+                await run_steps()
     finally:
+        engine.test_twon_fake_server_info.server.release_hanging()
         print(output.getvalue(), end='', flush=True)
     assert "Warning: Failed to handle TwoN event {'event': 'KeyPressed', '_type': 'new'}:" in output.getvalue()
     # Only 401s to the resend by the digest middleware are logged, not those it answers itself.

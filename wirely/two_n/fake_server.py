@@ -64,6 +64,9 @@ class Server:
         # The number of requests to answer with 401 by path, as devices occasionally do despite correct credentials.
         # Each such 401 contains a new digest challenge, so the client's digest middleware sends the request again.
         self.unauthorized: dict[str, int] = {}
+        # Paths whose requests get no answer until release_hanging(), as if the device stopped responding.
+        self.hanging: set[str] = set()
+        self.hanging_requests: list[asyncio.Future[None]] = []
 
         self.app = aiohttp.web.Application(middlewares=[self.availability_middleware])
         self.app.add_routes([
@@ -176,7 +179,19 @@ class Server:
         if self.unauthorized.get(request.path, 0) > 0:
             self.unauthorized[request.path] -= 1
             return self.unauthorized_response()
+        if request.path in self.hanging:
+            future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+            self.hanging_requests.append(future)
+            await future
         return await handler(request)
+
+    def release_hanging(self) -> None:
+        """Answer the hanging requests; the server is shared by the tests of a process."""
+        self.hanging.clear()
+        for future in self.hanging_requests:
+            if not future.done():
+                future.set_result(None)
+        self.hanging_requests.clear()
 
     @staticmethod
     def unauthorized_response() -> aiohttp.web.Response:
