@@ -1,39 +1,14 @@
 import asyncio
 import contextlib
-import enum
-import sys
 import types
 from unittest import mock
 
+import gpiod
+from gpiod.line import Bias, Direction, Drive, Value
+
+import wirely.native.gpio
 from tests.infra.support import test_engine
-
-
-class Direction(enum.Enum):
-    INPUT = 1
-    OUTPUT = 2
-
-
-class Value(enum.Enum):
-    INACTIVE = 0
-    ACTIVE = 1
-
-
-class Bias(enum.Enum):
-    AS_IS = 0
-    DISABLED = 1
-    PULL_DOWN = 2
-    PULL_UP = 3
-
-
-class Drive(enum.Enum):
-    PUSH_PULL = 1
-    OPEN_DRAIN = 2
-    OPEN_SOURCE = 3
-
-
-class LineSettings:
-    def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
+from wirely.generated.enums import GPIOBias
 
 
 class LineRequest:
@@ -86,17 +61,15 @@ class Chip:
 
 
 async def run_test():
-    line = types.ModuleType('gpiod.line')
-    line.Bias = Bias
-    line.Direction = Direction
-    line.Drive = Drive
-    line.Value = Value
-    gpiod = types.ModuleType('gpiod')
-    gpiod.Chip = Chip
-    gpiod.LineSettings = LineSettings
-    gpiod.line = line
+    # Open enums can contain values the native code does not handle; they are rejected when loading.
+    try:
+        wirely.native.gpio._setting(GPIOBias(7), wirely.native.gpio._BIASES, 'bias')
+    except ValueError as exc:
+        assert str(exc) == 'Unsupported GPIO bias 7', exc
+    else:
+        raise AssertionError('Unknown bias accepted')
 
-    with mock.patch.dict(sys.modules, {'gpiod': gpiod, 'gpiod.line': line}):
+    with mock.patch.object(gpiod, 'Chip', Chip):
         assert not Chip.instances
         async with asyncio.TaskGroup() as tasks, contextlib.AsyncExitStack() as stack:
             engine.activate(tasks, stack)
