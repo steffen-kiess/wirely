@@ -171,7 +171,15 @@ namespace TwoN {
     // True if the switch is active, false otherwise, None while unknown.
     default output: value Option[boolean];
 
-    // TODO: Outputs for "locked" and "held"?
+    // TODO: Outputs Locked and Held (and possibly Enabled) as
+    // Option[boolean]; /api/switch/status lists locked and held. The device
+    // reports changes as SwitchOperationChanged, whose parameters are not
+    // documented. Observe them with `python -m wirely.two_n.client ...
+    // --events --after-events switch/status` while operating an unused
+    // switch with `--raw 'switch/ctrl?switch=N&action=lock'` (and unlock,
+    // hold, hold&timeout=10, release) and disabling it in the web
+    // interface. Check the parameters per action, whether an expiring hold
+    // sends the event, and whether locking also sends SwitchStateChanged.
 
     native procedure get_value stage input
       reads state as "state"

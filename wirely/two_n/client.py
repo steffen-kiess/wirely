@@ -313,9 +313,12 @@ class Client:
 
 
 class LogReceiver:
-    def __init__(self, client: Client, *, include: Sequence[str] | None = None,
-                 filter: Sequence[str] | None = None, verbose: bool = False) -> None:
+    def __init__(self, client: Client, *, include: str | None = None,
+                 filter: Sequence[str] | None = None, verbose: bool = False,
+                 on_event: Callable[[dict[str, Any]], object] | None = None) -> None:
         self.client = client
+        # Called with every event before its handlers.
+        self.on_event = on_event
         self.include = include
         self.filter = filter
         self.verbose = verbose
@@ -426,6 +429,8 @@ class LogReceiver:
             name = event['event']
             if self.verbose:
                 print(f'Got {name!r} event: {event}')
+            if self.on_event is not None:
+                self.on_event(event)
             if name in self.handlers:
                 for handler in self.handlers[name]:
                     handler(event)
@@ -468,6 +473,15 @@ async def main() -> None:
     parser.add_argument('--method', type=str, default='GET', help='HTTP method for --raw')
     parser.add_argument('--no-authentication', action='store_true',
                         help='send the --raw request without credentials, to see the challenge')
+    parser.add_argument('--events', action='store_true',
+                        help='without url, print every event as one JSON line until interrupted')
+    parser.add_argument('--include', type=str, default='new',
+                        help='events to subscribe to for --events: new, all, or -t for the last t seconds')
+    parser.add_argument('--filter', type=str,
+                        help='comma-separated event types for --events, also for hidden ones such as HardwareChanged')
+    parser.add_argument('--after-events', metavar='PATH', action='append', default=[],
+                        help='for --events, print the result of GET /api/PATH after each pull with events, '
+                        'such as switch/status; can be repeated')
     parser.add_argument('url', type=str, nargs='?', help='API path below /api/, such as io/status or log/pull?id=1')
     args = parser.parse_args()
 
@@ -497,12 +511,37 @@ async def main() -> None:
         elif args.url is not None:
             await client.request(args.url)
         else:
-            log_receiver = LogReceiver(client, verbose=args.verbose, include='all')
-            log_receiver.add_handler(['KeyPressed', 'KeyReleased'], lambda event: print('--STARTUP--' if event is None else f'{event["event"]} {event["params"]["key"]!r} {event["_type"]}'))
+            between_pulls: Callable[[], Awaitable[bool]] | None = None
+            if args.events:
+                # Whether the last pull returned events.
+                got_events = False
+
+                def print_event(event: dict[str, Any]) -> None:
+                    nonlocal got_events
+                    got_events = True
+                    print(json.dumps({key: value for key, value in event.items() if key != '_type'}, sort_keys=True),
+                          flush=True)
+
+                async def read_after_events() -> bool:
+                    nonlocal got_events
+                    if got_events:
+                        got_events = False
+                        for path in args.after_events:
+                            result = await client.json_request('GET', '/api/' + path)
+                            print(f'{path}: {json.dumps(result, sort_keys=True)}', flush=True)
+                    return False
+
+                log_receiver = LogReceiver(client, verbose=args.verbose, include=args.include,
+                                           filter=None if args.filter is None else args.filter.split(','),
+                                           on_event=print_event)
+                between_pulls = read_after_events
+            else:
+                log_receiver = LogReceiver(client, verbose=args.verbose, include='all')
+                log_receiver.add_handler(['KeyPressed', 'KeyReleased'], lambda event: print('--STARTUP--' if event is None else f'{event["event"]} {event["params"]["key"]!r} {event["_type"]}'))
             import wirely.misc.service
             try:
                 async with asyncio.TaskGroup() as tg:
-                    tg.create_task(log_receiver.receive())
+                    tg.create_task(log_receiver.receive(between_pulls=between_pulls))
                     await wirely.misc.service.should_never_return(wirely.misc.service.loop_until_sigint_and_throw())
             except* wirely.misc.service.TerminateProgram:
                 # TODO: Handle SIGTERM differently?
