@@ -418,5 +418,5 @@ with checks.assertRaisesRegex(ValueError, 'refers to a resource'):
 
 async def run_test():
     async with asyncio.TaskGroup() as task_group, contextlib.AsyncExitStack() as exit_stack:
-        await native_resource_engine.activate(task_group, exit_stack)
+        native_resource_engine.activate(task_group, exit_stack)
         assert startup_inputs == [consumer.resources]

@@ -58,7 +58,7 @@ async def run_test():
             with contextlib.closing(proxy):
                 async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
                     # Activation does not wait for the interface; telegrams are dropped while it cannot be reached.
-                    await engine.activate(tg, async_exit_stack)
+                    engine.activate(tg, async_exit_stack)
                     engine.step()
                     engine.assert_value_is('bus.Connected', False)
                     engine.get_native_state('event_input.create').send_event(wirely.Some(True))

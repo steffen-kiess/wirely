@@ -174,6 +174,6 @@ with checks.assertRaisesRegex(ValueError, 'Unknown procedure name'):
 
 async def run_test():
     async with asyncio.TaskGroup() as task_group, contextlib.AsyncExitStack() as exit_stack:
-        await engine.activate(task_group, exit_stack)
+        engine.activate(task_group, exit_stack)
         assert lifecycle == ['first', 'second']
     assert lifecycle == ['first', 'second', 'stop second', 'stop first']

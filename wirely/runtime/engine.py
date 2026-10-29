@@ -81,7 +81,7 @@ class Engine:
         for variable, initial in program.initial_state.items():
             self.state.add(variable, initial)
 
-    async def activate(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
+    def activate(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         """Start the tasks of the native objects; their cleanup is registered on async_exit_stack.
 
         An engine is activated at most once; load the program again to restart it.
@@ -110,11 +110,9 @@ class Engine:
 
         async_exit_stack.callback(finish_task_cleanup)
 
-        # TODO: Currently this (e.g. connecting to a 2N device) is blocking and done sequentially. Should ths be non-blocking instead? (I.e. should the connection be created on the background task and should start_tasks_async() be removed?)
         for state in self.native_states.values():
             if state is not None:
                 state.start_tasks(task_group, async_exit_stack)
-                await state.start_tasks_async(task_group, async_exit_stack)
 
         async_exit_stack.callback(start_task_cleanup)
 

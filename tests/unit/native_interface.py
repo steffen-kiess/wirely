@@ -1079,8 +1079,6 @@ node second: TestLibrary.LifecycleProbe {{ Fail: {'false' if failure is None els
             def start_tasks(self, task_group, async_exit_stack):
                 async_exit_stack.callback(self.observe_cleanup)
                 startup_observations.append(self.services.name)
-
-            async def start_tasks_async(self, task_group, async_exit_stack):
                 if self.fail and failure == 'activate':
                     raise RuntimeError('Startup failed')
 
@@ -1126,14 +1124,14 @@ async def check_single_activation():
         Engine(loaded)
     async with asyncio.TaskGroup() as task_group:
         async with contextlib.AsyncExitStack() as exit_stack:
-            await engine.activate(task_group, exit_stack)
+            engine.activate(task_group, exit_stack)
             with checks.assertRaisesRegex(RuntimeError, 'already activated'):
-                await engine.activate(task_group, exit_stack)
+                engine.activate(task_group, exit_stack)
     startup_observations.clear()
     async with asyncio.TaskGroup() as task_group:
         async with contextlib.AsyncExitStack() as exit_stack:
             with checks.assertRaisesRegex(RuntimeError, 'already activated'):
-                await engine.activate(task_group, exit_stack)
+                engine.activate(task_group, exit_stack)
     assert startup_observations == []
 
 
@@ -1145,7 +1143,7 @@ async def run_test():
     assert not lifecycle_engine.is_shutting_down
     async with asyncio.TaskGroup() as task_group:
         async with contextlib.AsyncExitStack() as exit_stack:
-            await lifecycle_engine.activate(task_group, exit_stack)
+            lifecycle_engine.activate(task_group, exit_stack)
     timestamp = lifecycle_engine.last_shutdown_time
     assert timestamp is not None and timestamp.tzinfo is not None
     assert cleanup_clock_observations == [(True, timestamp)] * len(cleanup_observations)
@@ -1161,7 +1159,7 @@ async def run_test():
     unknown_time_engine.set_fake_wall_time(None)
     async with asyncio.TaskGroup() as task_group:
         async with contextlib.AsyncExitStack() as exit_stack:
-            await unknown_time_engine.activate(task_group, exit_stack)
+            unknown_time_engine.activate(task_group, exit_stack)
             assert not unknown_time_engine.is_shutting_down
     assert cleanup_clock_observations == [(True, None)] * len(cleanup_observations)
     assert len(cleanup_observations) == 2
@@ -1174,7 +1172,7 @@ async def run_test():
     async with asyncio.TaskGroup() as task_group:
         with checks.assertRaisesRegex(RuntimeError, 'Startup failed'):
             async with contextlib.AsyncExitStack() as exit_stack:
-                await failing_engine.activate(task_group, exit_stack)
+                failing_engine.activate(task_group, exit_stack)
     assert startup_observations in (['second'], ['first', 'second'])
     assert cleanup_observations == startup_observations[::-1]
     assert failing_engine.last_shutdown_time is None

@@ -42,7 +42,7 @@ async def check_repeat_boundaries(filename, wall_time):
         assert_content_is(filename, expected)
 
     async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
-        await engine.activate(tg, async_exit_stack)
+        engine.activate(tg, async_exit_stack)
         source.set_value(wirely.Some(False))
         step(('', 'false'))
         engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(3599))
@@ -87,7 +87,7 @@ async def run_test():
     async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
         assert_equals(os.path.exists(fn), False)
 
-        await engine.activate(tg, async_exit_stack)
+        engine.activate(tg, async_exit_stack)
         assert_equals(os.path.getsize(fn), 0)
         expected = ''
 
@@ -157,7 +157,7 @@ async def run_test():
     async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
         assert_equals(os.path.exists(fn), False)
 
-        await engine.activate(tg, async_exit_stack)
+        engine.activate(tg, async_exit_stack)
         assert_equals(os.path.getsize(fn), 0)
         expected = ''
 
@@ -179,7 +179,7 @@ async def run_test():
     # Re-open file without deleting it
     restart(wall_time)
     async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
-        await engine.activate(tg, async_exit_stack)
+        engine.activate(tg, async_exit_stack)
 
         engine.get_native_state('test_input.create').set_value(False)
 
@@ -203,7 +203,7 @@ async def run_test():
     assert_content_is(fn, expected)
     restart(wall_time)
     async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
-        await engine.activate(tg, async_exit_stack)
+        engine.activate(tg, async_exit_stack)
 
         expected += '\n'
         assert_content_is(fn, expected)
@@ -228,7 +228,7 @@ async def run_test():
     async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
         assert_equals(os.path.exists(fn2), False)
 
-        await engine.activate(tg, async_exit_stack)
+        engine.activate(tg, async_exit_stack)
         assert_equals(os.path.getsize(fn2), 0)
         expected = ''
 
@@ -344,7 +344,7 @@ async def run_test():
     os.unlink(fn2)
     restart(None)
     async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
-        await engine.activate(tg, async_exit_stack)
+        engine.activate(tg, async_exit_stack)
         engine.get_native_state('test_option_input.create').set_value(wirely.Some(True))
         engine.step()
         engine.step()
@@ -366,7 +366,7 @@ async def run_test():
 
     restart(datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc))
     async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
-        await engine.activate(tg, async_exit_stack)
+        engine.activate(tg, async_exit_stack)
         engine.get_native_state('test_option_input.create').set_value(wirely.Some(True))
         engine.step()
         engine.step()

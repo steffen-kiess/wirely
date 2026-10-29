@@ -451,14 +451,13 @@ resource output with this Python name, including consumers reached through
 a load selector returning that handle. Repeated triggers
 before execution schedule one invocation.
 
-`Engine.activate()` calls `start_tasks(task_group, async_exit_stack)`, then
-awaits `start_tasks_async(task_group, async_exit_stack)` on each native
-object. Activation follows successful loading of the whole program. Do not
-raise from these hooks or from tasks when a peer, file, or device is
+`Engine.activate()` calls `start_tasks(task_group, async_exit_stack)` on each
+native object. Activation follows successful loading of the whole program.
+Do not raise from this hook or from tasks when a peer, file, or device is
 unavailable; retry in a task, and report the condition through an output
-where procedures need it. Cleanup runs once; a native object is not
-started again afterwards.
-Use these hooks for task creation and resource acquisition. Use the
+where procedures need it. Cleanup runs once; a native object is not started
+again afterwards.
+Use this hook for task creation and resource acquisition. Use the
 supplied `AsyncExitStack` for resource contexts and cleanup callbacks,
 which run in reverse registration order.
 

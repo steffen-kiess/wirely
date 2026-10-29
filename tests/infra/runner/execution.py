@@ -182,7 +182,7 @@ async def run_runtime_test(test_name: str) -> None:
             if test_name.startswith('wrl/') and test_name not in manually_activated_tests:
                 # Note: async_exit_stack must be exited before tg (and therefore entered after tg), otherwise destroying exiting tg might hang because there are still some tasks running
                 async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
-                    await eng.activate(tg, async_exit_stack)
+                    eng.activate(tg, async_exit_stack)
                     await run_python_test(py_fn, engine=eng)
             else:
                 await run_python_test(py_fn, engine=eng)

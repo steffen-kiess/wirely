@@ -86,7 +86,7 @@ async def run_test():
             # Close the proxy only after the engine's tasks have finished, so that they can disconnect cleanly.
             with contextlib.closing(proxy):
                 async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
-                    await engine.activate(tg, async_exit_stack)
+                    engine.activate(tg, async_exit_stack)
 
                     # The broker cannot be reached: values stay pending and events are dropped.
                     engine.get_native_state('event_source.create').send_event(wirely.Some(True))

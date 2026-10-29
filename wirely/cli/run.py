@@ -50,7 +50,7 @@ async def run_engine(engine: Engine, controller: RuntimeController | None = None
     try:
         # Note: async_exit_stack must be exited before tg (and therefore entered after tg), otherwise destroying exiting tg might hang because there are still some tasks running
         async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
-            await engine.activate(tg, async_exit_stack)
+            engine.activate(tg, async_exit_stack)
             tg.create_task(wirely.misc.service.should_never_return(engine.run()))
             if state_directory is not None:
                 assert controller is not None

@@ -99,7 +99,7 @@ async def run_test():
     with mock.patch.dict(sys.modules, {'gpiod': gpiod, 'gpiod.line': line}):
         assert not Chip.instances
         async with asyncio.TaskGroup() as tasks, contextlib.AsyncExitStack() as stack:
-            await engine.activate(tasks, stack)
+            engine.activate(tasks, stack)
             chip = Chip.instances[-1]
             assert chip.path == '/dev/gpiochip-test'
             assert chip.lookups == ['LED']
@@ -133,7 +133,7 @@ async def run_test():
         restarted.get_native_state('test_output.create').name = 'missing'
         async with asyncio.TaskGroup() as tasks, contextlib.AsyncExitStack() as stack:
             try:
-                await restarted.activate(tasks, stack)
+                restarted.activate(tasks, stack)
             except ValueError as exc:
                 assert "Cannot find GPIO 'missing'" in str(exc)
             else:

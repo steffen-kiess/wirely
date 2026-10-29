@@ -34,7 +34,7 @@ async def run_steps():
           mock.patch.object(wirely.native.two_n, 'RECONNECT_DELAY_MAX', 0.01)):
         async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
             # Activation does not wait for the device; values to send are dropped while it cannot be reached.
-            await engine.activate(tg, async_exit_stack)
+            engine.activate(tg, async_exit_stack)
             engine.step()
             assert_states(False, None, None, None)
             engine.get_native_state('output_debug.create').send_event(wirely.Some(True))

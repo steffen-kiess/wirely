@@ -272,10 +272,6 @@ class NativeState(Generic[K]):
     def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         pass
 
-    async def start_tasks_async(self, task_group: asyncio.TaskGroup,
-                                async_exit_stack: contextlib.AsyncExitStack) -> None:
-        pass
-
     @staticmethod
     @contextlib.contextmanager
     def start_task_context(task_group: asyncio.TaskGroup,
