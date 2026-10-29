@@ -14,7 +14,7 @@ from wirely.generated import two_n as contracts
 from wirely.misc.repeated_errors import RepeatedError
 from wirely.runtime.native_api import ProcedureServices, StateServices
 from wirely.generated.structs import TwoNCredentials
-from wirely.two_n.client import TwoNError
+from wirely.two_n.client import TwoNAPIError, TwoNError
 from wirely.util import verbose_print
 
 
@@ -256,16 +256,19 @@ class CodeEnteredEventGetValue(contracts.CodeEnteredEventGetValue):
         return contracts.CodeEnteredEventGetValueResult(output=wirely.Some(wirely.Unit()))
 
 
-def _status_entry(response: Any, list_key: str, id_key: str, id: object) -> dict[str, Any]:
-    """Return the only entry of a status response, which must be the one for id."""
+class _InvalidStatus(Exception):
+    """A status response without a valid state for the requested port or switch."""
+
+
+def _status_value(response: Any, list_key: str, id_key: str, id: object, value_key: str) -> Any:
+    """Return a value of the only entry of a status response, which must be the one for id."""
     try:
         entries = response[list_key]
         if len(entries) != 1 or entries[0][id_key] != id:
-            raise TwoNError(f'Got unexpected {list_key} {entries!r}')
-        entry: dict[str, Any] = entries[0]
+            raise _InvalidStatus(f'Got unexpected {list_key} {entries!r}')
+        return entries[0][value_key]
     except (KeyError, TypeError, IndexError) as e:
-        raise TwoNError(f'Got invalid response {response!r}') from e
-    return entry
+        raise _InvalidStatus(f'Got invalid response {response!r}') from e
 
 
 class IOStateCreate(contracts.IOStateCreate):
@@ -299,11 +302,11 @@ class IOStateCreate(contracts.IOStateCreate):
                 'port': self.port,
             })
             # print('RESPONSE', response)
-            state = _status_entry(response, 'ports', 'port', self.port)['state']
+            state = _status_value(response, 'ports', 'port', self.port, 'state')
             if type(state) != int or state not in (0, 1):
-                raise TwoNError(f'Got invalid state {state!r}')
-        except TwoNError as e:
-            # The device might not have this port; the other nodes keep working.
+                raise _InvalidStatus(f'Got invalid state {state!r}')
+        except (TwoNAPIError, _InvalidStatus) as e:
+            # The device might not have this port; the other nodes keep working. Other errors end the connection.
             self.errors.report(str(e))
             return
         self.errors.end()
@@ -390,11 +393,11 @@ class SwitchStateCreate(contracts.SwitchStateCreate):
                 'switch': self.switch_number,
             })
             # print('RESPONSE', response)
-            active = _status_entry(response, 'switches', 'switch', self.switch_number)['active']
+            active = _status_value(response, 'switches', 'switch', self.switch_number, 'active')
             if type(active) != bool:
-                raise TwoNError(f'Got invalid state {active!r}')
-        except TwoNError as e:
-            # The device might not have this switch; the other nodes keep working.
+                raise _InvalidStatus(f'Got invalid state {active!r}')
+        except (TwoNAPIError, _InvalidStatus) as e:
+            # The device might not have this switch; the other nodes keep working. Other errors end the connection.
             self.errors.report(str(e))
             return
         self.errors.end()

@@ -60,6 +60,8 @@ class Server:
 
         # While False, every request is answered with an error, as if the device were unavailable.
         self.available = True
+        # The number of requests to answer with 401 by path, as devices occasionally do despite correct credentials.
+        self.unauthorized: dict[str, int] = {}
 
         self.app = aiohttp.web.Application(middlewares=[self.availability_middleware])
         self.app.add_routes([
@@ -166,6 +168,9 @@ class Server:
                                       handler: aiohttp.typedefs.Handler) -> aiohttp.web.StreamResponse:
         if not self.available:
             return aiohttp.web.Response(status=503, text='Unavailable')
+        if self.unauthorized.get(request.path, 0) > 0:
+            self.unauthorized[request.path] -= 1
+            return aiohttp.web.Response(status=401, text='Unauthorized')
         return await handler(request)
 
     def drop_subscriptions(self) -> None:

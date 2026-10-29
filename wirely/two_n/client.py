@@ -26,10 +26,22 @@ UNSUBSCRIBE_TIMEOUT = 1
 class TwoNError(Exception):
     """An error response or an invalid response from the device."""
 
-    def __init__(self, message: str, *, code: Any = None) -> None:
+
+class TwoNAPIError(TwoNError):
+    """An error the device reports for a request in a valid response."""
+
+    def __init__(self, message: str, *, code: Any) -> None:
         super().__init__(message)
-        # The error code reported by the device, if any.
+        # The error code reported by the device.
         self.code = code
+
+
+class _Unauthorized(Exception):
+    """A 401 response, with its WWW-Authenticate header, which tells why the device refused."""
+
+    def __init__(self, authenticate: str | None) -> None:
+        super().__init__(authenticate)
+        self.authenticate = authenticate
 
 
 class LoggingMiddleware:
@@ -177,8 +189,25 @@ class Client:
         return await self.http_request(method, url, **kwargs)
 
     async def json_request(self, method: str, url: str, **kwargs: Any) -> Any:
+        # Devices occasionally reject a request with 401 although the credentials are correct, so a request with
+        # authentication is sent once more after a 401.
+        attempts = 2 if kwargs.get('do_authentication', True) else 1
+        for attempt in range(attempts):
+            try:
+                return await self._json_request(method, url, **kwargs)
+            except _Unauthorized as e:
+                message = (f'During {method} request to {url} got status code 401 '
+                           f'(WWW-Authenticate: {e.authenticate!r})')
+                if attempt + 1 == attempts:
+                    raise TwoNError(message) from None
+                print(f'Warning: {message}; retrying', flush=True)
+        raise AssertionError('unreachable')
+
+    async def _json_request(self, method: str, url: str, **kwargs: Any) -> Any:
         async with await self.api_request(method, url, **kwargs) as response:
             # print(response.headers)
+            if response.status == 401:
+                raise _Unauthorized(response.headers.get('WWW-Authenticate'))
             if response.status != 200:
                 raise TwoNError(f'During {method} request to {url} got status code {response.status}')
 
@@ -201,8 +230,8 @@ class Client:
             except (ValueError, KeyError, TypeError, AttributeError) as e:
                 raise TwoNError(f'During {method} request to {url}: Got invalid response: {e!r}') from e
             if not success:
-                raise TwoNError(f'During {method} request to {url} got error {code!r}: {description!r} {param!r}',
-                                code=code)
+                raise TwoNAPIError(f'During {method} request to {url} got error {code!r}: {description!r} {param!r}',
+                                   code=code)
 
             return data.get('result')
 
