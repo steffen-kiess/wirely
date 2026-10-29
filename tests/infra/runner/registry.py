@@ -213,7 +213,6 @@ exclusive_tests = [
     'unit/program_verifier',
     'unit/test_runner',
     'wrl/event_bindings',
-    'wrl/gpio',
     'wrl/knx_reconnect',
     'wrl/mqtt_reconnect',
     'wrl/two_n_reconnect',

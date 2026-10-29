@@ -1,6 +1,6 @@
 node test_input: Std.DebugValueSource { Type: boolean, Initial: false }
 node test_output: GPIO.Output {
-  ChipDeviceFile: "/dev/gpiochip-test",
+  ChipDeviceFile: "/dev/gpiochip0",
   Name: "LED",
   ActiveState: GPIO.ActiveState.Low,
   Drive: GPIO.Drive.OpenDrain,

@@ -316,8 +316,11 @@ drives are `PushPull`, `OpenDrain`, and `OpenSource`; biases are `AsIs`,
 `Disable`, `PullDown`, and `PullUp`. Use qualified enum literals, such as
 `GPIO.Drive.OpenDrain`.
 
-GPIO use requires the `gpio` extra (or the official `gpiod` 2.x Python
-bindings) and access to the chip device.
+Loading checks that the chip device can be opened, that `Name` names
+exactly one line of the chip, that the line is not in use, and that no other
+`GPIO.Output` of the program uses it. GPIO use requires the `gpio` extra (or
+the official `gpiod` 2.x Python bindings), and the runtime must be allowed to
+access the chip device, for example as root or through a udev rule.
 
 ## Memory
 

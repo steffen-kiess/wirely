@@ -110,9 +110,12 @@ engine = Engine(loaded)
 `LoadedProgram.load()` links the program, runs its load stage, and prepares
 its procedures. It raises `LoadError` from `wirely.runtime.procedures` if the
 program does not load on this runtime; its subclass `LoadFailure` reports a
-failed `load assert` or `load fail`. A loaded program belongs to one engine.
-`engine.activate(task_group, async_exit_stack)` starts the native objects
-once per engine; to restart, load the program again.
+failed `load assert` or `load fail`. Pass `services`, a mapping with
+namespaced keys such as `wirely.gpio.open_chip`, to give native code values
+such as configuration of the runtime or test fixtures; they count as part of
+the runtime and must be the same across restarts. A loaded program belongs
+to one engine. `engine.activate(task_group, async_exit_stack)` starts the
+native objects once per engine; to restart, load the program again.
 
 `RuntimeNativeExtension` in `wirely.runtime.extensions` contains `states`,
 `procedures`, `functions`, `resources`, `enums`, `structs`, and
@@ -372,8 +375,11 @@ and on what stays the same when the runtime restarts (see
 [Stages](bytecode-format.md#stages)): do not connect to peers, open the
 files or devices a program configures, or read the clock, and do not
 start tasks. Raise from them only for configuration the implementation
-does not support. Import the libraries an implementation needs in its
-module, so that a missing library makes linking fail.
+does not support. Hardware the runtime provides itself, such as its GPIO
+lines, stays the same across restarts: `initialize()` may read its
+description to reject a program that cannot use it, but claims it only at
+activation. Import the libraries an implementation needs in its module, so
+that a missing library makes linking fail.
 
 The native initializer declares its reads and fixed outputs:
 
@@ -449,14 +455,18 @@ do not automatically schedule procedures. Call
 `services.trigger(output)` to schedule each procedure that reads the
 resource output with this Python name, including consumers reached through
 a load selector returning that handle. Repeated triggers
-before execution schedule one invocation.
+before execution schedule one invocation. `services.runtime_services` holds
+the `services` passed to `LoadedProgram.load()`. `services.program_state` is
+a dict shared by the native states of one loaded program, for checks across
+nodes while loading; use a key named after your library.
 
 `Engine.activate()` calls `start_tasks(task_group, async_exit_stack)` on each
 native object. Activation follows successful loading of the whole program.
 Do not raise from this hook or from tasks when a peer, file, or device is
 unavailable; retry in a task, and report the condition through an output
-where procedures need it. Cleanup runs once; a native object is not started
-again afterwards.
+where procedures need it. Failing to claim hardware the runtime provides
+itself, which loading checked, means the runtime is broken and may raise.
+Cleanup runs once; a native object is not started again afterwards.
 Use this hook for task creation and resource acquisition. Use the
 supplied `AsyncExitStack` for resource contexts and cleanup callbacks,
 which run in reverse registration order.

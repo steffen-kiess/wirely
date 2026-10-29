@@ -34,12 +34,16 @@ _UNSET = object()
 class StateServices(Generic[K]):
     """Runtime operations available to a native state for its lifetime."""
 
-    __slots__ = ('_name', '_output_keys', '_trigger', '_shutdown_time', '_is_shutting_down', 'native_types')
+    __slots__ = ('_name', '_output_keys', '_trigger', '_shutdown_time', '_is_shutting_down', 'native_types',
+                 '_runtime_services', '_program_state')
 
     def __init__(self, *, name: str, output_keys: Mapping[str, str], trigger: Callable[[str], None],
                  shutdown_time: Callable[[], datetime.datetime | None], is_shutting_down: Callable[[], bool],
-                 native_types: NativeTypes) -> None:
+                 native_types: NativeTypes, runtime_services: Mapping[str, object] | None = None,
+                 program_state: dict[str, Any] | None = None) -> None:
         self.native_types = native_types
+        self._runtime_services: Mapping[str, object] = {} if runtime_services is None else runtime_services
+        self._program_state: dict[str, Any] = {} if program_state is None else program_state
         self._name = name
         self._output_keys = output_keys  # Binding keys by Python name.
         self._trigger = trigger
@@ -50,6 +54,23 @@ class StateServices(Generic[K]):
     def name(self) -> str:
         """Owner name when available, otherwise a numeric procedure display label."""
         return self._name
+
+    @property
+    def runtime_services(self) -> Mapping[str, object]:
+        """Values supplied by whoever loads the program, such as configuration of the runtime or test fixtures.
+
+        Keys are namespaced, such as `wirely.gpio.open_chip`. The values count as part of the runtime, so they are the
+        same across restarts.
+        """
+        return self._runtime_services
+
+    @property
+    def program_state(self) -> dict[str, Any]:
+        """Shared by the native states of one loaded program, for checks across nodes while loading.
+
+        Use a key named after the library.
+        """
+        return self._program_state
 
     def trigger(self, output: K) -> None:
         """Schedule each procedure that reads the fixed output with this Python name."""

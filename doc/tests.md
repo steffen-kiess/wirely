@@ -54,7 +54,8 @@ while no other test runs in the same process, on its main thread.
 `tests/infra/` contains test infrastructure rather than tests: the runner in
 `runner/`, the `TestLibrary` native extension that compilations of test
 fixtures include, and helpers for Python tests in `support.py`, such as
-`test_engine()`, `test_extension()`, and `test_contracts()`.
+`test_engine()`, `test_extension()`, and `test_contracts()`. `test_engine()`
+gives programs the fake GPIO chips from `gpio.py`.
 
 `repo/files` checks that existing Python and Wirely test files and Wirely
 examples match the registered files. It reports missing and unlisted files.

@@ -10,27 +10,32 @@ node type GPIOSettings {
   parameter Active: GPIO.ActiveState;
   parameter Drive: GPIO.Drive;
   parameter Bias: GPIO.Bias;
+  parameter Line: string;
   node output: GPIO.Output {
-    ChipDeviceFile: "/dev/unused", Name: "LED",
+    ChipDeviceFile: "/dev/gpiochip0", Name: Line,
     ActiveState: Active, Drive: Drive, Bias: Bias,
   }
   connect default input -> output;
 }
-node gpio_default: GPIO.Output { ChipDeviceFile: "/dev/unused", Name: "LED" }
+node gpio_default: GPIO.Output { ChipDeviceFile: "/dev/gpiochip0", Name: "GPIO0" }
 connect input -> gpio_default;
 node gpio_high: GPIOSettings {
   Active: GPIO.ActiveState.High, Drive: GPIO.Drive.PushPull, Bias: GPIO.Bias.AsIs,
+  Line: "GPIO1",
 }
 node gpio_low: GPIOSettings {
   Active: GPIO.ActiveState.Low, Drive: GPIO.Drive.OpenDrain, Bias: GPIO.Bias.Disable,
+  Line: "GPIO2",
 }
 node gpio_source: GPIOSettings {
   Active: GPIO.ActiveState.High,
   Drive: GPIO.Drive.OpenSource,
   Bias: GPIO.Bias.PullDown,
+  Line: "GPIO3",
 }
 node gpio_pullup: GPIOSettings {
   Active: GPIO.ActiveState.High, Drive: GPIO.Drive.PushPull, Bias: GPIO.Bias.PullUp,
+  Line: "GPIO4",
 }
 assert CSV.SupportsType(boolean) && CSV.SupportsType(uint16);
 assert CSV.SupportsType(Option[boolean]);

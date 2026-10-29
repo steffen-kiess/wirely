@@ -105,13 +105,17 @@ def test_constant_function(native_name: str, implementation: Callable[..., objec
         implementation, ConstantFunctionContract(native_name, call)))
 
 
-def test_engine(program: Program, graph: object = None, **kwargs: Any) -> Engine:
-    """Create an engine using the test fixture extension."""
+def test_engine(program: Program, graph: object = None, *, services: Mapping[str, object] | None = None,
+                **kwargs: Any) -> Engine:
+    """Create an engine using the test fixture extension, with fake GPIO chips and the given runtime services."""
     from tests.infra.native_extension.generated import extension
     from tests.infra.bytecode import bytecode_roundtrip_mode, roundtrip_program
+    from tests.infra.gpio import FakeChip
     if bytecode_roundtrip_mode.get():
         program = roundtrip_program(program)
-    return Engine(LoadedProgram.load(program, extensions=[extension], **kwargs))
+    # wirely.native.gpio.OPEN_CHIP_SERVICE, named here so that tests without GPIO do not need gpiod.
+    return Engine(LoadedProgram.load(program, extensions=[extension],
+                                     services={'wirely.gpio.open_chip': FakeChip, **(services or {})}, **kwargs))
 
 
 def internal(value: Any) -> Any:

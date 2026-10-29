@@ -5,6 +5,7 @@ from __future__ import annotations
 import dataclasses
 import datetime
 import functools
+import types
 from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING, Any, cast
 
@@ -91,17 +92,19 @@ class LoadedProgram:
     @classmethod
     def load(cls, program: Program, *, extensions: Iterable[RuntimeNativeExtension] = (),
              override_extensions: Iterable[RuntimeNativeExtension] = (),
-             include_builtin_extensions: bool = True) -> LoadedProgram:
+             include_builtin_extensions: bool = True,
+             services: Mapping[str, object] | None = None) -> LoadedProgram:
         """Verify and link a program, run its load stage, and prepare its runtime procedures.
 
-        Raises LoadError if the program does not load on this runtime.
+        services are values for native code by namespaced key, available as StateServices.runtime_services; they
+        count as part of the runtime. Raises LoadError if the program does not load on this runtime.
         """
         if not isinstance(program, Program):
             raise TypeError('program parameter is not a Program')
         try:
             return _Loader(program, resolve_extensions(
                 extensions, override_extensions=override_extensions,
-                include_builtin_extensions=include_builtin_extensions)).load()
+                include_builtin_extensions=include_builtin_extensions), services).load()
         except LoadError:
             raise
         except Exception as error:
@@ -111,8 +114,12 @@ class LoadedProgram:
 class _Loader:
     """The tables of a program while it is loading."""
 
-    def __init__(self, program: Program, extension: RuntimeNativeExtension) -> None:
+    def __init__(self, program: Program, extension: RuntimeNativeExtension,
+                 services: Mapping[str, object] | None = None) -> None:
         self.program = program
+        self.runtime_services: Mapping[str, object] = types.MappingProxyType(dict(services or {}))
+        # Shared by the native states of this program while loading, see StateServices.program_state.
+        self.program_state: dict[str, Any] = {}
         self.extension = extension
         self.native_types = extension.native_types
         self.host = _StateHost()
@@ -171,6 +178,7 @@ class _Loader:
                         trigger=functools.partial(self.host.trigger, proc),
                         shutdown_time=self.host.shutdown_time,
                         is_shutting_down=self.host.is_shutting_down,
+                        runtime_services=self.runtime_services, program_state=self.program_state,
                     )
                     state, outputs = linked.adapter.construct(linked.factory, services, interface)
                     self.native_states[proc] = state
