@@ -259,11 +259,14 @@ connect its default `fixed TwoN.Device` output to each client's named
 | --- | --- | --- |
 | `Connection` | `Host: string`, `Port: uint16 = 443`, `TLSA: List[string]`, `UsernamePasswordFile: string` | Out: `fixed TwoN.Device`. Connects to the device. The credential file must have an absolute path and contain a username and password on separate lines. |
 | `KeyEvent` | `Key: string` | Named in: `Device`; out: `event boolean`. True on press, false on release. |
-| `KeyState` | `Key: string`, `Timeout: Std.Duration = "30s"` | Named in: `Device`; out: `value boolean`. Tracks a key, assuming release after the timeout or when monotonic time is lost. Startup state can be wrong if the key was already pressed. |
-| `IOState` | `Port: string` | Named in: `Device`; out: `value boolean`. Tracks an input or output port. |
-| `SwitchState` | `SwitchNumber: int32` | Named in: `Device`; out: `value boolean`. Tracks whether a switch is active. |
+| `KeyState` | `Key: string`, `Timeout: Std.Duration = "30s"` | Named in: `Device`; out: `value Option[boolean]`. Tracks a key, assuming release after the timeout or when monotonic time is lost. Startup state can be wrong if the key was already pressed. |
+| `IOState` | `Port: string` | Named in: `Device`; out: `value Option[boolean]`. Tracks an input or output port. |
+| `SwitchState` | `SwitchNumber: int32` | Named in: `Device`; out: `value Option[boolean]`. Tracks whether a switch is active. |
 | `CodeEnteredEvent` | `Code: string` | Named in: `Device`; out: `event unit`. Emits when the specified code is entered. |
 | `OutputControl` | `Port: string` | Named in: `Device`; in: `event boolean`. Sets an output on or off. |
+
+`KeyState`, `IOState`, and `SwitchState` are `None` while the state is
+unknown.
 
 `TLSA` provides certificate association records. TwoN use needs the bundled
 TwoN dependencies, device credentials, and network access to the device.

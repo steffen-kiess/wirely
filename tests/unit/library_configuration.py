@@ -454,7 +454,7 @@ def check_key_state():
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
             runtime.step()
-        runtime.assert_value_is('wrapper.child', pressed)
+        runtime.assert_value_is('wrapper.child', wirely.Some(pressed))
         expected = ('Warning: [wrapper.child.timeout_warning]: '
                     'TwoN.KeyState: Resetting key after timeout\n') if warning else ''
         assert output.getvalue() == expected, output.getvalue()

@@ -37,6 +37,12 @@ Replace `wirely run-service` with `wirely run -i`.
 `wirely show-graph` and the `graphviz` extra are removed; use
 `wirely edit` or `wirely export-image` to view diagrams.
 
+#### TwoN state nodes
+
+`TwoN.KeyState`, `TwoN.IOState`, and `TwoN.SwitchState` output
+`Option[boolean]`, which is `None` while the state is unknown. Where a
+`boolean` is needed, use `UnwrapOr(false)` or `Std.OptionUnwrapOr`.
+
 ### Added
 
 - `wirely compile -o FILE` writes the compiled program in the binary

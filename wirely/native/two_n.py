@@ -220,9 +220,8 @@ class IOStateGetValue(contracts.IOStateGetValue):
     def run(self, *, services: ProcedureServices, state: 'IOStateCreate') -> contracts.IOStateGetValueResult:
         value = state.current_value
         if value is None:
-            raise Exception('TwoN.IOStateCreate: get_value() called while current_value is None')
-
-        return contracts.IOStateGetValueResult(output=value)
+            return contracts.IOStateGetValueResult(output=None)
+        return contracts.IOStateGetValueResult(output=Some(value))
 
 
 class SwitchStateCreate(contracts.SwitchStateCreate):
@@ -294,9 +293,8 @@ class SwitchStateGetValue(contracts.SwitchStateGetValue):
     def run(self, *, services: ProcedureServices, state: 'SwitchStateCreate') -> contracts.SwitchStateGetValueResult:
         value = state.current_value
         if value is None:
-            raise Exception('TwoN.SwitchStateCreate: get_value() called while current_value is None')
-
-        return contracts.SwitchStateGetValueResult(output=value)
+            return contracts.SwitchStateGetValueResult(output=None)
+        return contracts.SwitchStateGetValueResult(output=Some(value))
 
 
 class OutputControlCreate(contracts.OutputControlCreate):

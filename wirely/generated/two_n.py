@@ -348,7 +348,7 @@ CodeEnteredEventGetValue._adapter = _CodeEnteredEventGetValueAdapter()
 class IOStateGetValueResult:
     """Outputs of native procedure TwoN.IOState:get_value."""
 
-    output: bool
+    output: Some[bool] | None
 
 
 class IOStateGetValue(NativeProcedure, abc.ABC):
@@ -499,7 +499,7 @@ OutputControlSendValue._adapter = _OutputControlSendValueAdapter()
 class SwitchStateGetValueResult:
     """Outputs of native procedure TwoN.SwitchState:get_value."""
 
-    output: bool
+    output: Some[bool] | None
 
 
 class SwitchStateGetValue(NativeProcedure, abc.ABC):

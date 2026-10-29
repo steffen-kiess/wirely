@@ -534,7 +534,7 @@ native_procedures: dict[str, Procedure] = {
             'state': Port('resource', ResourceType('TwoN.IOStateState')),
         },
         produces={
-            'output': Port('value', Builtin('boolean')),
+            'output': Port('value', Option(Builtin('boolean'))),
         },
         uses={},
     ),
@@ -563,7 +563,7 @@ native_procedures: dict[str, Procedure] = {
             'state': Port('resource', ResourceType('TwoN.SwitchStateState')),
         },
         produces={
-            'output': Port('value', Builtin('boolean')),
+            'output': Port('value', Option(Builtin('boolean'))),
         },
         uses={},
     ),

@@ -62,8 +62,8 @@ namespace TwoN {
 
     input Device: fixed Device;
 
-    // True if the key is pressed, false otherwise.
-    default output: value boolean;
+    // True if the key is pressed, false otherwise, None while unknown.
+    default output: value Option[boolean];
 
     node key_event: KeyEvent { Key: Key }
     connect Device -> key_event.Device;
@@ -92,7 +92,7 @@ namespace TwoN {
         // A missing release event or lost monotonic time releases the key.
         None
       };
-      output = pressed_at.IsSome;
+      output = Some(pressed_at.IsSome);
       on changed pressed_at {
         if previous.IsSome && pressed_at.IsNone && optional(key_event).IsNone {
           emit timed_out;
@@ -116,8 +116,8 @@ namespace TwoN {
     binding state: fixed IOStateState;
     native initializer create reads Device, Port writes state as "state";
 
-    // True if the input/output is on, false otherwise.
-    default output: value boolean;
+    // True if the input/output is on, false otherwise, None while unknown.
+    default output: value Option[boolean];
 
     native procedure get_value stage input
       reads state as "state"
@@ -140,8 +140,8 @@ namespace TwoN {
       reads Device, SwitchNumber
       writes state as "state";
 
-    // True if the switch is active, false otherwise.
-    default output: value boolean;
+    // True if the switch is active, false otherwise, None while unknown.
+    default output: value Option[boolean];
 
     // TODO: Outputs for "locked" and "held"?
 
