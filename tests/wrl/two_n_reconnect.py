@@ -6,6 +6,7 @@ from unittest import mock
 
 import wirely
 import wirely.native.two_n
+from wirely.runtime.native_api import CommandFailed
 
 
 async def wait_until(condition):
@@ -106,6 +107,31 @@ async def run_steps():
             engine.step()
             assert_states(True, wirely.Some(True), wirely.Some(True), wirely.Some(False))
 
+            # A state read again that changed without an event is logged. The command makes the read due; it runs
+            # after the current pull, which an event no node handles ends.
+            input1 = next(state for state in device.io_states if state.port == 'ext3.input1')
+            loop = asyncio.get_running_loop()
+            server.ports['ext3.input1']['state'] = 0
+            device.reread_command(None)
+            server.emit_key_press('%9')
+            await wait_until(lambda: input1.current_value is False and not device.reread_pending)
+            engine.step()
+            assert_states(True, wirely.Some(False), wirely.Some(True), wirely.Some(False))
+            # The command restarts the interval.
+            assert wirely.native.two_n.REREAD_INTERVAL[0] - 5 < device.reread_at - loop.time()
+
+            # An event queued while reading arrives with the next pull, which explains the change.
+            events = input1.event_count
+            server.hanging = {'/api/io/status'}
+            device.reread_command(None)
+            server.emit_key_press('%9')
+            await wait_until(lambda: len(server.hanging_requests) == 1)
+            server.set_io_state('ext3.input1', True)
+            server.release_hanging()
+            await wait_until(lambda: input1.event_count == events + 1 and not device.reread_pending)
+            engine.step()
+            assert_states(True, wirely.Some(True), wirely.Some(True), wirely.Some(False))
+
             # A refused connection is retried. The socket is bound but does not listen, so it refuses connections.
             number = device.connection_number
             port = device.client.port
@@ -114,6 +140,12 @@ async def run_steps():
                 device.client.port = refusing.getsockname()[1]
                 server.drop_subscriptions()
                 await wait_until(lambda: 'Cannot connect to host' in (device.errors._error or ''))
+                try:
+                    device.reread_command(None)
+                except CommandFailed as error:
+                    assert error.reason == 1
+                else:
+                    raise AssertionError('Command accepted while disconnected')
                 engine.step()
                 assert_states(False, None, None, None)
                 device.client.port = port
@@ -141,6 +173,8 @@ async def run_test():
     finally:
         engine.test_twon_fake_server_info.server.release_hanging()
         print(output.getvalue(), end='', flush=True)
+    changed = [line for line in output.getvalue().splitlines() if line.endswith('without an event')]
+    assert changed == ["Warning: TwoN.IOState: Port 'ext3.input1' changed to False without an event"], changed
     assert "Warning: Failed to handle TwoN event {'event': 'KeyPressed', '_type': 'new'}:" in output.getvalue()
     # Only 401s to the resend by the digest middleware are logged, not those it answers itself.
     retried = [line for line in output.getvalue().splitlines() if line.endswith('; retrying')]

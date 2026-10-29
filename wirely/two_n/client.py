@@ -345,11 +345,13 @@ class LogReceiver:
         for event_name in event_names:
             self.handlers.setdefault(event_name, []).append(handler)
 
-    async def receive(self, on_subscribed: Callable[[], Awaitable[object]] | None = None) -> None:
+    async def receive(self, on_subscribed: Callable[[], Awaitable[object]] | None = None,
+                      between_pulls: Callable[[], Awaitable[bool]] | None = None) -> None:
         """Subscribe, await on_subscribed(), and pass events to the handlers until a request fails.
 
-        Reading states in on_subscribed() does not miss changes, because changes after subscribing are pulled
-        afterwards. The subscription is ended when this is cancelled; after a failed request, the device is probably
+        between_pulls() is awaited after the events of each pull are handled; if it returns True, the next pull
+        returns immediately instead of waiting for events. Reading states in on_subscribed() or between_pulls() does
+        not miss changes, because changes after subscribing are pulled afterwards. The subscription is ended when this is cancelled; after a failed request, the device is probably
         unreachable, so it is left to expire on the device.
         """
         if self.verbose:
@@ -367,7 +369,7 @@ class LogReceiver:
         try:
             if on_subscribed is not None:
                 await on_subscribed()
-            await self._run()
+            await self._run(between_pulls)
         except asyncio.CancelledError:
             if self.verbose:
                 print('Unsubscribing...', end='', flush=True)
@@ -380,16 +382,18 @@ class LogReceiver:
         finally:
             self.subscription = None
 
-    async def _run(self) -> None:
+    async def _run(self, between_pulls: Callable[[], Awaitable[bool]] | None) -> None:
         timeout = 60
         http_timeout = aiohttp.ClientTimeout(total=timeout + 30, connect=30, sock_connect=30)
 
         assert self.subscription is not None
         id = int(self.subscription['id'])
         initial_handled = False
+        immediate = False
 
         while True:
-            response = await self.client.json_request('POST', '/api/log/pull', data={'id': id, 'timeout': timeout if initial_handled else 0}, timeout=http_timeout)
+            pull_timeout = 0 if not initial_handled or immediate else timeout
+            response = await self.client.json_request('POST', '/api/log/pull', data={'id': id, 'timeout': pull_timeout}, timeout=http_timeout)
             # print(response)
             try:
                 events = response['events']
@@ -402,6 +406,7 @@ class LogReceiver:
             if len(events) == 0 and not initial_handled:
                 initial_handled = True
                 self._handle_event(None, initial_handled)
+            immediate = between_pulls is not None and await between_pulls()
 
     def _handle_event(self, event: Any, initial_handled: bool) -> None:
         """Pass an event to its handlers, or None to all handlers once the initial events are handled.

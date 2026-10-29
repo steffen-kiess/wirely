@@ -276,9 +276,17 @@ drops values while disconnected or when sending fails.
 10 pending events; if more arrive, the oldest one is dropped.
 
 `KeyState`, `IOState`, and `SwitchState` are `None` while disconnected and
-for at least one step after each disconnect. After each connect, `IOState`
-and `SwitchState` read their state; for a port or switch the device does not
-have, they stay `None` and a warning is logged.
+for at least one step after each disconnect. After each connect and about
+every hour, `IOState` and `SwitchState` read their state, and a state that
+changed without an event is logged as a warning; for a port or switch the
+device does not have, they stay `None` and a warning is logged.
+
+`Connection` accepts a control command that reads all states again after the
+current pull, within about a minute, and restarts the hourly interval:
+
+| Node type | Command | Argument | Result |
+| --- | --- | --- | --- |
+| `Connection` | 0 | `{}` | `{}`; while disconnected, `CommandFailed` with reason 1 |
 
 `TLSA` provides certificate association records. TwoN use needs the bundled
 TwoN dependencies, device credentials, and network access to the device.

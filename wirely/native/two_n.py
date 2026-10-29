@@ -13,7 +13,9 @@ import wirely.two_n.client
 from wirely import Int32, Some, UInt16
 from wirely.generated import two_n as contracts
 from wirely.misc.repeated_errors import RepeatedError
-from wirely.runtime.native_api import ProcedureServices, StateServices
+from wirely.runtime.native_api import (
+    CommandFailed, InvalidCommandArgument, ProcedureServices, StateServices, control_command,
+)
 from wirely.generated.structs import TwoNCredentials
 from wirely.two_n.client import TwoNAPIError, TwoNError
 from wirely.two_n.settings import check_code
@@ -24,6 +26,10 @@ from wirely.util import verbose_print
 # shortened randomly by up to a fifth, so that devices started together spread out.
 RECONNECT_DELAY_MIN = 1.0
 RECONNECT_DELAY_MAX = 60.0
+
+# All states are read again after connecting and then about this often (in seconds), since an event might have been
+# lost; a state that changed without an event is logged.
+REREAD_INTERVAL = (60 * 60.0, 70 * 60.0)
 
 # The number of events a KeyEvent or CodeEnteredEvent keeps until they are delivered, one per step; when more arrive,
 # the oldest one is dropped.
@@ -60,6 +66,10 @@ class ConnectionCreate(contracts.ConnectionCreate):
         self.switch_errors = RepeatedError(f'Reading TwoN switches from {self.description}')
         # Counts the connections, so that a task can tell whether it still uses the same one.
         self.connection_number = 0
+        # When to read all states again (event loop time), None while disconnected.
+        self.reread_at: float | None = None
+        # Set after reading the states again, until the next pull has delivered the events queued meanwhile.
+        self.reread_pending = False
         return contracts.ConnectionCreateResult(device=self)
 
     def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
@@ -76,7 +86,7 @@ class ConnectionCreate(contracts.ConnectionCreate):
             try:
                 async with self.client:
                     try:
-                        await self.log_receiver.receive(self.subscribed)
+                        await self.log_receiver.receive(self.subscribed, self.between_pulls)
                     finally:
                         self.set_disconnected()
             except REQUEST_ERRORS as e:
@@ -88,17 +98,54 @@ class ConnectionCreate(contracts.ConnectionCreate):
 
     async def subscribed(self) -> None:
         """Read the current states after subscribing, then report the connection."""
-        await _read_states(self.client, '/api/io/status', 'ports', 'port', self.io_states, self.io_errors)
-        await _read_states(self.client, '/api/switch/status', 'switches', 'switch', self.switch_states,
-                           self.switch_errors)
+        await self.read_states(reread=False)
         self.errors.end()
         print(f'Connected to TwoN device at {self.description}', flush=True)
         self.set_connected()
+
+    def read_states_nodes(self) -> 'list[_ReadState]':
+        return [*self.io_states, *self.switch_states]
+
+    async def read_states(self, *, reread: bool) -> None:
+        await _read_states(self.client, '/api/io/status', 'ports', 'port', self.io_states, self.io_errors, reread)
+        await _read_states(self.client, '/api/switch/status', 'switches', 'switch', self.switch_states,
+                           self.switch_errors, reread)
+
+    async def between_pulls(self) -> bool:
+        """Read all states again when due; return whether the next pull should return immediately.
+
+        Events queued while reading come with the next pull, so a state the read finds changed is only logged as
+        changed without an event if that pull has no event for it.
+        """
+        if self.reread_pending:
+            self.reread_pending = False
+            for state in self.read_states_nodes():
+                state.check_reread()
+        loop = asyncio.get_running_loop()
+        if self.reread_at is None or loop.time() < self.reread_at:
+            return False
+        self.reread_at = loop.time() + random.uniform(*REREAD_INTERVAL)
+        verbose_print(f'Reading the states of TwoN device at {self.description} again', flush=True)
+        await self.read_states(reread=True)
+        self.reread_pending = True
+        return True
+
+    @control_command(0)
+    def reread_command(self, argument: object) -> dict[int, object]:
+        """Read all states again after the current pull, and restart the interval."""
+        if argument is not None and argument != {}:
+            raise InvalidCommandArgument('Expected an empty map')
+        if not self.connected:
+            # Reason 1: not connected; the states are read after connecting.
+            raise CommandFailed('Not connected', reason=1)
+        self.reread_at = asyncio.get_running_loop().time()
+        return {}
 
     def set_connected(self) -> None:
         if self.connected:
             return
         self.connected = True
+        self.reread_at = asyncio.get_running_loop().time() + random.uniform(*REREAD_INTERVAL)
         self.connection_number += 1
         self.services.trigger('device')
         for listener in self.listeners:
@@ -108,6 +155,10 @@ class ConnectionCreate(contracts.ConnectionCreate):
         if not self.connected:
             return
         self.connected = False
+        self.reread_at = None
+        self.reread_pending = False
+        for state in self.read_states_nodes():
+            state.reread_check = None
         self.disconnect_pending = True
         self.services.trigger('device')
         for listener in self.listeners:
@@ -262,7 +313,8 @@ class CodeEnteredEventGetValue(contracts.CodeEnteredEventGetValue):
 
 
 async def _read_states(client: wirely.two_n.client.Client, url: str, list_key: str, id_key: str,
-                       nodes: 'list[IOStateCreate] | list[SwitchStateCreate]', errors: RepeatedError) -> None:
+                       nodes: 'list[IOStateCreate] | list[SwitchStateCreate]', errors: RepeatedError,
+                       reread: bool) -> None:
     """Read the states of all ports or switches with one request and pass each node its entry.
 
     An error the device reports, or an invalid response, leaves the nodes None; other errors of the connection
@@ -285,10 +337,51 @@ async def _read_states(client: wirely.two_n.client.Client, url: str, list_key: s
         return
     errors.end()
     for node in nodes:
-        node.set_status(entries.get(node.status_id))
+        node.set_status(entries.get(node.status_id), reread=reread)
 
 
-class IOStateCreate(contracts.IOStateCreate):
+class _ReadState:
+    """The handling of the states IOState and SwitchState read from the device."""
+
+    current_value: bool | None
+    errors: RepeatedError
+    # Describes the port or switch in warnings.
+    subject: str
+    # Counts the events, so that a state read again can tell whether an event explains a change.
+    event_count: int
+    # After reading the state again: the event count and value before the read, and the value read; until the events
+    # queued meanwhile are handled.
+    reread_check: tuple[int, bool | None, bool] | None
+
+    def set_value(self, value: bool) -> None:
+        raise NotImplementedError
+
+    def set_unknown(self) -> None:
+        raise NotImplementedError
+
+    def set_read_value(self, value: bool | None, error: str | None, *, reread: bool) -> None:
+        if value is None:
+            # The device might not have this port or switch; the other nodes keep working.
+            assert error is not None
+            self.errors.report(error)
+            self.set_unknown()
+            return
+        self.errors.end()
+        if reread:
+            self.reread_check = (self.event_count, self.current_value, value)
+        self.set_value(value)
+
+    def check_reread(self) -> None:
+        """Log a state read again that changed without an event since; called once the queued events are handled."""
+        if self.reread_check is None:
+            return
+        event_count, previous, value = self.reread_check
+        self.reread_check = None
+        if event_count == self.event_count and previous is not None and previous != value:
+            print(f'Warning: {self.subject} changed to {value} without an event', flush=True)
+
+
+class IOStateCreate(contracts.IOStateCreate, _ReadState):
     def initialize(self, *, services: StateServices[Literal['state']], device: ConnectionCreate,
                    port: str) -> contracts.IOStateCreateResult:
         self.port = port
@@ -300,6 +393,9 @@ class IOStateCreate(contracts.IOStateCreate):
         # Set on a disconnect until get_value() has reported it.
         self.disconnect_pending = False
         self.errors = RepeatedError(f'Reading TwoN port {port!r}')
+        self.subject = f'TwoN.IOState: Port {port!r}'
+        self.event_count = 0
+        self.reread_check = None
 
         verbose_print('Create TwoN IOState', flush=True)
 
@@ -314,23 +410,27 @@ class IOStateCreate(contracts.IOStateCreate):
         device.listeners.append(self)
         return contracts.IOStateCreateResult(state=self)
 
-    def set_status(self, entry: dict[str, Any] | None) -> None:
-        """Set the state from the port's entry in /api/io/status, read after subscribing."""
-        # The device might not have this port; the other nodes keep working.
+    def set_status(self, entry: dict[str, Any] | None, *, reread: bool) -> None:
+        """Set the state from the port's entry in /api/io/status, read after subscribing and again later."""
         if entry is None:
-            self.errors.report('The device has no such port')
+            self.set_read_value(None, 'The device has no such port', reread=reread)
             return
         state = entry.get('state')
         if type(state) != int or state not in (0, 1):
-            self.errors.report(f'Got invalid state {state!r}')
+            self.set_read_value(None, f'Got invalid state {state!r}', reread=reread)
             return
-        self.errors.end()
-        self.set_value(bool(state))
+        self.set_read_value(bool(state), None, reread=reread)
 
     def set_value(self, value: bool) -> None:
         if value == self.current_value:
             return
         self.current_value = value
+        self.services.trigger('state')
+
+    def set_unknown(self) -> None:
+        if self.current_value is None:
+            return
+        self.current_value = None
         self.services.trigger('state')
 
     def connected(self) -> None:
@@ -361,6 +461,7 @@ class IOStateCreate(contracts.IOStateCreate):
             return
 
         # print(f'New value: {new_value}')
+        self.event_count += 1
         self.set_value(new_value)
 
 
@@ -377,7 +478,7 @@ class IOStateGetValue(contracts.IOStateGetValue):
         return contracts.IOStateGetValueResult(output=Some(value))
 
 
-class SwitchStateCreate(contracts.SwitchStateCreate):
+class SwitchStateCreate(contracts.SwitchStateCreate, _ReadState):
     def initialize(self, *, services: StateServices[Literal['state']], device: ConnectionCreate,
                    switch_number: Int32) -> contracts.SwitchStateCreateResult:
         self.switch_number = switch_number.value
@@ -389,6 +490,9 @@ class SwitchStateCreate(contracts.SwitchStateCreate):
         # Set on a disconnect until get_value() has reported it.
         self.disconnect_pending = False
         self.errors = RepeatedError(f'Reading TwoN switch {self.switch_number}')
+        self.subject = f'TwoN.SwitchState: Switch {self.switch_number}'
+        self.event_count = 0
+        self.reread_check = None
 
         verbose_print('Create TwoN SwitchState', flush=True)
 
@@ -403,23 +507,27 @@ class SwitchStateCreate(contracts.SwitchStateCreate):
         device.listeners.append(self)
         return contracts.SwitchStateCreateResult(state=self)
 
-    def set_status(self, entry: dict[str, Any] | None) -> None:
-        """Set the state from the switch's entry in /api/switch/status, read after subscribing."""
-        # The device might not have this switch; the other nodes keep working.
+    def set_status(self, entry: dict[str, Any] | None, *, reread: bool) -> None:
+        """Set the state from the switch's entry in /api/switch/status, read after subscribing and again later."""
         if entry is None:
-            self.errors.report('The device has no such switch')
+            self.set_read_value(None, 'The device has no such switch', reread=reread)
             return
         active = entry.get('active')
         if type(active) != bool:
-            self.errors.report(f'Got invalid state {active!r}')
+            self.set_read_value(None, f'Got invalid state {active!r}', reread=reread)
             return
-        self.errors.end()
-        self.set_value(active)
+        self.set_read_value(active, None, reread=reread)
 
     def set_value(self, value: bool) -> None:
         if value == self.current_value:
             return
         self.current_value = value
+        self.services.trigger('state')
+
+    def set_unknown(self) -> None:
+        if self.current_value is None:
+            return
+        self.current_value = None
         self.services.trigger('state')
 
     def connected(self) -> None:
@@ -450,6 +558,7 @@ class SwitchStateCreate(contracts.SwitchStateCreate):
             return
 
         # print(f'New value: {new_value}')
+        self.event_count += 1
         self.set_value(new_value)
 
 

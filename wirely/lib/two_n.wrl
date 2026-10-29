@@ -136,7 +136,6 @@ namespace TwoN {
   resource type IOStateState;
 
   // Get the current state of an input or output
-  // TODO: Regularly get the current value?
   node type IOState {
     #[Diagram.ShowValue]
     parameter Port: string;
@@ -158,7 +157,6 @@ namespace TwoN {
   resource type SwitchStateState;
 
   // Get the current state of a switch
-  // TODO: Regularly get the current value?
   node type SwitchState {
     #[Diagram.ShowValue]
     parameter SwitchNumber: int32;
