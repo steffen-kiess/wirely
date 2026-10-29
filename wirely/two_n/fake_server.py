@@ -58,7 +58,10 @@ class Server:
         self.tls_key = OpenSSL.crypto.dump_privatekey(OpenSSL.crypto.FILETYPE_PEM, key)
         self.tlsa = cert.build_certificate_fingerprint(self.tls_cert_asn1)
 
-        self.app = aiohttp.web.Application()
+        # While False, every request is answered with an error, as if the device were unavailable.
+        self.available = True
+
+        self.app = aiohttp.web.Application(middlewares=[self.availability_middleware])
         self.app.add_routes([
             aiohttp.web.get('/', self.hello),
             aiohttp.web.get('/api/log/subscribe', self.api_log_subscribe),
@@ -158,6 +161,30 @@ class Server:
         finally:
             self.close()
 
+    @aiohttp.web.middleware
+    async def availability_middleware(self, request: aiohttp.web.Request,
+                                      handler: aiohttp.typedefs.Handler) -> aiohttp.web.StreamResponse:
+        if not self.available:
+            return aiohttp.web.Response(status=503, text='Unavailable')
+        return await handler(request)
+
+    def drop_subscriptions(self) -> None:
+        """Forget all subscriptions, as a restarting device does; pending pulls fail."""
+        self.subscriptions.clear()
+        self.wait_event.set()
+
+    @staticmethod
+    def unknown_subscription() -> aiohttp.web.Response:
+        # TODO: Check error messages
+        reply = {
+            'success': False,
+            'error': {
+                'code': 1,
+                'description': 'Cannot find subscription ID',
+            },
+        }
+        return aiohttp.web.json_response(data=reply)
+
     async def hello(self, request: aiohttp.web.Request) -> aiohttp.web.Response:
         return aiohttp.web.Response(text="Hello, world")
 
@@ -194,22 +221,14 @@ class Server:
         par_id = int(params['id'])
         verbose_print('api_log_unsubscribe', par_id)
         verbose_print(f'Subscriptions {list(self.subscriptions)!r}')
-        # TODO: Check error messages
         if par_id not in self.subscriptions:
-            reply = {
-                'success': False,
-                'error': {
-                    'code': 1,
-                    'description': 'Cannot find subscription ID',
-                },
-            }
-        else:
-            del self.subscriptions[par_id]
-            reply = {
-                'success': True,
-                'result': {
-                },
-            }
+            return self.unknown_subscription()
+        del self.subscriptions[par_id]
+        reply = {
+            'success': True,
+            'result': {
+            },
+        }
         # TODO: Prevent charset from being added to reply?
         return aiohttp.web.json_response(data=reply)
 
@@ -228,15 +247,22 @@ class Server:
 
         verbose_print('api_log_pull', par_id, par_timeout)
         verbose_print(f'Lookup {par_id!r} {list(self.subscriptions)}')
+        if par_id not in self.subscriptions:
+            return self.unknown_subscription()
         subscription = self.subscriptions[par_id]
         remaining_timeout = par_timeout
         while remaining_timeout > 0 and len(subscription['pending']) == 0:
             # TODO: Filter events?
-            async with asyncio.timeout(remaining_timeout):
-                await self.wait_event.wait()
+            try:
+                async with asyncio.timeout(remaining_timeout):
+                    await self.wait_event.wait()
 
-                # TODO: Is this correct it there are multiple subscribers?
-                self.wait_event.clear()
+                    # TODO: Is this correct it there are multiple subscribers?
+                    self.wait_event.clear()
+            except TimeoutError:
+                break
+            if par_id not in self.subscriptions:
+                return self.unknown_subscription()
         events = []
         if len(subscription['pending']) > 0:
             events = subscription['pending']

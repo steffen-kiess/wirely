@@ -2,21 +2,34 @@ import asyncio
 import sys
 import json
 import contextlib
+import random
 from typing import Any, Literal
 
+import aiohttp
+
 import wirely
+import wirely.two_n.client
 from wirely import Int32, Some, UInt16
 from wirely.generated import two_n as contracts
+from wirely.misc.repeated_errors import RepeatedError
 from wirely.runtime.native_api import ProcedureServices, StateServices
 from wirely.generated.structs import TwoNCredentials
+from wirely.two_n.client import TwoNError
 from wirely.util import verbose_print
+
+
+# Delay before the first reconnection attempt, doubled after each failed attempt up to the maximum. Each delay is
+# shortened randomly by up to a fifth, so that devices started together spread out.
+RECONNECT_DELAY_MIN = 1.0
+RECONNECT_DELAY_MAX = 60.0
+
+# Errors of a request that leave the connection unusable or show that the device does not support a request.
+REQUEST_ERRORS = (aiohttp.ClientError, TimeoutError, TwoNError)
 
 
 class ConnectionCreate(contracts.ConnectionCreate):
     def initialize(self, *, services: StateServices[Literal['device']], host: str, port: UInt16,
                    tlsa: tuple[str, ...], credentials: TwoNCredentials) -> contracts.ConnectionCreateResult:
-        import wirely.two_n.client
-
         verbose_print('Create TwoN Connection', flush=True)
 
         hostname = host
@@ -25,17 +38,111 @@ class ConnectionCreate(contracts.ConnectionCreate):
 
         self.client = wirely.two_n.client.Client(hostname=hostname, port=port.value, tlsa=tlsa, http_api_username_password=(credentials.username, credentials.password))
         self.log_receiver = wirely.two_n.client.LogReceiver(self.client)
+        self.description = f'{hostname}:{port.value}'
+
+        # Clients register themselves while being initialized.
+        self.io_states: list[IOStateCreate] = []
+        self.switch_states: list[SwitchStateCreate] = []
+        # Notified when connecting and disconnecting.
+        self.listeners: list[ConnectionStateCreate | IOStateCreate | SwitchStateCreate | OutputControlCreate] = []
+
+        self.connected = False
+        # Set on a disconnect until get_connected() has reported it.
+        self.disconnect_pending = False
+        self.errors = RepeatedError(f'TwoN connection to {self.description}')
+        # Counts the connections, so that a task can tell whether it still uses the same one.
+        self.connection_number = 0
         return contracts.ConnectionCreateResult(device=self)
 
-    async def start_tasks_async(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
-        await super().start_tasks_async(task_group=task_group, async_exit_stack=async_exit_stack)
+    def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
+        super().start_tasks(task_group, async_exit_stack)
 
-        verbose_print('Starting TwoN client', flush=True)
-        await async_exit_stack.enter_async_context(self.client)
-        verbose_print('Starting log receiver', flush=True)
-        # TODO: Should this try to unsubscribe on shutdown and if yes, how long should it wait?
-        await self.log_receiver.start_tasks_async(task_group=task_group, async_exit_stack=async_exit_stack)
-        verbose_print('Starting TwoN client done', flush=True)
+        self.task = self.start_task(task_group, async_exit_stack, self.connection_task())
+        async_exit_stack.callback(self.set_disconnected)
+
+    async def connection_task(self) -> None:
+        delay = RECONNECT_DELAY_MIN
+        while True:
+            verbose_print(f'Connecting to TwoN device at {self.description}', flush=True)
+            number = self.connection_number
+            try:
+                async with self.client:
+                    try:
+                        await self.log_receiver.receive(self.subscribed)
+                    finally:
+                        self.set_disconnected()
+            except REQUEST_ERRORS as e:
+                self.errors.report(str(e) or type(e).__name__)
+            if self.connection_number != number:
+                delay = RECONNECT_DELAY_MIN
+            await asyncio.sleep(delay * random.uniform(0.8, 1.0))
+            delay = min(delay * 2, RECONNECT_DELAY_MAX)
+
+    async def subscribed(self) -> None:
+        """Read the current states after subscribing, then report the connection."""
+        states: list[IOStateCreate | SwitchStateCreate] = [*self.io_states, *self.switch_states]
+        for state in states:
+            await state.read_state()
+        self.errors.end()
+        print(f'Connected to TwoN device at {self.description}', flush=True)
+        self.set_connected()
+
+    def set_connected(self) -> None:
+        if self.connected:
+            return
+        self.connected = True
+        self.connection_number += 1
+        self.services.trigger('device')
+        for listener in self.listeners:
+            listener.connected()
+
+    def set_disconnected(self) -> None:
+        if not self.connected:
+            return
+        self.connected = False
+        self.disconnect_pending = True
+        self.services.trigger('device')
+        for listener in self.listeners:
+            listener.disconnected()
+
+
+class ConnectionGetConnected(contracts.ConnectionGetConnected):
+    def run(self, *, services: ProcedureServices,
+            device: ConnectionCreate) -> contracts.ConnectionGetConnectedResult:
+        if device.disconnect_pending:
+            # Report each disconnect for at least one step, even if the connection was restored since.
+            device.disconnect_pending = False
+            services.trigger_self()
+            return contracts.ConnectionGetConnectedResult(connected=False)
+        return contracts.ConnectionGetConnectedResult(connected=device.connected)
+
+
+class ConnectionStateCreate(contracts.ConnectionStateCreate):
+    def initialize(self, *, services: StateServices[Literal['state']],
+                   device: ConnectionCreate) -> contracts.ConnectionStateCreateResult:
+        self.native_device = device
+        # Set on a disconnect until get_value() has reported it.
+        self.disconnect_pending = False
+        device.listeners.append(self)
+        return contracts.ConnectionStateCreateResult(state=self)
+
+    def connected(self) -> None:
+        self.services.trigger('state')
+
+    def disconnected(self) -> None:
+        self.disconnect_pending = True
+        self.services.trigger('state')
+
+
+class ConnectionStateGetValue(contracts.ConnectionStateGetValue):
+    def run(self, *, services: ProcedureServices,
+            state: ConnectionStateCreate) -> contracts.ConnectionStateGetValueResult:
+        if state.disconnect_pending:
+            # Report each disconnect for at least one step, even if the connection was restored since.
+            state.disconnect_pending = False
+            services.trigger_self()
+            return contracts.ConnectionStateGetValueResult(output=False)
+        return contracts.ConnectionStateGetValueResult(output=state.native_device.connected)
 
 
 class KeyEventCreate(contracts.KeyEventCreate):
@@ -149,15 +256,28 @@ class CodeEnteredEventGetValue(contracts.CodeEnteredEventGetValue):
         return contracts.CodeEnteredEventGetValueResult(output=wirely.Some(wirely.Unit()))
 
 
+def _status_entry(response: Any, list_key: str, id_key: str, id: object) -> dict[str, Any]:
+    """Return the only entry of a status response, which must be the one for id."""
+    try:
+        entries = response[list_key]
+        if len(entries) != 1 or entries[0][id_key] != id:
+            raise TwoNError(f'Got unexpected {list_key} {entries!r}')
+        entry: dict[str, Any] = entries[0]
+    except (KeyError, TypeError, IndexError) as e:
+        raise TwoNError(f'Got invalid response {response!r}') from e
+    return entry
+
+
 class IOStateCreate(contracts.IOStateCreate):
     def initialize(self, *, services: StateServices[Literal['state']], device: ConnectionCreate,
                    port: str) -> contracts.IOStateCreateResult:
         self.port = port
 
-        # TODO: What value should this provide while there is no connection?
+        # None while disconnected, until the state has been read after connecting.
         self.current_value: bool | None = None
-
-        # TODO: Read current value on start-up in a race-free way
+        # Set on a disconnect until get_value() has reported it.
+        self.disconnect_pending = False
+        self.errors = RepeatedError(f'Reading TwoN port {port!r}')
 
         verbose_print('Create TwoN IOState', flush=True)
 
@@ -168,30 +288,41 @@ class IOStateCreate(contracts.IOStateCreate):
 
         # TODO: Do this here? Or register / deregister later?
         self.native_device.log_receiver.add_handler(['InputChanged', 'OutputChanged'], self.handler)
+        device.io_states.append(self)
+        device.listeners.append(self)
         return contracts.IOStateCreateResult(state=self)
 
-    async def start_tasks_async(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
-        await super().start_tasks_async(task_group=task_group, async_exit_stack=async_exit_stack)
+    async def read_state(self) -> None:
+        """Read the state after subscribing; errors of the connection propagate."""
+        try:
+            response = await self.native_device.client.json_request("GET", "/api/io/status", params={
+                'port': self.port,
+            })
+            # print('RESPONSE', response)
+            state = _status_entry(response, 'ports', 'port', self.port)['state']
+            if type(state) != int or state not in (0, 1):
+                raise TwoNError(f'Got invalid state {state!r}')
+        except TwoNError as e:
+            # The device might not have this port; the other nodes keep working.
+            self.errors.report(str(e))
+            return
+        self.errors.end()
+        self.set_value(bool(state))
 
-        if not self.native_device.log_receiver.is_subscribed:
-            raise Exception('Attempting to start up IOStateCreate without event subscription')
+    def set_value(self, value: bool) -> None:
+        if value == self.current_value:
+            return
+        self.current_value = value
+        self.services.trigger('state')
 
-        response = await self.native_device.client.json_request("GET", "/api/io/status", params={
-            'port': self.port,
-        })
-        # print('RESPONSE', response)
-        ports = response['ports']
-        if len(ports) != 1:
-            raise Exception('TwoN.IOStateCreate: len(ports) != 1')
-        port = ports[0]
-        if port['port'] != self.port:
-            raise Exception("TwoN.IOStateCreate: port['port'] != self.port")
-        state = port['state']
-        if type(state) != int:
-            raise Exception('TwoN.IOStateCreate: type(state) != int')
-        if state != 0 and state != 1:
-            raise Exception('TwoN.IOStateCreate: state != 0 and state != 1')
-        self.current_value = bool(state)
+    def connected(self) -> None:
+        pass
+
+    def disconnected(self) -> None:
+        # The state may change unnoticed while disconnected.
+        self.current_value = None
+        self.disconnect_pending = True
+        self.services.trigger('state')
 
     def handler(self, event: dict[str, Any]) -> None:
         # print(f'Got event: {event}')
@@ -212,12 +343,16 @@ class IOStateCreate(contracts.IOStateCreate):
             return
 
         # print(f'New value: {new_value}')
-        self.services.trigger('state')
-        self.current_value = new_value
+        self.set_value(new_value)
 
 
 class IOStateGetValue(contracts.IOStateGetValue):
     def run(self, *, services: ProcedureServices, state: 'IOStateCreate') -> contracts.IOStateGetValueResult:
+        if state.disconnect_pending:
+            # Report each disconnect for at least one step, even if the state was read again since.
+            state.disconnect_pending = False
+            services.trigger_self()
+            return contracts.IOStateGetValueResult(output=None)
         value = state.current_value
         if value is None:
             return contracts.IOStateGetValueResult(output=None)
@@ -229,10 +364,11 @@ class SwitchStateCreate(contracts.SwitchStateCreate):
                    switch_number: Int32) -> contracts.SwitchStateCreateResult:
         self.switch_number = switch_number.value
 
-        # TODO: What value should this provide while there is no connection?
+        # None while disconnected, until the state has been read after connecting.
         self.current_value: bool | None = None
-
-        # TODO: Read current value on start-up in a race-free way
+        # Set on a disconnect until get_value() has reported it.
+        self.disconnect_pending = False
+        self.errors = RepeatedError(f'Reading TwoN switch {self.switch_number}')
 
         verbose_print('Create TwoN SwitchState', flush=True)
 
@@ -243,28 +379,41 @@ class SwitchStateCreate(contracts.SwitchStateCreate):
 
         # TODO: Do this here? Or register / deregister later?
         self.native_device.log_receiver.add_handler(['SwitchStateChanged'], self.handler)
+        device.switch_states.append(self)
+        device.listeners.append(self)
         return contracts.SwitchStateCreateResult(state=self)
 
-    async def start_tasks_async(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
-        await super().start_tasks_async(task_group=task_group, async_exit_stack=async_exit_stack)
+    async def read_state(self) -> None:
+        """Read the state after subscribing; errors of the connection propagate."""
+        try:
+            response = await self.native_device.client.json_request("GET", "/api/switch/status", params={
+                'switch': self.switch_number,
+            })
+            # print('RESPONSE', response)
+            active = _status_entry(response, 'switches', 'switch', self.switch_number)['active']
+            if type(active) != bool:
+                raise TwoNError(f'Got invalid state {active!r}')
+        except TwoNError as e:
+            # The device might not have this switch; the other nodes keep working.
+            self.errors.report(str(e))
+            return
+        self.errors.end()
+        self.set_value(active)
 
-        if not self.native_device.log_receiver.is_subscribed:
-            raise Exception('Attempting to start up SwitchStateCreate without event subscription')
+    def set_value(self, value: bool) -> None:
+        if value == self.current_value:
+            return
+        self.current_value = value
+        self.services.trigger('state')
 
-        response = await self.native_device.client.json_request("GET", "/api/switch/status", params={
-            'switch': self.switch_number,
-        })
-        # print('RESPONSE', response)
-        switches = response['switches']
-        if len(switches) != 1:
-            raise Exception('TwoN.SwitchStateCreate: len(switches) != 1')
-        switch = switches[0]
-        if switch['switch'] != self.switch_number:
-            raise Exception("TwoN.SwitchStateCreate: switch['switch'] != self.switch_number")
-        active = switch['active']
-        if type(active) != bool:
-            raise Exception('TwoN.SwitchStateCreate: type(active) != bool')
-        self.current_value = active
+    def connected(self) -> None:
+        pass
+
+    def disconnected(self) -> None:
+        # The state may change unnoticed while disconnected.
+        self.current_value = None
+        self.disconnect_pending = True
+        self.services.trigger('state')
 
     def handler(self, event: dict[str, Any]) -> None:
         # print(f'Got event: {event}')
@@ -285,12 +434,16 @@ class SwitchStateCreate(contracts.SwitchStateCreate):
             return
 
         # print(f'New value: {new_value}')
-        self.services.trigger('state')
-        self.current_value = new_value
+        self.set_value(new_value)
 
 
 class SwitchStateGetValue(contracts.SwitchStateGetValue):
     def run(self, *, services: ProcedureServices, state: 'SwitchStateCreate') -> contracts.SwitchStateGetValueResult:
+        if state.disconnect_pending:
+            # Report each disconnect for at least one step, even if the state was read again since.
+            state.disconnect_pending = False
+            services.trigger_self()
+            return contracts.SwitchStateGetValueResult(output=None)
         value = state.current_value
         if value is None:
             return contracts.SwitchStateGetValueResult(output=None)
@@ -315,7 +468,16 @@ class OutputControlCreate(contracts.OutputControlCreate):
 
         self.native_device = device
         verbose_print(f'  Using native device object: {self.native_device}', flush=True)
+        self.errors = RepeatedError(f'Setting TwoN port {port!r}')
+        device.listeners.append(self)
         return contracts.OutputControlCreateResult(state=self)
+
+    def connected(self) -> None:
+        pass
+
+    def disconnected(self) -> None:
+        # Values are dropped instead of being sent when they might be outdated.
+        self.value_to_send = None
 
     def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)
@@ -342,13 +504,23 @@ class OutputControlCreate(contracts.OutputControlCreate):
                 print(f'Warning: TwoN.OutputControl: Unexpected value: {value}', flush=True)
                 continue
 
+            if not self.native_device.connected:
+                verbose_print(f'Dropping {value} for port {self.port} while disconnected', flush=True)
+                continue
+
             verbose_print(f"Sending {value} to port {self.port}", flush=True)
-            # response = await self.native_device.client.json_request("GET", "/api/io/ctrl", params={
-            # response = await self.native_device.client.json_request("POST", "/api/io/ctrl", data={}, params={
-            response = await self.native_device.client.json_request("POST", "/api/io/ctrl", data={
-                'port': self.port,
-                'action': action,
-            })
+            try:
+                # response = await self.native_device.client.json_request("GET", "/api/io/ctrl", params={
+                # response = await self.native_device.client.json_request("POST", "/api/io/ctrl", data={}, params={
+                response = await self.native_device.client.json_request("POST", "/api/io/ctrl", data={
+                    'port': self.port,
+                    'action': action,
+                })
+            except REQUEST_ERRORS as e:
+                # The value is dropped instead of being sent again when it might be outdated.
+                self.errors.report(str(e) or type(e).__name__)
+                continue
+            self.errors.end()
             verbose_print(f"Sending {value} to port {self.port} done with result {response}", flush=True)
 
 
@@ -377,3 +549,4 @@ CodeEnteredEventState = CodeEnteredEventCreate  # Used as a resource type.
 IOStateState = IOStateCreate  # Used as a resource type.
 SwitchStateState = SwitchStateCreate  # Used as a resource type.
 OutputControlState = OutputControlCreate  # Used as a resource type.
+ConnectionStateState = ConnectionStateCreate  # Used as a resource type.

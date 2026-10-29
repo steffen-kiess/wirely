@@ -75,6 +75,7 @@ runtime_tests = [
     'wrl/knx_time',
     'wrl/flipflop',
     'wrl/two_n',
+    'wrl/two_n_reconnect',
     'wrl/process',
 ]
 
@@ -84,6 +85,7 @@ manually_activated_tests = {
     'wrl/gpio',
     'wrl/knx_reconnect',
     'wrl/mqtt_reconnect',
+    'wrl/two_n_reconnect',
 }
 
 example_tests = [
@@ -214,4 +216,5 @@ exclusive_tests = [
     'wrl/gpio',
     'wrl/knx_reconnect',
     'wrl/mqtt_reconnect',
+    'wrl/two_n_reconnect',
 ]

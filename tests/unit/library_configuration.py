@@ -28,10 +28,20 @@ def settings_engine(program):
             def initialize(self, *, services):
                 self.log_receiver = self
                 self.handlers = []
+                self.listeners = []
+                self.connected = True
                 return contracts.SettingsDeviceCreateResult(device=self)
 
             def add_handler(self, events, handler):
                 self.handlers.append((events, handler))
+
+            def set_connected(self, connected):
+                self.connected = connected
+                for listener in self.listeners:
+                    if connected:
+                        listener.connected()
+                    else:
+                        listener.disconnected()
         registry['initializers']['TestLibrary.SettingsDevice:create'] = SettingsDevice
 
         bindings = test_extension(**registry, contracts=contracts)
@@ -454,7 +464,7 @@ def check_key_state():
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
             runtime.step()
-        runtime.assert_value_is('wrapper.child', wirely.Some(pressed))
+        runtime.assert_value_is('wrapper.child', None if pressed is None else wirely.Some(pressed))
         expected = ('Warning: [wrapper.child.timeout_warning]: '
                     'TwoN.KeyState: Resetting key after timeout\n') if warning else ''
         assert output.getvalue() == expected, output.getvalue()
@@ -514,6 +524,29 @@ def check_key_state():
     # Losing the clock generation releases the key and warns only once.
     runtime.advance_fake_monotonic_time_generation()
     step(False, warning=True)
+    step(False)
+    runtime.assert_is_idle()
+
+    # A disconnect releases the key without a warning, and the key is unknown until connected.
+    device = runtime.get_native_state('device.create')
+    event(True)
+    step(True)
+    step(True)
+    device.set_connected(False)
+    step(None)
+    step(None)
+    runtime.assert_is_idle()
+    device.set_connected(True)
+    step(False)
+    runtime.assert_is_idle()
+
+    # A reconnect between two steps is reported for one step.
+    event(True)
+    step(True)
+    step(True)
+    device.set_connected(False)
+    device.set_connected(True)
+    step(None)
     step(False)
     runtime.assert_is_idle()
 

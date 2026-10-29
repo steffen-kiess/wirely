@@ -20,7 +20,8 @@ from wirely.types.unit import Unit
 
 if TYPE_CHECKING:
     from wirely.native.two_n import (
-    CodeEnteredEventState, Device, IOStateState, KeyEventState, OutputControlState, SwitchStateState,
+    CodeEnteredEventState, ConnectionStateState, Device, IOStateState, KeyEventState, OutputControlState,
+    SwitchStateState,
 )
 
 __all__ = [
@@ -28,6 +29,8 @@ __all__ = [
     'CodeEnteredEventCreate',
     'ConnectionCreateResult',
     'ConnectionCreate',
+    'ConnectionStateCreateResult',
+    'ConnectionStateCreate',
     'IOStateCreateResult',
     'IOStateCreate',
     'KeyEventCreateResult',
@@ -38,6 +41,10 @@ __all__ = [
     'SwitchStateCreate',
     'CodeEnteredEventGetValueResult',
     'CodeEnteredEventGetValue',
+    'ConnectionGetConnectedResult',
+    'ConnectionGetConnected',
+    'ConnectionStateGetValueResult',
+    'ConnectionStateGetValue',
     'IOStateGetValueResult',
     'IOStateGetValue',
     'KeyEventGetValueResult',
@@ -131,6 +138,44 @@ class _ConnectionCreateAdapter(InitializerAdapter):
 
 
 ConnectionCreate._adapter = _ConnectionCreateAdapter()
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ConnectionStateCreateResult:
+    """Fixed outputs of native initializer TwoN.ConnectionState:create."""
+
+    state: ConnectionStateState
+
+
+class ConnectionStateCreate(NativeState[Literal['state']], abc.ABC):
+    """Native initializer TwoN.ConnectionState:create; initialize() returns its fixed outputs."""
+
+    @abc.abstractmethod
+    def initialize(
+        self, *,
+        services: StateServices[Literal['state']],
+        device: Device,
+    ) -> ConnectionStateCreateResult:
+        ...
+
+
+class _ConnectionStateCreateAdapter(InitializerAdapter):
+    output_keys = {'state': 'state'}
+
+    def initialize(self, state: NativeState[Any], services: StateServices[Any],
+                   binding: InterfaceBinding) -> dict[str, InternalValue]:
+        assert isinstance(state, ConnectionStateCreate)
+        result = state.initialize(
+            services=services,
+            device=cast('Device', binding.fixed('Device')),
+        )
+        binding.check_result(result, ConnectionStateCreateResult)
+        return {
+            'state': binding.output('state', result.state),
+        }
+
+
+ConnectionStateCreate._adapter = _ConnectionStateCreateAdapter()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -342,6 +387,108 @@ class _CodeEnteredEventGetValueAdapter(ProcedureAdapter):
 
 
 CodeEnteredEventGetValue._adapter = _CodeEnteredEventGetValueAdapter()
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ConnectionGetConnectedResult:
+    """Outputs of native procedure TwoN.Connection:get_connected."""
+
+    connected: bool
+
+
+class ConnectionGetConnected(NativeProcedure, abc.ABC):
+    """Native procedure TwoN.Connection:get_connected."""
+
+    def prepare(
+        self, *,
+        services: PreparationServices,
+        device: Device,
+    ) -> None:
+        pass
+
+    @abc.abstractmethod
+    def run(
+        self, *,
+        services: ProcedureServices,
+        device: Device,
+    ) -> ConnectionGetConnectedResult:
+        ...
+
+
+class _ConnectionGetConnectedAdapter(ProcedureAdapter):
+    def prepare(self, procedure: NativeProcedure, services: PreparationServices,
+                binding: InterfaceBinding) -> None:
+        assert isinstance(procedure, ConnectionGetConnected)
+        procedure.prepare(
+            services=services,
+            device=cast('Device', binding.fixed('device')),
+        )
+
+    def run(self, procedure: NativeProcedure, services: ProcedureServices, binding: InterfaceBinding,
+            inputs: Mapping[str, InternalValue]) -> dict[str, InternalValue]:
+        assert isinstance(procedure, ConnectionGetConnected)
+        result = procedure.run(
+            services=services,
+            device=cast('Device', binding.fixed('device')),
+        )
+        binding.check_result(result, ConnectionGetConnectedResult)
+        return {
+            'connected': binding.output('connected', result.connected),
+        }
+
+
+ConnectionGetConnected._adapter = _ConnectionGetConnectedAdapter()
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ConnectionStateGetValueResult:
+    """Outputs of native procedure TwoN.ConnectionState:get_value."""
+
+    output: bool
+
+
+class ConnectionStateGetValue(NativeProcedure, abc.ABC):
+    """Native procedure TwoN.ConnectionState:get_value."""
+
+    def prepare(
+        self, *,
+        services: PreparationServices,
+        state: ConnectionStateState,
+    ) -> None:
+        pass
+
+    @abc.abstractmethod
+    def run(
+        self, *,
+        services: ProcedureServices,
+        state: ConnectionStateState,
+    ) -> ConnectionStateGetValueResult:
+        ...
+
+
+class _ConnectionStateGetValueAdapter(ProcedureAdapter):
+    def prepare(self, procedure: NativeProcedure, services: PreparationServices,
+                binding: InterfaceBinding) -> None:
+        assert isinstance(procedure, ConnectionStateGetValue)
+        procedure.prepare(
+            services=services,
+            state=cast('ConnectionStateState', binding.fixed('state')),
+        )
+
+    def run(self, procedure: NativeProcedure, services: ProcedureServices, binding: InterfaceBinding,
+            inputs: Mapping[str, InternalValue]) -> dict[str, InternalValue]:
+        assert isinstance(procedure, ConnectionStateGetValue)
+        result = procedure.run(
+            services=services,
+            state=cast('ConnectionStateState', binding.fixed('state')),
+        )
+        binding.check_result(result, ConnectionStateGetValueResult)
+        return {
+            'output': binding.output('output', result.output),
+        }
+
+
+ConnectionStateGetValue._adapter = _ConnectionStateGetValueAdapter()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

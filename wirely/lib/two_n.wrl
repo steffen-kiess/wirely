@@ -21,10 +21,35 @@ namespace TwoN {
     constant credentials: Credentials = ReadCredentials(UsernamePasswordFile);
 
     default output: fixed Device;
+    // True while connected to the device.
+    output Connected: value boolean;
 
     native initializer create
       reads Host, Port, TLSA, credentials
       writes default output as "device";
+
+    native procedure get_connected stage input
+      reads default output as "device"
+      writes Connected as "connected";
+  }
+
+  #[Internal]
+  resource type ConnectionStateState;
+
+  // Whether the connection of a device is established, for nodes that use
+  // the device.
+  #[Internal]
+  node type ConnectionState {
+    input Device: fixed Device;
+    // True while connected to the device.
+    default output: value boolean;
+
+    binding state: fixed ConnectionStateState;
+    native initializer create reads Device writes state as "state";
+
+    native procedure get_value stage input
+      reads state as "state"
+      writes default output as "output";
   }
 
   #[Internal]
@@ -49,9 +74,7 @@ namespace TwoN {
 
   // Get the current state of a key
   //
-  // Might be incorrect after startup if key is already pressed on startup.
-  // TODO: When the connection is lost, this also should reset the value to
-  // "False"
+  // Might be incorrect after connecting if the key is already pressed then.
   node type KeyState {
     #[Diagram.ShowValue]
     parameter Key: string;
@@ -67,6 +90,8 @@ namespace TwoN {
 
     node key_event: KeyEvent { Key: Key }
     connect Device -> key_event.Device;
+    node connected: ConnectionState {}
+    connect Device -> connected.Device;
 
     // Start of the current press, or None while the key is released.
     state pressed_at: Option[Timer.MonotonicTime] = None;
@@ -80,11 +105,15 @@ namespace TwoN {
     }
 
     procedure get_value
-      reads key_event, event_time, pressed_at.old as previous, timeout
+      reads key_event, event_time, pressed_at.old as previous, timeout,
+        connected
       writes default output as output, pressed_at, timed_out: event unit
     {
-      // A new press or release takes precedence over an expired timeout.
-      pressed_at = if let Some(pressed) = optional(key_event) {
+      // Presses are not tracked while disconnected. A new press or release
+      // takes precedence over an expired timeout.
+      pressed_at = if !connected {
+        None
+      } else if let Some(pressed) = optional(key_event) {
         if pressed { optional(event_time) } else { None }
       } else if timeout == Some(false) {
         previous
@@ -92,9 +121,10 @@ namespace TwoN {
         // A missing release event or lost monotonic time releases the key.
         None
       };
-      output = Some(pressed_at.IsSome);
+      output = if connected { Some(pressed_at.IsSome) } else { None };
       on changed pressed_at {
-        if previous.IsSome && pressed_at.IsNone && optional(key_event).IsNone {
+        if connected && previous.IsSome && pressed_at.IsNone
+            && optional(key_event).IsNone {
           emit timed_out;
         }
       }

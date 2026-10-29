@@ -1,0 +1,24 @@
+node device: TwoN.Connection {
+  Host: Test.ReplaceTwoNHost("invalid"),
+  Port: Test.ReplaceTwoNPort(443),
+  TLSA: Test.ReplaceTwoNTLSA([]),
+  UsernamePasswordFile:
+    Path.Join(Path.Parent(Path.SourceFile()), "username_password.txt"),
+}
+
+node input1: TwoN.IOState { Port: "ext3.input1" }
+connect device -> input1.Device;
+
+node missing: TwoN.IOState { Port: "missing" }
+connect device -> missing.Device;
+
+node switch1: TwoN.SwitchState { SwitchNumber: 1 }
+connect device -> switch1.Device;
+
+node key: TwoN.KeyState { Key: "%2" }
+connect device -> key.Device;
+
+node output_led: TwoN.OutputControl { Port: "led_secured" }
+connect device -> output_led.Device;
+node output_debug: Std.DebugEventSource { Type: boolean }
+connect output_debug -> output_led;

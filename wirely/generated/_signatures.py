@@ -216,6 +216,15 @@ native_state_types: dict[str, Initializer] = {
             'credentials': Struct('TwoN.Credentials'),
         },
     ),
+    'TwoN.ConnectionState:create': Initializer(
+        depends={
+            'Device': Port('resource', ResourceType('TwoN.Device')),
+        },
+        produces={
+            'state': Port('resource', ResourceType('TwoN.ConnectionStateState')),
+        },
+        uses={},
+    ),
     'TwoN.IOState:create': Initializer(
         depends={
             'Device': Port('resource', ResourceType('TwoN.Device')),
@@ -525,6 +534,26 @@ native_procedures: dict[str, Procedure] = {
         },
         produces={
             'output': Port('event', Builtin('unit')),
+        },
+        uses={},
+    ),
+    'TwoN.Connection:get_connected': Procedure(
+        stage='input',
+        depends={
+            'device': Port('resource', ResourceType('TwoN.Device')),
+        },
+        produces={
+            'connected': Port('value', Builtin('boolean')),
+        },
+        uses={},
+    ),
+    'TwoN.ConnectionState:get_value': Procedure(
+        stage='input',
+        depends={
+            'state': Port('resource', ResourceType('TwoN.ConnectionStateState')),
+        },
+        produces={
+            'output': Port('value', Builtin('boolean')),
         },
         uses={},
     ),

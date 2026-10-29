@@ -3,6 +3,12 @@ import asyncio
 import wirely
 
 
+async def wait_until(condition):
+    async with asyncio.timeout(5):
+        while not condition():
+            await asyncio.sleep(0.01)
+
+
 async def run_test():
     engine.test_twon_fake_server_info.server.set_io_state('ext3.input1', True)
     engine.test_twon_fake_server_info.server.set_switch_state(2, True)
@@ -12,15 +18,15 @@ async def run_test():
         if actual_state != expected_state:
             raise Exception(f'Expected state for port {port_name} is {expected_state}, but got {actual_state}')
 
+    # The states are read after subscribing, before the connection is reported.
+    await wait_until(lambda: engine.get_native_state('device.create').connected)
     engine.step()
+    engine.assert_value_is('device.Connected', True)
     engine.assert_value_is('key2_event', None)
     engine.assert_value_is('key2', wirely.Some(False))
     engine.assert_value_is('key3', wirely.Some(False))
     engine.assert_value_is('tamper_input', wirely.Some(False))
     engine.assert_is_idle()
-
-    # Note: Wait for the subscription to be ready
-    await asyncio.sleep(0.1)
 
     engine.test_twon_fake_server_info.server.emit_key_press('%2')
     # Wait for the event to be read

@@ -176,6 +176,16 @@ def _load_states_two_n_connection_create() -> StateImplementation:
     return StateImplementation(create, ConnectionCreate._adapter)
 
 
+def _load_states_two_n_connection_state_create() -> StateImplementation:
+    from wirely.generated.two_n import ConnectionStateCreate
+    from wirely.native.two_n import ConnectionStateCreate as Implementation
+
+    def create() -> ConnectionStateCreate:
+        return Implementation()
+
+    return StateImplementation(create, ConnectionStateCreate._adapter)
+
+
 def _load_states_two_n_io_state_create() -> StateImplementation:
     from wirely.generated.two_n import IOStateCreate
     from wirely.native.two_n import IOStateCreate as Implementation
@@ -234,6 +244,7 @@ states: dict[str, Callable[[], StateImplementation]] = {
     'Std.DebugValueSource:create': _load_states_std_debug_value_source_create,
     'TwoN.CodeEnteredEvent:create': _load_states_two_n_code_entered_event_create,
     'TwoN.Connection:create': _load_states_two_n_connection_create,
+    'TwoN.ConnectionState:create': _load_states_two_n_connection_state_create,
     'TwoN.IOState:create': _load_states_two_n_io_state_create,
     'TwoN.KeyEvent:create': _load_states_two_n_key_event_create,
     'TwoN.OutputControl:create': _load_states_two_n_output_control_create,
@@ -481,6 +492,26 @@ def _load_procedures_two_n_code_entered_event_get_value() -> ProcedureImplementa
     return ProcedureImplementation(create, CodeEnteredEventGetValue._adapter)
 
 
+def _load_procedures_two_n_connection_get_connected() -> ProcedureImplementation:
+    from wirely.generated.two_n import ConnectionGetConnected
+    from wirely.native.two_n import ConnectionGetConnected as Implementation
+
+    def create() -> ConnectionGetConnected:
+        return Implementation()
+
+    return ProcedureImplementation(create, ConnectionGetConnected._adapter)
+
+
+def _load_procedures_two_n_connection_state_get_value() -> ProcedureImplementation:
+    from wirely.generated.two_n import ConnectionStateGetValue
+    from wirely.native.two_n import ConnectionStateGetValue as Implementation
+
+    def create() -> ConnectionStateGetValue:
+        return Implementation()
+
+    return ProcedureImplementation(create, ConnectionStateGetValue._adapter)
+
+
 def _load_procedures_two_n_io_state_get_value() -> ProcedureImplementation:
     from wirely.generated.two_n import IOStateGetValue
     from wirely.native.two_n import IOStateGetValue as Implementation
@@ -546,6 +577,8 @@ procedures: dict[str, Callable[[], ProcedureImplementation]] = {
     'Timer.MonotonicTimeReached:run': _load_procedures_timer_monotonic_time_reached_run,
     'Timer.MonotonicTimestamp:run': _load_procedures_timer_monotonic_timestamp_run,
     'TwoN.CodeEnteredEvent:get_value': _load_procedures_two_n_code_entered_event_get_value,
+    'TwoN.Connection:get_connected': _load_procedures_two_n_connection_get_connected,
+    'TwoN.ConnectionState:get_value': _load_procedures_two_n_connection_state_get_value,
     'TwoN.IOState:get_value': _load_procedures_two_n_io_state_get_value,
     'TwoN.KeyEvent:get_value': _load_procedures_two_n_key_event_get_value,
     'TwoN.OutputControl:send_value': _load_procedures_two_n_output_control_send_value,
@@ -819,6 +852,11 @@ def _load_resource_two_n_code_entered_event_state() -> type:
     return CodeEnteredEventState
 
 
+def _load_resource_two_n_connection_state_state() -> type:
+    from wirely.native.two_n import ConnectionStateState
+    return ConnectionStateState
+
+
 def _load_resource_two_n_device() -> type:
     from wirely.native.two_n import Device
     return Device
@@ -861,6 +899,7 @@ resources: dict[str, Callable[[], type]] = {
     'Std.DebugEventSourceState': _load_resource_std_debug_event_source_state,
     'Std.DebugValueSourceState': _load_resource_std_debug_value_source_state,
     'TwoN.CodeEnteredEventState': _load_resource_two_n_code_entered_event_state,
+    'TwoN.ConnectionStateState': _load_resource_two_n_connection_state_state,
     'TwoN.Device': _load_resource_two_n_device,
     'TwoN.IOStateState': _load_resource_two_n_io_state_state,
     'TwoN.KeyEventState': _load_resource_two_n_key_event_state,

@@ -257,16 +257,24 @@ connect its default `fixed TwoN.Device` output to each client's named
 
 | Node type | Parameters | Ports and behavior |
 | --- | --- | --- |
-| `Connection` | `Host: string`, `Port: uint16 = 443`, `TLSA: List[string]`, `UsernamePasswordFile: string` | Out: `fixed TwoN.Device`. Connects to the device. The credential file must have an absolute path and contain a username and password on separate lines. |
+| `Connection` | `Host: string`, `Port: uint16 = 443`, `TLSA: List[string]`, `UsernamePasswordFile: string` | Out: `fixed TwoN.Device`; named out `Connected: value boolean`. Connects to the device. The credential file must have an absolute path and contain a username and password on separate lines. |
 | `KeyEvent` | `Key: string` | Named in: `Device`; out: `event boolean`. True on press, false on release. |
-| `KeyState` | `Key: string`, `Timeout: Std.Duration = "30s"` | Named in: `Device`; out: `value Option[boolean]`. Tracks a key, assuming release after the timeout or when monotonic time is lost. Startup state can be wrong if the key was already pressed. |
+| `KeyState` | `Key: string`, `Timeout: Std.Duration = "30s"` | Named in: `Device`; out: `value Option[boolean]`. Tracks a key, assuming release after the timeout or when monotonic time is lost. False after each connect until a press, so it can be wrong if the key was already pressed. |
 | `IOState` | `Port: string` | Named in: `Device`; out: `value Option[boolean]`. Tracks an input or output port. |
 | `SwitchState` | `SwitchNumber: int32` | Named in: `Device`; out: `value Option[boolean]`. Tracks whether a switch is active. |
 | `CodeEnteredEvent` | `Code: string` | Named in: `Device`; out: `event unit`. Emits when the specified code is entered. |
 | `OutputControl` | `Port: string` | Named in: `Device`; in: `event boolean`. Sets an output on or off. |
 
-`KeyState`, `IOState`, and `SwitchState` are `None` while the state is
-unknown.
+`Connection` retries connecting until it succeeds, also after losing the
+connection. `Connected` is true while connected and false for at least one
+step after each disconnect. A lost connection is noticed when a request
+fails or times out. Events are lost while disconnected, and `OutputControl`
+drops values while disconnected or when sending fails.
+
+`KeyState`, `IOState`, and `SwitchState` are `None` while disconnected and
+for at least one step after each disconnect. After each connect, `IOState`
+and `SwitchState` read their state; for a port or switch the device does not
+have, they stay `None` and a warning is logged.
 
 `TLSA` provides certificate association records. TwoN use needs the bundled
 TwoN dependencies, device credentials, and network access to the device.

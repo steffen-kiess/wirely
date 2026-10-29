@@ -5,7 +5,7 @@ import json
 import asyncio
 import contextlib
 import time
-from collections.abc import AsyncIterator, Callable, Coroutine, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from typing import Any
 
 import wirely.misc.service
@@ -15,6 +15,22 @@ from . import cert
 import aiohttp
 
 import logging
+
+
+# Timeout for requests other than event pulls, in seconds.
+REQUEST_TIMEOUT = 30
+# How long ending a subscription waits for the device, in seconds.
+UNSUBSCRIBE_TIMEOUT = 1
+
+
+class TwoNError(Exception):
+    """An error response or an invalid response from the device."""
+
+    def __init__(self, message: str, *, code: Any = None) -> None:
+        super().__init__(message)
+        # The error code reported by the device, if any.
+        self.code = code
+
 
 class LoggingMiddleware:
     def __init__(self) -> None:
@@ -77,8 +93,9 @@ class MyFingerprint(aiohttp.Fingerprint):
             raise aiohttp.ServerFingerprintMismatch(self.fingerprint, got, host, port) from e
 
 
-# TODO: Make sure that there is a timeout for requests, also for event pulls (http.client seems to have no timeout by default)
 class Client:
+    """A connection to the HTTP API of a 2N device; it can be entered again after exiting."""
+
     def __init__(self, *, hostname: str, port: int = 443, tlsa: Sequence[str],
                  http_api_username_password: tuple[str, str] | None = None, ajax_sid: str | None = None,
                  ajax_username_password: tuple[str, str] | None = None, enable_logging: bool = False) -> None:
@@ -100,7 +117,7 @@ class Client:
         else:
             self.digest_middleware = None
 
-        self._context = self._enter()
+        self._context: contextlib.AbstractAsyncContextManager['Client'] | None = None
 
         self.client_session: aiohttp.ClientSession | None = None
 
@@ -111,7 +128,7 @@ class Client:
         if self.client_session is not None:
             raise Exception('Trying to re-enter Client')
         # print('ENTER', flush=True)
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=REQUEST_TIMEOUT)) as session:
             try:
                 self.client_session = session
                 yield self
@@ -120,10 +137,16 @@ class Client:
                 self.client_session = None
 
     async def __aenter__(self) -> 'Client':
+        if self._context is not None:
+            raise Exception('Trying to re-enter Client')
+        self._context = self._enter()
         return await self._context.__aenter__()
 
     async def __aexit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> bool | None:
-        return await self._context.__aexit__(exc_type, exc_value, traceback)
+        assert self._context is not None
+        context = self._context
+        self._context = None
+        return await context.__aexit__(exc_type, exc_value, traceback)
 
     async def http_request(self, method: str, url: str, **kwargs: Any) -> aiohttp.ClientResponse:
         if self.client_session is None:
@@ -157,7 +180,7 @@ class Client:
         async with await self.api_request(method, url, **kwargs) as response:
             # print(response.headers)
             if response.status != 200:
-                raise Exception(f'During {method} request to {url} got status code {response.status}')
+                raise TwoNError(f'During {method} request to {url} got status code {response.status}')
 
             # print(response.status)
             # print(response.read().decode('utf-8'))
@@ -166,15 +189,20 @@ class Client:
             # if content_type != 'application/json':
             # TODO: Allow charset? Should not be there, but aiohttp web json_response() will add it.
             if content_type != 'application/json' and content_type != 'application/json; charset=utf-8':
-                raise Exception(f'During {method} request to {url}: Got unexpected content type {content_type!r}')
+                raise TwoNError(f'During {method} request to {url}: Got unexpected content type {content_type!r}')
 
-            data = json.loads(await response.read())
-
-            if not data['success']:
-                code = data['error']['code']
-                description = data['error']['description']
-                param = data['error'].get('param')
-                raise Exception(f'During {method} request to {url} got error {code!r}: {description!r} {param!r}')
+            try:
+                data = json.loads(await response.read())
+                success = data['success']
+                if not success:
+                    code = data['error']['code']
+                    description = data['error']['description']
+                    param = data['error'].get('param')
+            except (ValueError, KeyError, TypeError, AttributeError) as e:
+                raise TwoNError(f'During {method} request to {url}: Got invalid response: {e!r}') from e
+            if not success:
+                raise TwoNError(f'During {method} request to {url} got error {code!r}: {description!r} {param!r}',
+                                code=code)
 
             return data.get('result')
 
@@ -273,63 +301,46 @@ class LogReceiver:
     def is_subscribed(self) -> bool:
         return self.subscription is not None
 
-    # TODO: Move somewhere else?
-    @staticmethod
-    @contextlib.asynccontextmanager
-    async def start_task_context(task_group: asyncio.TaskGroup,
-                                 coroutine: Coroutine[Any, Any, object]) -> AsyncIterator[asyncio.Task]:
-        task = task_group.create_task(wirely.misc.service.should_never_return(coroutine))
-        try:
-            yield task
-        finally:
-            # print('Canceling')
-            task.cancel()
-            # TODO: Should this wait for the task? Should there be a timeout for waiting?
-            # TODO: How should this be done? (wait for future without throwing)
-            try:
-                await task
-            except:
-                pass
-            # print('Canceling done')
-
-    async def start_tasks_async(self, task_group: asyncio.TaskGroup,
-                                async_exit_stack: contextlib.AsyncExitStack) -> None:
-        # TODO: Should this wait until the subscription has finished? Or until all initial events have been handled?
-
-        # By doing this here instead of using "async with" in _run() this will wait until the subscription is finished
-        # This is currently needed for IOState to be race-free.
-        subscription = await async_exit_stack.enter_async_context(self.with_subscription())
-
-        # await async_exit_stack.enter_async_context(self.context)
-        task = await async_exit_stack.enter_async_context(LogReceiver.start_task_context(task_group, self._run()))
-
     # TODO: Allow removing handlers?
     def add_handler(self, event_names: Sequence[str], handler: Callable[[Any], object]) -> None:
         self.all_handlers.append(handler)
         for event_name in event_names:
             self.handlers.setdefault(event_name, []).append(handler)
 
-    @contextlib.asynccontextmanager
-    async def with_subscription(self) -> AsyncIterator[Any]:
+    async def receive(self, on_subscribed: Callable[[], Awaitable[object]] | None = None) -> None:
+        """Subscribe, await on_subscribed(), and pass events to the handlers until a request fails.
+
+        Reading states in on_subscribed() does not miss changes, because changes after subscribing are pulled
+        afterwards. The subscription is ended when this is cancelled; after a failed request, the device is probably
+        unreachable, so it is left to expire on the device.
+        """
         if self.verbose:
             print('Subscribing...', end='', flush=True)
         # TODO: Use POST instead of GET?
-        self.subscription = await self.client.json_request('POST', '/api/log/subscribe', data=self.subscribe_params)
+        subscription = await self.client.json_request('POST', '/api/log/subscribe', data=self.subscribe_params)
         if self.verbose:
             print(' done.', flush=True)
-        # print(self.subscription)
-
-        id = int(self.subscription['id'])
-
+        # print(subscription)
         try:
-            yield self.subscription
-        finally:
+            id = int(subscription['id'])
+        except (KeyError, TypeError, ValueError) as e:
+            raise TwoNError(f'Got invalid subscription: {subscription!r}') from e
+        self.subscription = subscription
+        try:
+            if on_subscribed is not None:
+                await on_subscribed()
+            await self._run()
+        except asyncio.CancelledError:
             if self.verbose:
                 print('Unsubscribing...', end='', flush=True)
-            await self.client.json_request('POST', '/api/log/unsubscribe', data={'id': id})
-            self.subscription = None
+            with contextlib.suppress(aiohttp.ClientError, TimeoutError, TwoNError):
+                async with asyncio.timeout(UNSUBSCRIBE_TIMEOUT):
+                    await self.client.json_request('POST', '/api/log/unsubscribe', data={'id': id})
             if self.verbose:
                 print(' done.', flush=True)
+            raise
+        finally:
+            self.subscription = None
 
     async def _run(self) -> None:
         timeout = 60
@@ -342,7 +353,10 @@ class LogReceiver:
         while True:
             response = await self.client.json_request('POST', '/api/log/pull', data={'id': id, 'timeout': timeout if initial_handled else 0}, timeout=http_timeout)
             # print(response)
-            events = response['events']
+            try:
+                events = response['events']
+            except (KeyError, TypeError) as e:
+                raise TwoNError(f'Got invalid events: {response!r}') from e
             for event in events:
                 event['_type'] = 'new' if initial_handled else 'old'
                 name = event['event']
@@ -399,8 +413,8 @@ async def main() -> None:
             log_receiver.add_handler(['KeyPressed', 'KeyReleased'], lambda event: print('--STARTUP--' if event is None else f'{event["event"]} {event["params"]["key"]!r} {event["_type"]}'))
             import wirely.misc.service
             try:
-                async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
-                    await log_receiver.start_tasks_async(tg, async_exit_stack)
+                async with asyncio.TaskGroup() as tg:
+                    tg.create_task(log_receiver.receive())
                     await wirely.misc.service.should_never_return(wirely.misc.service.loop_until_sigint_and_throw())
             except* wirely.misc.service.TerminateProgram:
                 # TODO: Handle SIGTERM differently?
