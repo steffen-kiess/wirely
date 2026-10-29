@@ -77,6 +77,8 @@ class Server:
         self.hanging_requests: list[asyncio.Future[None]] = []
         # The number of requests by path.
         self.requests: collections.Counter[str] = collections.Counter()
+        # The timeouts of the pulls, in order.
+        self.pull_timeouts: list[int] = []
 
         self.app = aiohttp.web.Application(middlewares=[self.availability_middleware])
         self.app.add_routes([
@@ -308,6 +310,7 @@ class Server:
         par_timeout = self.get_int(params, 'timeout', 0)
         if isinstance(par_timeout, aiohttp.web.Response):
             return par_timeout
+        self.pull_timeouts.append(par_timeout)
 
         verbose_print('api_log_pull', par_id, par_timeout)
         verbose_print(f'Lookup {par_id!r} {list(self.subscriptions)}')

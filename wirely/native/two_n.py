@@ -31,6 +31,10 @@ RECONNECT_DELAY_MAX = 60.0
 # lost; a state that changed without an event is logged.
 REREAD_INTERVAL = (60 * 60.0, 70 * 60.0)
 
+# The pull timeouts control command 1 accepts, in seconds. A pull with timeout 0 would return at once, so the client
+# would pull without pause; the device closes a subscription that is not pulled for its duration (90 s by default).
+PULL_TIMEOUT_RANGE = (1, 60)
+
 # The number of events a KeyEvent or CodeEnteredEvent keeps until they are delivered, one per step; when more arrive,
 # the oldest one is dropped.
 MAX_PENDING_EVENTS = 10
@@ -140,6 +144,19 @@ class ConnectionCreate(contracts.ConnectionCreate):
             raise CommandFailed('Not connected', reason=1)
         self.reread_at = asyncio.get_running_loop().time()
         return {}
+
+    @control_command(1)
+    def pull_timeout_command(self, argument: object) -> dict[int, object]:
+        """Return the pull timeout for {}, or set it for {1: seconds}; a change applies from the next pull."""
+        if argument is None or argument == {}:
+            return {1: self.log_receiver.pull_timeout}
+        minimum, maximum = PULL_TIMEOUT_RANGE
+        seconds = argument.get(1) if isinstance(argument, dict) and argument.keys() == {1} else None
+        if type(seconds) is not int or not minimum <= seconds <= maximum:
+            raise InvalidCommandArgument(f'Expected {{}} or {{1: seconds}} with {minimum} to {maximum} seconds')
+        self.log_receiver.pull_timeout = seconds
+        print(f'TwoN connection to {self.description}: pull timeout set to {seconds} s from the next pull', flush=True)
+        return {1: seconds}
 
     def set_connected(self) -> None:
         if self.connected:

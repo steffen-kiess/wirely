@@ -6,7 +6,7 @@ from unittest import mock
 
 import wirely
 import wirely.native.two_n
-from wirely.runtime.native_api import CommandFailed
+from wirely.runtime.native_api import CommandFailed, InvalidCommandArgument
 
 
 async def wait_until(condition):
@@ -112,11 +112,14 @@ async def run_steps():
             input1 = next(state for state in device.io_states if state.port == 'ext3.input1')
             loop = asyncio.get_running_loop()
             server.ports['ext3.input1']['state'] = 0
+            pulls = len(server.pull_timeouts)
             device.reread_command(None)
             server.emit_key_press('%9')
             await wait_until(lambda: input1.current_value is False and not device.reread_pending)
             engine.step()
             assert_states(True, wirely.Some(False), wirely.Some(True), wirely.Some(False))
+            # The pull after the read returns immediately.
+            assert 0 in server.pull_timeouts[pulls:], server.pull_timeouts[pulls:]
             # The command restarts the interval.
             assert wirely.native.two_n.REREAD_INTERVAL[0] - 5 < device.reread_at - loop.time()
 
@@ -131,6 +134,20 @@ async def run_steps():
             await wait_until(lambda: input1.event_count == events + 1 and not device.reread_pending)
             engine.step()
             assert_states(True, wirely.Some(True), wirely.Some(True), wirely.Some(False))
+
+            # Command 1 reads or sets the pull timeout, which applies from the next pull.
+            assert device.pull_timeout_command(None) == {1: 60}
+            for argument in ({1: 0}, {1: 61}, {1: True}, {2: 5}, [1]):
+                try:
+                    device.pull_timeout_command(argument)
+                except InvalidCommandArgument:
+                    pass
+                else:
+                    raise AssertionError(f'Invalid argument {argument!r} accepted')
+            for seconds in (1, 60):
+                assert device.pull_timeout_command({1: seconds}) == {1: seconds}
+                server.emit_key_press('%9')
+                await wait_until(lambda: server.pull_timeouts[-1] == seconds)
 
             # A refused connection is retried. The socket is bound but does not listen, so it refuses connections.
             number = device.connection_number
@@ -173,6 +190,7 @@ async def run_test():
     finally:
         engine.test_twon_fake_server_info.server.release_hanging()
         print(output.getvalue(), end='', flush=True)
+    assert 'pull timeout set to 1 s from the next pull' in output.getvalue()
     changed = [line for line in output.getvalue().splitlines() if line.endswith('without an event')]
     assert changed == ["Warning: TwoN.IOState: Port 'ext3.input1' changed to False without an event"], changed
     assert "Warning: Failed to handle TwoN event {'event': 'KeyPressed', '_type': 'new'}:" in output.getvalue()

@@ -281,12 +281,16 @@ every hour, `IOState` and `SwitchState` read their state, and a state that
 changed without an event is logged as a warning; for a port or switch the
 device does not have, they stay `None` and a warning is logged.
 
-`Connection` accepts a control command that reads all states again after the
-current pull, within about a minute, and restarts the hourly interval:
+`Connection` accepts control commands. Command 0 reads all states again
+after the current pull, within about a minute, and restarts the hourly
+interval. Command 1 reads or sets how long a pull waits for events (60 s by
+default), from the next pull; the setting is kept across reconnects but not
+across a restart of the runtime.
 
 | Node type | Command | Argument | Result |
 | --- | --- | --- | --- |
 | `Connection` | 0 | `{}` | `{}`; while disconnected, `CommandFailed` with reason 1 |
+| `Connection` | 1 | `{}` or `{1: seconds}`, from 1 to 60 | `{1: seconds}` |
 
 `TLSA` provides certificate association records. TwoN use needs the bundled
 TwoN dependencies, device credentials, and network access to the device.

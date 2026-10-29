@@ -22,6 +22,8 @@ import logging
 REQUEST_TIMEOUT = 30
 # How long ending a subscription waits for the device, in seconds.
 UNSUBSCRIBE_TIMEOUT = 1
+# How long a pull waits for events by default, in seconds.
+PULL_TIMEOUT = 60
 
 
 class TwoNError(Exception):
@@ -317,6 +319,8 @@ class LogReceiver:
         self.include = include
         self.filter = filter
         self.verbose = verbose
+        # How long a pull waits for events, in seconds; a change applies from the next pull.
+        self.pull_timeout = PULL_TIMEOUT
 
         self.subscribe_params: dict[str, Any] = {}
         if include is not None:
@@ -383,16 +387,15 @@ class LogReceiver:
             self.subscription = None
 
     async def _run(self, between_pulls: Callable[[], Awaitable[bool]] | None) -> None:
-        timeout = 60
-        http_timeout = aiohttp.ClientTimeout(total=timeout + 30, connect=30, sock_connect=30)
-
         assert self.subscription is not None
         id = int(self.subscription['id'])
         initial_handled = False
         immediate = False
 
         while True:
-            pull_timeout = 0 if not initial_handled or immediate else timeout
+            pull_timeout = 0 if not initial_handled or immediate else self.pull_timeout
+            # A pull that returns immediately gets the same 30 s as other requests (REQUEST_TIMEOUT).
+            http_timeout = aiohttp.ClientTimeout(total=pull_timeout + 30, connect=30, sock_connect=30)
             response = await self.client.json_request('POST', '/api/log/pull', data={'id': id, 'timeout': pull_timeout}, timeout=http_timeout)
             # print(response)
             try:
