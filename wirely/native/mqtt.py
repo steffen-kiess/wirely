@@ -591,6 +591,8 @@ class ValueReceiverGetValue(contracts.ValueReceiverGetValue):
     def run(self, *, services: ProcedureServices,
             state: 'ValueReceiverCreate', type: ValueType[Any]) -> contracts.ValueReceiverGetValueResult:
         if state.disconnect_pending:
+            # TODO: Reconsider reporting None for at least one step after each disconnect, even when a value is
+            # available again by the next step. KNX.ValueReceiver and MQTT.ValueReceiver should behave the same.
             # Report each disconnect for at least one step, even if the subscription was restored since.
             state.disconnect_pending = False
             services.trigger_self()

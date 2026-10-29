@@ -249,6 +249,8 @@ class ConnectionCreate(contracts.ConnectionCreate):
         self.send_queue.clear()
         self.read_queue.clear()
         for entry in self.addresses.values():
+            for value_receiver in entry.value_receivers:
+                value_receiver.disconnected()
             entry.read_pending = False
             if entry.reread_timer is not None:
                 entry.reread_timer.cancel()
@@ -407,7 +409,10 @@ class ValueReceiverCreate(contracts.ValueReceiverCreate):
                    group_address: UInt16, value_type_name: str) -> contracts.ValueReceiverCreateResult:
         self.knx_type = get_value_type(type, value_type_name)
         self.codec = _Codec(self.knx_type)
+        # None while disconnected, until a value arrives after connecting.
         self.current_value: DynamicValue | None = None
+        # Set on a disconnect until get_value() has reported it.
+        self.disconnect_pending = False
 
         verbose_print('Create KNX ValueReceiver', flush=True)
 
@@ -437,6 +442,12 @@ class ValueReceiverCreate(contracts.ValueReceiverCreate):
 
         self.services.trigger('state')
 
+    def disconnected(self) -> None:
+        # The value may change unnoticed while disconnected.
+        self.current_value = None
+        self.disconnect_pending = True
+        self.services.trigger('state')
+
 
 class ValueReceiverGetValue(contracts.ValueReceiverGetValue):
     def prepare(self, *, services: PreparationServices, state: 'ValueReceiverCreate', type: ValueType[Any]) -> None:
@@ -445,6 +456,14 @@ class ValueReceiverGetValue(contracts.ValueReceiverGetValue):
     def run(self, *, services: ProcedureServices,
             state: 'ValueReceiverCreate', type: ValueType[Any]) -> contracts.ValueReceiverGetValueResult:
         # TODO: Add checks whether everything is running?
+
+        if state.disconnect_pending:
+            # TODO: Reconsider reporting None for at least one step after each disconnect, even when a value is
+            # available again by the next step. KNX.ValueReceiver and MQTT.ValueReceiver should behave the same.
+            # Report each disconnect for at least one step, even if a value arrived since.
+            state.disconnect_pending = False
+            services.trigger_self()
+            return contracts.ValueReceiverGetValueResult(output=None)
 
         res = state.current_value
 

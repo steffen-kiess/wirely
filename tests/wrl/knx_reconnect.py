@@ -76,18 +76,18 @@ async def run_test():
                     engine.step()
                     engine.assert_value_is('receiver', wirely.Some(True))
 
-                    # After a reconnect, Connected is false for one step, the value is sent again, and the receiver
-                    # reads again.
+                    # After a reconnect, Connected is false and the receiver is None for one step, the value is sent
+                    # again, and the receiver reads again.
                     answer[0] = False
-                    first_value = receiver.current_value
                     proxy.cut()
                     await wait_until(lambda: bus.disconnect_pending and bus.connected)
                     await expect_telegrams(('0/0/1', 'GroupValueWrite', True), ('0/0/2', 'read', None))
                     engine.step()
                     engine.assert_value_is('bus.Connected', False)
+                    engine.assert_value_is('receiver', None)
                     engine.step()
                     engine.assert_value_is('bus.Connected', True)
-                    await wait_until(lambda: receiver.current_value != first_value)
+                    await wait_until(lambda: receiver.current_value is not None)
                     engine.step()
                     engine.assert_value_is('receiver', wirely.Some(False))
 

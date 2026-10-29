@@ -160,9 +160,11 @@ reads while its value is not `None`. If sending falls behind, only the
 newest value is sent. A provider sends its value again after about 50
 minutes without sending it.
 
-`ValueReceiver` includes values written by the program itself. After each
-connect, it reads its group address unless a value arrives first, and it
-reads again when no value was seen on the address for about an hour.
+`ValueReceiver` includes values written by the program itself. It is `None`
+while disconnected and for at least one step after each disconnect, until a
+value arrives. After each connect, it reads its group address unless a value
+arrives first, and it reads again when no value was seen on the address for
+about an hour.
 
 `Connection` retries connecting until it succeeds, also after losing the
 connection. `Connected` is true while connected and false for at least one
