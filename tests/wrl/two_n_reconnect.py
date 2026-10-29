@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import io
 from unittest import mock
 
 import wirely
@@ -21,7 +22,7 @@ def assert_states(connected, input1, switch1, key):
     engine.assert_value_is('missing', None)
 
 
-async def run_test():
+async def run_steps():
     server = engine.test_twon_fake_server_info.server
     device = engine.get_native_state('device.create')
     server.set_io_state('ext3.input1', True)
@@ -67,12 +68,16 @@ async def run_test():
             assert_states(True, wirely.Some(False), wirely.Some(False), wirely.Some(False))
             engine.assert_is_idle()
 
-            # A single 401 is retried without losing the connection.
+            # A 401 is answered by the digest middleware; a 401 to its resend is retried. Neither loses the connection.
             number = device.connection_number
             server.unauthorized['/api/log/pull'] = 1
             # The event ends the pending pull, so that the next pull is refused.
             server.set_io_state('ext3.input1', True)
             await wait_until(lambda: server.unauthorized['/api/log/pull'] == 0)
+            server.unauthorized['/api/log/pull'] = 2
+            server.set_io_state('ext3.input1', False)
+            await wait_until(lambda: server.unauthorized['/api/log/pull'] == 0)
+            server.set_io_state('ext3.input1', True)
             server.set_switch_state(1, True)
             await wait_until(lambda: device.switch_states[0].current_value)
             engine.step()
@@ -80,7 +85,7 @@ async def run_test():
             assert device.connection_number == number
 
             # A repeated 401 when reading a state ends the connection instead of only affecting the node.
-            server.unauthorized['/api/io/status'] = 2
+            server.unauthorized['/api/io/status'] = 4
             server.drop_subscriptions()
             await wait_until(lambda: device.connection_number == number + 1)
             assert server.unauthorized['/api/io/status'] == 0
@@ -88,3 +93,17 @@ async def run_test():
             assert_states(False, None, None, None)
             engine.step()
             assert_states(True, wirely.Some(True), wirely.Some(True), wirely.Some(False))
+
+
+async def run_test():
+    output = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(output):
+            await run_steps()
+    finally:
+        print(output.getvalue(), end='', flush=True)
+    # Only 401s to the resend by the digest middleware are logged, not those it answers itself.
+    retried = [line for line in output.getvalue().splitlines() if line.endswith('; retrying')]
+    assert len(retried) == 2, retried
+    assert 'During POST request to /api/log/pull got status code 401' in retried[0], retried
+    assert 'During GET request to /api/io/status got status code 401' in retried[1], retried

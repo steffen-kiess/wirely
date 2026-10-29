@@ -7,6 +7,7 @@ import time
 import tempfile
 import datetime
 import math
+import secrets
 import socket
 from collections.abc import AsyncIterator
 from typing import Any
@@ -61,6 +62,7 @@ class Server:
         # While False, every request is answered with an error, as if the device were unavailable.
         self.available = True
         # The number of requests to answer with 401 by path, as devices occasionally do despite correct credentials.
+        # Each such 401 contains a new digest challenge, so the client's digest middleware sends the request again.
         self.unauthorized: dict[str, int] = {}
 
         self.app = aiohttp.web.Application(middlewares=[self.availability_middleware])
@@ -168,10 +170,18 @@ class Server:
                                       handler: aiohttp.typedefs.Handler) -> aiohttp.web.StreamResponse:
         if not self.available:
             return aiohttp.web.Response(status=503, text='Unavailable')
+        # API requests without digest authentication get a challenge. The digest itself is not verified.
+        if request.path.startswith('/api/') and not request.headers.get('Authorization', '').startswith('Digest '):
+            return self.unauthorized_response()
         if self.unauthorized.get(request.path, 0) > 0:
             self.unauthorized[request.path] -= 1
-            return aiohttp.web.Response(status=401, text='Unauthorized')
+            return self.unauthorized_response()
         return await handler(request)
+
+    @staticmethod
+    def unauthorized_response() -> aiohttp.web.Response:
+        challenge = f'Digest realm="HTTP API", qop="auth", nonce="{secrets.token_hex(16)}"'
+        return aiohttp.web.Response(status=401, text='Unauthorized', headers={'WWW-Authenticate': challenge})
 
     def drop_subscriptions(self) -> None:
         """Forget all subscriptions, as a restarting device does; pending pulls fail."""
