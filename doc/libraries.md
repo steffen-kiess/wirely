@@ -268,8 +268,12 @@ connect its default `fixed TwoN.Device` output to each client's named
 `Connection` retries connecting until it succeeds, also after losing the
 connection. `Connected` is true while connected and false for at least one
 step after each disconnect. A lost connection is noticed when a request
-fails or times out. Events are lost while disconnected, and `OutputControl`
+fails or times out; an event from the device that cannot be handled also
+ends the connection. Events are lost while disconnected, and `OutputControl`
 drops values while disconnected or when sending fails.
+
+`KeyEvent` and `CodeEnteredEvent` deliver one event per step and keep up to
+10 pending events; if more arrive, the oldest one is dropped.
 
 `KeyState`, `IOState`, and `SwitchState` are `None` while disconnected and
 for at least one step after each disconnect. After each connect, `IOState`

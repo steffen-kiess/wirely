@@ -349,3 +349,42 @@ async def run_test():
     engine.assert_is_idle()
     assert_port_is('led_secured', False)
     engine.assert_value_is('led_feedback', wirely.Some(False))
+
+    # Events that arrive between two steps are delivered one per step.
+
+    server = engine.test_twon_fake_server_info.server
+    key2_event = engine.get_native_state('key2_event.create')
+    code_1 = engine.get_native_state('code_1.create')
+    code_3 = engine.get_native_state('code_3.create')
+
+    server.emit_key_press('%2')
+    server.emit_key_release('%2')
+    server.emit_code_entered('1234')
+    server.emit_code_entered('1234')
+    await wait_until(lambda: len(key2_event.pending_values) == 2 and code_1.pending_count == 2
+                     and code_3.pending_count == 2)
+    for key2_event_value, code_value in ((wirely.Some(True), wirely.Some(wirely.Unit())),
+                                         (wirely.Some(False), wirely.Some(wirely.Unit())), (None, None)):
+        engine.step()
+        engine.assert_value_is('key2_event', key2_event_value)
+        engine.assert_value_is('code_1', code_value)
+        engine.assert_value_is('code_2', None)
+        engine.assert_value_is('code_3', code_value)
+    engine.assert_value_is('key2', wirely.Some(False))
+    engine.assert_is_idle()
+
+    # When more events are pending than are kept, the oldest ones are dropped.
+    for _ in range(6):
+        server.emit_key_press('%2')
+        server.emit_key_release('%2')
+    # Events are handled in order, so all key events are handled once the code is.
+    server.emit_code_entered('01')
+    await wait_until(lambda: engine.get_native_state('code_2.create').pending_count == 1)
+    for index in range(10):
+        engine.step()
+        engine.assert_value_is('key2_event', wirely.Some(index % 2 == 0))
+    engine.step()
+    engine.assert_value_is('key2_event', None)
+    engine.assert_value_is('key2', wirely.Some(False))
+    engine.step()
+    engine.assert_is_idle()

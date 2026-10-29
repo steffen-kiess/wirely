@@ -68,6 +68,15 @@ async def run_steps():
             assert_states(True, wirely.Some(False), wirely.Some(False), wirely.Some(False))
             engine.assert_is_idle()
 
+            # An event that cannot be handled ends the connection; the states are read again after reconnecting.
+            number = device.connection_number
+            server.emit_event_raw({'event': 'KeyPressed'})
+            await wait_until(lambda: device.connection_number == number + 1)
+            engine.step()
+            assert_states(False, None, None, None)
+            engine.step()
+            assert_states(True, wirely.Some(False), wirely.Some(False), wirely.Some(False))
+
             # A 401 is answered by the digest middleware; a 401 to its resend is retried. Neither loses the connection.
             number = device.connection_number
             server.unauthorized['/api/log/pull'] = 1
@@ -102,6 +111,7 @@ async def run_test():
             await run_steps()
     finally:
         print(output.getvalue(), end='', flush=True)
+    assert "Warning: Failed to handle TwoN event {'event': 'KeyPressed', '_type': 'new'}:" in output.getvalue()
     # Only 401s to the resend by the digest middleware are logged, not those it answers itself.
     retried = [line for line in output.getvalue().splitlines() if line.endswith('; retrying')]
     assert len(retried) == 2, retried

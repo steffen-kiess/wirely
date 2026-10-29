@@ -1,4 +1,5 @@
 import asyncio
+import collections
 import sys
 import json
 import contextlib
@@ -22,6 +23,10 @@ from wirely.util import verbose_print
 # shortened randomly by up to a fifth, so that devices started together spread out.
 RECONNECT_DELAY_MIN = 1.0
 RECONNECT_DELAY_MAX = 60.0
+
+# The number of events a KeyEvent or CodeEnteredEvent keeps until they are delivered, one per step; when more arrive,
+# the oldest one is dropped.
+MAX_PENDING_EVENTS = 10
 
 # Errors of a request that leave the connection unusable or show that the device does not support a request.
 REQUEST_ERRORS = (aiohttp.ClientError, TimeoutError, TwoNError)
@@ -150,7 +155,7 @@ class KeyEventCreate(contracts.KeyEventCreate):
                    key: str) -> contracts.KeyEventCreateResult:
         self.key = key
 
-        self.received_value: bool | None = None
+        self.pending_values: collections.deque[bool] = collections.deque()
 
         verbose_print('Create TwoN KeyEvent', flush=True)
 
@@ -181,23 +186,21 @@ class KeyEventCreate(contracts.KeyEventCreate):
         if event['params']['key'] != self.key:
             return
 
-        # Note: This will override older events which generally should not be a problem.
-        if self.received_value is not None:
-            print(f'Warning: TwoN.KeyEvent: Got event while old event is pending: {self.received_value} -> {new_value}', flush=True)
+        if len(self.pending_values) == MAX_PENDING_EVENTS:
+            dropped = self.pending_values.popleft()
+            print(f'Warning: TwoN.KeyEvent: Too many pending events, dropping the oldest one ({dropped})', flush=True)
 
         # print(f'New value: {new_value}')
         self.services.trigger('state')
-        self.received_value = new_value
+        self.pending_values.append(new_value)
 
 
 class KeyEventGetValue(contracts.KeyEventGetValue):
     def run(self, *, services: ProcedureServices, state: 'KeyEventCreate') -> contracts.KeyEventGetValueResult:
-        value = state.received_value
-        state.received_value = None
-
-        if value is None:
+        if len(state.pending_values) == 0:
             return contracts.KeyEventGetValueResult(output=None)
-        # Trigger to set value to None again
+        value = state.pending_values.popleft()
+        # Trigger to deliver the next event or to set value to None again
         services.trigger_self()
         return contracts.KeyEventGetValueResult(output=wirely.Some(value))
 
@@ -207,7 +210,7 @@ class CodeEnteredEventCreate(contracts.CodeEnteredEventCreate):
                    code: str) -> contracts.CodeEnteredEventCreateResult:
         self.code = code
 
-        self.pending = False
+        self.pending_count = 0
 
         verbose_print('Create TwoN CodeEnteredEvent', flush=True)
 
@@ -234,24 +237,22 @@ class CodeEnteredEventCreate(contracts.CodeEnteredEventCreate):
         if event['params']['code'] != self.code:
             return
 
-        # Note: This will override older events which generally should not be a problem.
-        if self.pending:
-            print('Warning: TwoN.CodeEnteredEvent: Got event while old event is pending', flush=True)
+        if self.pending_count == MAX_PENDING_EVENTS:
+            print('Warning: TwoN.CodeEnteredEvent: Too many pending events, dropping the oldest one', flush=True)
+        else:
+            self.pending_count += 1
 
         # print(f'New value: {new_value}')
         self.services.trigger('state')
-        self.pending = True
 
 
 class CodeEnteredEventGetValue(contracts.CodeEnteredEventGetValue):
     def run(self, *, services: ProcedureServices,
             state: 'CodeEnteredEventCreate') -> contracts.CodeEnteredEventGetValueResult:
-        value = state.pending
-        state.pending = False
-
-        if not value:
+        if state.pending_count == 0:
             return contracts.CodeEnteredEventGetValueResult(output=None)
-        # Trigger to set value to None again
+        state.pending_count -= 1
+        # Trigger to deliver the next event or to set value to None again
         services.trigger_self()
         return contracts.CodeEnteredEventGetValueResult(output=wirely.Some(wirely.Unit()))
 

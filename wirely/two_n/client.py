@@ -5,6 +5,7 @@ import json
 import asyncio
 import contextlib
 import time
+import traceback
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from typing import Any
 
@@ -386,18 +387,52 @@ class LogReceiver:
                 events = response['events']
             except (KeyError, TypeError) as e:
                 raise TwoNError(f'Got invalid events: {response!r}') from e
+            if not isinstance(events, list):
+                raise TwoNError(f'Got invalid events: {response!r}')
             for event in events:
-                event['_type'] = 'new' if initial_handled else 'old'
-                name = event['event']
-                if self.verbose:
-                    print(f'Got {name!r} event: {event}')
-                if name in self.handlers:
-                    for handler in self.handlers[name]:
-                        handler(event)
+                self._handle_event(event, initial_handled)
             if len(events) == 0 and not initial_handled:
                 initial_handled = True
+                self._handle_event(None, initial_handled)
+
+    def _handle_event(self, event: Any, initial_handled: bool) -> None:
+        """Pass an event to its handlers, or None to all handlers once the initial events are handled.
+
+        An exception, such as one from a malformed event, ends the connection, so that the states are read again after
+        reconnecting.
+        """
+        try:
+            if event is None:
                 for handler in self.all_handlers:
                     handler(None)
+                return
+            event['_type'] = 'new' if initial_handled else 'old'
+            name = event['event']
+            if self.verbose:
+                print(f'Got {name!r} event: {event}')
+            if name in self.handlers:
+                for handler in self.handlers[name]:
+                    handler(event)
+        except Exception as e:
+            description = _describe_event(event)
+            print(f'Warning: Failed to handle TwoN event {description}:\n{traceback.format_exc()}', end='', flush=True)
+            raise TwoNError(f'Failed to handle event {description}: {e!r}') from e
+
+
+def _describe_event(event: Any) -> str:
+    """Describe an event for a log message, with the types instead of the values of its parameters.
+
+    Parameters such as entered codes or pressed keys must not be logged.
+    """
+    if not isinstance(event, dict):
+        return f'of type {type(event).__name__}'
+    described = dict(event)
+    params = event.get('params')
+    if isinstance(params, dict):
+        described['params'] = {key: type(value).__name__ for key, value in params.items()}
+    elif 'params' in event:
+        described['params'] = type(params).__name__
+    return repr(described)
 
 
 async def main() -> None:
