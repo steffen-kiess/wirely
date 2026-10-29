@@ -16,6 +16,7 @@ from wirely.misc.repeated_errors import RepeatedError
 from wirely.runtime.native_api import ProcedureServices, StateServices
 from wirely.generated.structs import TwoNCredentials
 from wirely.two_n.client import TwoNAPIError, TwoNError
+from wirely.two_n.settings import check_code
 from wirely.util import verbose_print
 
 
@@ -208,6 +209,7 @@ class KeyEventGetValue(contracts.KeyEventGetValue):
 class CodeEnteredEventCreate(contracts.CodeEnteredEventCreate):
     def initialize(self, *, services: StateServices[Literal['state']], device: ConnectionCreate,
                    code: str) -> contracts.CodeEnteredEventCreateResult:
+        check_code(code)
         self.code = code
 
         self.pending_count = 0
@@ -531,8 +533,6 @@ class OutputControlCreate(contracts.OutputControlCreate):
 class OutputControlSendValue(contracts.OutputControlSendValue):
     def run(self, *, services: ProcedureServices, state: 'OutputControlCreate',
             input: Some[bool] | None) -> contracts.OutputControlSendValueResult:
-        # TODO: Add checks whether everything is running?
-
         if input is None:
             return contracts.OutputControlSendValueResult()
         value = input.value

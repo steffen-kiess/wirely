@@ -13,6 +13,7 @@ from wirely.compiler.sources import standard_library_sources
 from wirely.compiler import program as program_compiler
 from wirely.runtime.engine import Engine
 from wirely.runtime.loading import LoadedProgram
+from wirely.two_n import settings
 from tests.infra.support import test_extension, test_contracts, test_engine
 
 
@@ -561,7 +562,16 @@ def check_key_state():
 
 
 def check_codes_and_tracing():
+    # The compiler rejects other codes, so compiled programs cannot pass them to the native initializer.
+    for code in ('1234567890123456', '12a', '\u0661\u0662'):
+        try:
+            settings.check_code(code)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f'Invalid code {code!r} accepted')
     for code in ('', '123456789012345'):
+        settings.check_code(code)
         program = code_program('CodeEnteredEvent', 'Code', code)
         runtime = settings_engine(program)
         runtime.get_native_state('wrapper.child.create').handler({'event': 'CodeEntered', 'params': {'code': code}})

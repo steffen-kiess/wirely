@@ -3,12 +3,17 @@
 import os
 
 from wirely.generated.structs import TwoNCredentials
+from wirely.two_n import settings
 
 from ..native_functions import FunctionServices
 
 
 def is_valid_code(code: str, *, services: FunctionServices) -> bool:
-    return len(code) <= 15 and all('0' <= digit <= '9' for digit in code)
+    try:
+        settings.check_code(code)
+    except ValueError:
+        return False
+    return True
 
 
 def read_credentials(filename: str, *, services: FunctionServices) -> TwoNCredentials:
