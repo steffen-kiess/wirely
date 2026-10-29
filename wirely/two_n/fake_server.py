@@ -1,7 +1,11 @@
+# A fake 2N device for tests. Its replies follow the HTTP API manual for firmware version 2.48 and the behavior of a
+# 2N IP Verso 2.0 running 2.48.1.
+
 import ssl
 import base64
 import json
 import asyncio
+import collections
 import contextlib
 import time
 import tempfile
@@ -23,6 +27,10 @@ import cryptography.x509
 import aiohttp
 import aiohttp.web
 import multidict
+
+
+# The most events one /api/log/pull returns.
+MAX_PULLED_EVENTS = 128
 
 
 class ServerInfo:
@@ -67,6 +75,8 @@ class Server:
         # Paths whose requests get no answer until release_hanging(), as if the device stopped responding.
         self.hanging: set[str] = set()
         self.hanging_requests: list[asyncio.Future[None]] = []
+        # The number of requests by path.
+        self.requests: collections.Counter[str] = collections.Counter()
 
         self.app = aiohttp.web.Application(middlewares=[self.availability_middleware])
         self.app.add_routes([
@@ -93,32 +103,32 @@ class Server:
 
         self.next_session = 1
 
+        # The ports of a 2N IP Verso 2.0 with an extension module, in the order /api/io/status lists them.
         self.ports = {
-            'ext3.tamper': {
-                'type': 'input',
+            name: {
+                'type': type,
                 'state': 0,
-            },
-            'ext3.input1': {
-                'type': 'input',
-                'state': 0,
-            },
-            'ext3.relay1': {
-                'type': 'output',
-                'state': 0,
-            },
-            'led_secured': {
-                'type': 'output',
-                'state': 0,
-            },
+            }
+            for name, type in [
+                ('relay1', 'output'),
+                ('output1', 'output'),
+                ('input1', 'input'),
+                ('led_secured', 'output'),
+                ('ext3.relay1', 'output'),
+                ('ext3.relay2', 'output'),
+                ('ext3.input1', 'input'),
+                ('ext3.input2', 'input'),
+                ('ext3.tamper', 'input'),
+            ]
         }
 
         self.switches = {
-            1: {
+            number: {
                 'active': False,
-            },
-            2: {
-                'active': False,
-            },
+                'locked': False,
+                'held': False,
+            }
+            for number in range(1, 5)
         }
 
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -171,6 +181,7 @@ class Server:
     @aiohttp.web.middleware
     async def availability_middleware(self, request: aiohttp.web.Request,
                                       handler: aiohttp.typedefs.Handler) -> aiohttp.web.StreamResponse:
+        self.requests[request.path] += 1
         if not self.available:
             return aiohttp.web.Response(status=503, text='Unavailable')
         # API requests without digest authentication get a challenge. The digest itself is not verified.
@@ -194,9 +205,48 @@ class Server:
         self.hanging_requests.clear()
 
     @staticmethod
+    def json_reply(data: Any, *, status: int = 200, headers: dict[str, str] | None = None) -> aiohttp.web.Response:
+        """Reply with JSON like the device, whose Content-Type has no charset."""
+        return aiohttp.web.Response(status=status, body=json.dumps(data, indent=2).encode('utf-8'),
+                                    headers={**(headers or {}), 'Content-Type': 'application/json'})
+
+    @staticmethod
+    def error_reply(code: int, description: str, param: str | None = None, *, status: int = 200,
+                    headers: dict[str, str] | None = None) -> aiohttp.web.Response:
+        error: dict[str, Any] = {
+            'code': code,
+            'description': description,
+        }
+        if param is not None:
+            error['param'] = param
+        return Server.json_reply({'success': False, 'error': error}, status=status, headers=headers)
+
+    @staticmethod
     def unauthorized_response() -> aiohttp.web.Response:
-        challenge = f'Digest realm="HTTP API", qop="auth", nonce="{secrets.token_hex(16)}"'
-        return aiohttp.web.Response(status=401, text='Unauthorized', headers={'WWW-Authenticate': challenge})
+        challenge = f'Digest realm="HTTP API (3/00000020)", nonce="{secrets.token_hex(16)}", qop="auth"'
+        return Server.error_reply(9, 'authorization required', status=401, headers={'WWW-Authenticate': challenge})
+
+    @staticmethod
+    def success_reply(result: Any = None) -> aiohttp.web.Response:
+        """Reply with success, and with a result unless the function returns no parameters."""
+        if result is None:
+            return Server.json_reply({'success': True})
+        return Server.json_reply({'success': True, 'result': result})
+
+    @staticmethod
+    def get_int(params: Any, name: str, default: int | None = None) -> int | aiohttp.web.Response:
+        """Get an integer parameter, or an error reply if it is missing or invalid."""
+        if name not in params:
+            if default is not None:
+                return default
+            return Server.error_reply(11, 'missing mandatory parameter', name)
+        try:
+            value = int(params[name])
+        except ValueError:
+            return Server.error_reply(12, 'invalid parameter value', name)
+        if value < 0:
+            return Server.error_reply(12, 'invalid parameter value', name)
+        return value
 
     def drop_subscriptions(self) -> None:
         """Forget all subscriptions, as a restarting device does; pending pulls fail."""
@@ -205,15 +255,7 @@ class Server:
 
     @staticmethod
     def unknown_subscription() -> aiohttp.web.Response:
-        # TODO: Check error messages
-        reply = {
-            'success': False,
-            'error': {
-                'code': 1,
-                'description': 'Cannot find subscription ID',
-            },
-        }
-        return aiohttp.web.json_response(data=reply)
+        return Server.error_reply(12, 'invalid subscription id', 'id')
 
     async def hello(self, request: aiohttp.web.Request) -> aiohttp.web.Response:
         return aiohttp.web.Response(text="Hello, world")
@@ -239,41 +281,33 @@ class Server:
                 'id': id,
             },
         }
+        # TODO: Close subscriptions that are not pulled for their duration (default 90 s), as the device does.
         self.subscriptions[id] = {
             'pending': [],
         }
         verbose_print(f'Added {list(self.subscriptions)}')
-        # TODO: Prevent charset from being added to reply?
-        return aiohttp.web.json_response(data=reply)
+        return self.json_reply(reply)
 
     async def api_log_unsubscribe(self, request: aiohttp.web.Request) -> aiohttp.web.Response:
         params = await self.get_params(request)
-        par_id = int(params['id'])
+        par_id = self.get_int(params, 'id')
+        if isinstance(par_id, aiohttp.web.Response):
+            return par_id
         verbose_print('api_log_unsubscribe', par_id)
         verbose_print(f'Subscriptions {list(self.subscriptions)!r}')
         if par_id not in self.subscriptions:
             return self.unknown_subscription()
         del self.subscriptions[par_id]
-        reply = {
-            'success': True,
-            'result': {
-            },
-        }
-        # TODO: Prevent charset from being added to reply?
-        return aiohttp.web.json_response(data=reply)
+        return self.success_reply()
 
     async def api_log_pull(self, request: aiohttp.web.Request) -> aiohttp.web.Response:
         params = await self.get_params(request)
-        par_id = int(params['id'])
-
-        if 'timeout' in params:
-            # TODO: Should this be int or float?
-            par_timeout = float(params['timeout'])
-        else:
-            par_timeout = None
-        if par_timeout is None:
-            # TODO: Default value?
-            par_timeout = 60.0
+        par_id = self.get_int(params, 'id')
+        if isinstance(par_id, aiohttp.web.Response):
+            return par_id
+        par_timeout = self.get_int(params, 'timeout', 0)
+        if isinstance(par_timeout, aiohttp.web.Response):
+            return par_timeout
 
         verbose_print('api_log_pull', par_id, par_timeout)
         verbose_print(f'Lookup {par_id!r} {list(self.subscriptions)}')
@@ -293,18 +327,10 @@ class Server:
                 break
             if par_id not in self.subscriptions:
                 return self.unknown_subscription()
-        events = []
-        if len(subscription['pending']) > 0:
-            events = subscription['pending']
-            subscription['pending'] = []
-        reply = {
-            'success': True,
-            'result': {
-                'events': events,
-            },
-        }
-        # TODO: Prevent charset from being added to reply?
-        return aiohttp.web.json_response(data=reply)
+        # Larger amounts of events are pulled in batches.
+        events = subscription['pending'][:MAX_PULLED_EVENTS]
+        del subscription['pending'][:MAX_PULLED_EVENTS]
+        return self.success_reply({'events': events})
 
     async def api_io_status(self, request: aiohttp.web.Request) -> aiohttp.web.Response:
         params = await self.get_params(request)
@@ -321,34 +347,22 @@ class Server:
         elif par_port in self.ports:
             results = [format_data(par_port)]
         else:
-            reply = {
-                'success': False,
-                'error': {
-                    'code': 12,
-                    'description': 'invalid parameter value',
-                    'param': 'port',
-                },
-            }
-            return aiohttp.web.json_response(data=reply)
-
-        reply = {
-            'success': True,
-            'result': {
-                'ports': results,
-            },
-        }
-        return aiohttp.web.json_response(data=reply)
+            return self.error_reply(12, 'invalid parameter value', 'port')
+        return self.success_reply({'ports': results})
 
     async def api_switch_status(self, request: aiohttp.web.Request) -> aiohttp.web.Response:
         params = await self.get_params(request)
-        par_switch = params.get('switch')
-        if par_switch is not None:
-            par_switch = int(par_switch)
+        par_switch: int | None = None
+        if 'switch' in params:
+            value = self.get_int(params, 'switch')
+            if isinstance(value, aiohttp.web.Response):
+                return value
+            par_switch = value
 
-        def format_data(key: Any) -> dict[str, Any]:
+        def format_data(key: int) -> dict[str, Any]:
             return {
                 'switch': key,
-                'active': self.switches[key]['active'],
+                **self.switches[key],
             }
 
         if par_switch is None:
@@ -356,44 +370,28 @@ class Server:
         elif par_switch in self.switches:
             results = [format_data(par_switch)]
         else:
-            reply = {
-                'success': False,
-                'error': {
-                    'code': 12,
-                    'description': 'invalid parameter value',
-                    'param': 'switch',
-                },
-            }
-            return aiohttp.web.json_response(data=reply)
-
-        reply = {
-            'success': True,
-            'result': {
-                'switches': results,
-            },
-        }
-        return aiohttp.web.json_response(data=reply)
+            return self.error_reply(12, 'invalid parameter value', 'switch')
+        return self.success_reply({'switches': results})
 
     async def api_io_ctrl(self, request: aiohttp.web.Request) -> aiohttp.web.Response:
         params = await self.get_params(request)
+        for name in ('port', 'action'):
+            if name not in params:
+                return self.error_reply(11, 'missing mandatory parameter', name)
         par_port = params['port']
         action = params['action']
 
+        if par_port not in self.ports:
+            return self.error_reply(12, 'invalid parameter value', 'port')
         if action == 'off':
             new_value = False
         elif action == 'on':
             new_value = True
         else:
-            raise Exception(f'Unknown action: {action}')
+            return self.error_reply(12, 'invalid parameter value', 'action')
 
         self.set_io_state(par_port, new_value)
-
-        reply = {
-            'success': True,
-            'result': {
-            },
-        }
-        return aiohttp.web.json_response(data=reply)
+        return self.success_reply()
 
     def emit_event_raw(self, event: dict[str, Any]) -> None:
         for subscription in self.subscriptions.values():
@@ -409,8 +407,7 @@ class Server:
 
         self.emit_event_raw({
             'id': event_id,
-            # TODO: At least with firmware version 2.48 there also is a 'hash' entry:
-            # 'hash': 'e932039df9011c8f'
+            'hash': secrets.token_hex(8),
             'tzShift': 60,
             'utcTime': math.floor(now_utc.timestamp()),
             'upTime': (time.monotonic_ns() - self.startup_time) // 1000000000,

@@ -215,10 +215,8 @@ class Client:
             # print(response.status)
             # print(response.read().decode('utf-8'))
 
-            content_type = response.headers['Content-Type']
-            # if content_type != 'application/json':
-            # TODO: Allow charset? Should not be there, but aiohttp web json_response() will add it.
-            if content_type != 'application/json' and content_type != 'application/json; charset=utf-8':
+            content_type = response.headers.get('Content-Type')
+            if content_type != 'application/json':
                 raise TwoNError(f'During {method} request to {url}: Got unexpected content type {content_type!r}')
 
             try:
@@ -273,6 +271,16 @@ class Client:
         response = await self.json_request("GET", "/api/" + url)
 
         print(json.dumps(response, indent=2))
+
+    async def raw_request(self, method: str, url: str, *, do_authentication: bool = True) -> None:
+        """Print the status, the relevant headers, and the body of a reply, also for errors."""
+        async with await self.api_request(method, "/api/" + url, do_authentication=do_authentication) as response:
+            print(f'HTTP {response.status} {response.reason}')
+            for header in ('Content-Type', 'WWW-Authenticate'):
+                if header in response.headers:
+                    print(f'{header}: {response.headers[header]}')
+            print()
+            print((await response.read()).decode('utf-8', errors='replace'))
 
     async def do_ajax_request(self, requests_str: str | None = None) -> None:
         if self.ajax_sid is None:
@@ -439,6 +447,7 @@ async def main() -> None:
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--hostname', type=str, required=True)
+    parser.add_argument('--port', type=int, default=443)
     parser.add_argument('--tlsa', type=str, nargs='+', required=True)
     parser.add_argument('--password-file', type=str)
     parser.add_argument('--ajax', action='store_true')
@@ -446,7 +455,12 @@ async def main() -> None:
     parser.add_argument('--ajax-password-file', type=str)
     parser.add_argument('--trace', action='store_true')
     parser.add_argument('--verbose', action='store_true')
-    parser.add_argument('url', type=str, nargs='?')
+    parser.add_argument('--raw', action='store_true',
+                        help='print the status, headers, and body of the reply to url, also for errors')
+    parser.add_argument('--method', type=str, default='GET', help='HTTP method for --raw')
+    parser.add_argument('--no-authentication', action='store_true',
+                        help='send the --raw request without credentials, to see the challenge')
+    parser.add_argument('url', type=str, nargs='?', help='API path below /api/, such as io/status or log/pull?id=1')
     args = parser.parse_args()
 
     enable_logging = False
@@ -462,7 +476,7 @@ async def main() -> None:
     if args.ajax_password_file is not None:
         ajax_username_password = get_username_password(args.ajax_password_file)
 
-    async with Client(hostname=args.hostname, tlsa=args.tlsa, http_api_username_password=http_api_username_password, ajax_sid=args.ajax_sid, ajax_username_password=ajax_username_password, enable_logging=enable_logging) as client:
+    async with Client(hostname=args.hostname, port=args.port, tlsa=args.tlsa, http_api_username_password=http_api_username_password, ajax_sid=args.ajax_sid, ajax_username_password=ajax_username_password, enable_logging=enable_logging) as client:
         if args.ajax:
             if client.ajax_sid is None:
                 await client.ajax_login()
@@ -470,6 +484,8 @@ async def main() -> None:
                 await client.do_ajax_request(args.url)
             else:
                 await client.do_ajax_request()
+        elif args.url is not None and args.raw:
+            await client.raw_request(args.method, args.url, do_authentication=not args.no_authentication)
         elif args.url is not None:
             await client.request(args.url)
         else:

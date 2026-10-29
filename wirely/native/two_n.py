@@ -56,6 +56,8 @@ class ConnectionCreate(contracts.ConnectionCreate):
         # Set on a disconnect until get_connected() has reported it.
         self.disconnect_pending = False
         self.errors = RepeatedError(f'TwoN connection to {self.description}')
+        self.io_errors = RepeatedError(f'Reading TwoN ports from {self.description}')
+        self.switch_errors = RepeatedError(f'Reading TwoN switches from {self.description}')
         # Counts the connections, so that a task can tell whether it still uses the same one.
         self.connection_number = 0
         return contracts.ConnectionCreateResult(device=self)
@@ -86,9 +88,9 @@ class ConnectionCreate(contracts.ConnectionCreate):
 
     async def subscribed(self) -> None:
         """Read the current states after subscribing, then report the connection."""
-        states: list[IOStateCreate | SwitchStateCreate] = [*self.io_states, *self.switch_states]
-        for state in states:
-            await state.read_state()
+        await _read_states(self.client, '/api/io/status', 'ports', 'port', self.io_states, self.io_errors)
+        await _read_states(self.client, '/api/switch/status', 'switches', 'switch', self.switch_states,
+                           self.switch_errors)
         self.errors.end()
         print(f'Connected to TwoN device at {self.description}', flush=True)
         self.set_connected()
@@ -259,25 +261,39 @@ class CodeEnteredEventGetValue(contracts.CodeEnteredEventGetValue):
         return contracts.CodeEnteredEventGetValueResult(output=wirely.Some(wirely.Unit()))
 
 
-class _InvalidStatus(Exception):
-    """A status response without a valid state for the requested port or switch."""
+async def _read_states(client: wirely.two_n.client.Client, url: str, list_key: str, id_key: str,
+                       nodes: 'list[IOStateCreate] | list[SwitchStateCreate]', errors: RepeatedError) -> None:
+    """Read the states of all ports or switches with one request and pass each node its entry.
 
-
-def _status_value(response: Any, list_key: str, id_key: str, id: object, value_key: str) -> Any:
-    """Return a value of the only entry of a status response, which must be the one for id."""
+    An error the device reports, or an invalid response, leaves the nodes None; other errors of the connection
+    propagate.
+    """
+    if len(nodes) == 0:
+        return
     try:
-        entries = response[list_key]
-        if len(entries) != 1 or entries[0][id_key] != id:
-            raise _InvalidStatus(f'Got unexpected {list_key} {entries!r}')
-        return entries[0][value_key]
-    except (KeyError, TypeError, IndexError) as e:
-        raise _InvalidStatus(f'Got invalid response {response!r}') from e
+        response = await client.json_request('GET', url)
+    except TwoNAPIError as e:
+        errors.report(str(e))
+        return
+    try:
+        listed = response[list_key]
+        if not isinstance(listed, list) or not all(isinstance(entry, dict) for entry in listed):
+            raise TypeError(f'{list_key} is not a list of objects')
+        entries = {entry[id_key]: entry for entry in listed}
+    except (KeyError, TypeError):
+        errors.report(f'Got invalid response {response!r}')
+        return
+    errors.end()
+    for node in nodes:
+        node.set_status(entries.get(node.status_id))
 
 
 class IOStateCreate(contracts.IOStateCreate):
     def initialize(self, *, services: StateServices[Literal['state']], device: ConnectionCreate,
                    port: str) -> contracts.IOStateCreateResult:
         self.port = port
+        # The value of the port's entry in /api/io/status.
+        self.status_id = port
 
         # None while disconnected, until the state has been read after connecting.
         self.current_value: bool | None = None
@@ -298,19 +314,15 @@ class IOStateCreate(contracts.IOStateCreate):
         device.listeners.append(self)
         return contracts.IOStateCreateResult(state=self)
 
-    async def read_state(self) -> None:
-        """Read the state after subscribing; errors of the connection propagate."""
-        try:
-            response = await self.native_device.client.json_request("GET", "/api/io/status", params={
-                'port': self.port,
-            })
-            # print('RESPONSE', response)
-            state = _status_value(response, 'ports', 'port', self.port, 'state')
-            if type(state) != int or state not in (0, 1):
-                raise _InvalidStatus(f'Got invalid state {state!r}')
-        except (TwoNAPIError, _InvalidStatus) as e:
-            # The device might not have this port; the other nodes keep working. Other errors end the connection.
-            self.errors.report(str(e))
+    def set_status(self, entry: dict[str, Any] | None) -> None:
+        """Set the state from the port's entry in /api/io/status, read after subscribing."""
+        # The device might not have this port; the other nodes keep working.
+        if entry is None:
+            self.errors.report('The device has no such port')
+            return
+        state = entry.get('state')
+        if type(state) != int or state not in (0, 1):
+            self.errors.report(f'Got invalid state {state!r}')
             return
         self.errors.end()
         self.set_value(bool(state))
@@ -369,6 +381,8 @@ class SwitchStateCreate(contracts.SwitchStateCreate):
     def initialize(self, *, services: StateServices[Literal['state']], device: ConnectionCreate,
                    switch_number: Int32) -> contracts.SwitchStateCreateResult:
         self.switch_number = switch_number.value
+        # The value of the switch's entry in /api/switch/status.
+        self.status_id = self.switch_number
 
         # None while disconnected, until the state has been read after connecting.
         self.current_value: bool | None = None
@@ -389,19 +403,15 @@ class SwitchStateCreate(contracts.SwitchStateCreate):
         device.listeners.append(self)
         return contracts.SwitchStateCreateResult(state=self)
 
-    async def read_state(self) -> None:
-        """Read the state after subscribing; errors of the connection propagate."""
-        try:
-            response = await self.native_device.client.json_request("GET", "/api/switch/status", params={
-                'switch': self.switch_number,
-            })
-            # print('RESPONSE', response)
-            active = _status_value(response, 'switches', 'switch', self.switch_number, 'active')
-            if type(active) != bool:
-                raise _InvalidStatus(f'Got invalid state {active!r}')
-        except (TwoNAPIError, _InvalidStatus) as e:
-            # The device might not have this switch; the other nodes keep working. Other errors end the connection.
-            self.errors.report(str(e))
+    def set_status(self, entry: dict[str, Any] | None) -> None:
+        """Set the state from the switch's entry in /api/switch/status, read after subscribing."""
+        # The device might not have this switch; the other nodes keep working.
+        if entry is None:
+            self.errors.report('The device has no such switch')
+            return
+        active = entry.get('active')
+        if type(active) != bool:
+            self.errors.report(f'Got invalid state {active!r}')
             return
         self.errors.end()
         self.set_value(active)

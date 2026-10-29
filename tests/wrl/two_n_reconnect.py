@@ -42,9 +42,11 @@ async def run_steps():
             await asyncio.sleep(0.1)
             assert server.ports['led_secured']['state'] == 0
 
-            # After connecting, the states are read.
+            # After connecting, the states are read, with one request for all ports.
+            status_requests = server.requests['/api/io/status']
             server.available = True
             await wait_until(lambda: device.connected)
+            assert server.requests['/api/io/status'] == status_requests + 1
             engine.step()
             assert_states(True, wirely.Some(True), wirely.Some(False), wirely.Some(False))
 
