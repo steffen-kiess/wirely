@@ -39,6 +39,8 @@ class MyCsvWriter:
         self.stream = stream
 
     # https://www.rfc-editor.org/rfc/rfc4180
+    # Beyond RFC 4180, strings are always quoted, so that they can be told apart from numbers and booleans, and an
+    # empty string ("") from a missing value (an empty unquoted field).
     def write_row(self, row: Sequence[CsvValue]) -> None:
         csv_string = ''
         for i, value in enumerate(row):
@@ -49,7 +51,7 @@ class MyCsvWriter:
                 csv_string += ','
 
             if value.do_quote:
-                csv_string += '"' + value.value.replace('"', '""')
+                csv_string += '"' + value.value.replace('"', '""') + '"'
             else:
                 csv_string += value.value
         csv_string += '\r\n'

@@ -107,6 +107,14 @@ class FailingWrites(io.BytesIO):
         raise OSError(28, 'No space left on device')
 
 
+def check_quoting():
+    # Quoted fields, which are always used for strings, can contain separators, line breaks, and doubled quotes; an
+    # empty string is quoted, unlike a missing value.
+    stream = io.BytesIO()
+    MyCsvWriter(stream).write_row([CsvValue('plain', False), CsvValue('a,"b"\r\nc', True), CsvValue('', True)])
+    assert stream.getvalue() == b'plain,"a,""b""\r\nc",""\r\n', stream.getvalue()
+
+
 def check_short_writes():
     stream = ShortWrites()
     MyCsvWriter(stream).write_row([CsvValue('2026-01-01T00:00:00+00:00', False), CsvValue('', False),
@@ -122,4 +130,5 @@ def check_short_writes():
 
 async def run_test():
     check_repeat_recovery()
+    check_quoting()
     check_short_writes()
