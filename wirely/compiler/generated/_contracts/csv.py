@@ -13,6 +13,34 @@ __all__ = [
 ]
 
 
+class _CheckFilenameImplementation(Protocol):
+    """Implementations of constant function CSV.CheckFilename, receiving its arguments in order."""
+
+    def __call__(
+        self,
+        argument_0: str,
+        /, *,
+        services: FunctionServices,
+    ) -> bool:
+        ...
+
+
+def _call__check_filename(
+    implementation: _CheckFilenameImplementation,
+    arguments: Sequence[object],
+    services: FunctionServices,
+) -> object:
+    return implementation(
+        cast('str', arguments[0]),
+        services=services,
+    )
+
+
+# Constant function CSV.CheckFilename.
+_CheckFilename: ConstantFunctionContract[_CheckFilenameImplementation] = ConstantFunctionContract(
+    'CSV.CheckFilename', _call__check_filename)
+
+
 class _SupportsTypeImplementation(Protocol):
     """Implementations of constant function CSV.SupportsType, receiving its arguments in order."""
 

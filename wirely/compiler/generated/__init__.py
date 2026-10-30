@@ -8,6 +8,7 @@ from . import _bindings
 __all__ = ["extension"]
 
 extension = CompilerNativeExtension(functions={
+    'CSV.CheckFilename': NativeConstantFunction(Function((Builtin('string'),), Builtin('boolean')), _bindings.functions['CSV.CheckFilename']),
     'CSV.SupportsType': NativeConstantFunction(Function((Builtin('type'),), Builtin('boolean')), _bindings.functions['CSV.SupportsType']),
     'KNX.CheckConnection': NativeConstantFunction(Function((Option(Builtin('string')), Option(Enum('KNX.Protocol')), Option(Int(16, False)), Option(Builtin('string')), Option(Builtin('string')), Option(Builtin('string'))), Builtin('boolean')), _bindings.functions['KNX.CheckConnection']),
     'KNX.ParseGroupAddress': NativeConstantFunction(Function((Builtin('string'),), Int(16, False)), _bindings.functions['KNX.ParseGroupAddress']),

@@ -241,13 +241,20 @@ broker.
 
 ## CSV
 
-`CSV.ValueWriter` takes `Type: type` and `Filename: string`. It appends
-rows from a default `value Type` input, recording the timestamp, old value,
-and new value. An empty field marks an unavailable value at startup or
-shutdown. It writes on changes and repeats a current value hourly. `Type`
-must support CSV conversion, such as `boolean`, an integer type, or an
-`Option` of one. The file is opened for append when the service starts.
-The timestamp field is empty while wall time is unknown.
+`CSV.ValueWriter` takes `Type: type` and `Filename: string`, which must be
+absolute. It appends rows from a default `value Type` input, recording the
+timestamp, old value, and new value. An empty field marks an unavailable
+value at startup or shutdown. It writes on changes and repeats a current
+value hourly. `Type` must support CSV conversion, such as `boolean`, an
+integer type, or an `Option` of one. The timestamp field is empty while
+wall time is unknown.
+
+The file is opened for appending when the runtime starts; two
+`ValueWriter`s of a program must not write the same file. If the file
+cannot be opened or written, a warning is logged, values are dropped, and
+the file is opened again with growing delays. After a failed write, a row
+with empty old and new values marks the time of the failure, and the next
+row has an empty old value, as after a restart.
 
 ## TwoN
 

@@ -1,4 +1,4 @@
-// LIBRARIES: std, knx, mqtt, path, schedule, timer, two_n
+// LIBRARIES: std, csv, knx, mqtt, path, schedule, timer, two_n
 
 // TEST: invalid KNX address
 constant Address: uint16 = KNX.ParseGroupAddress("invalid");
@@ -75,6 +75,10 @@ assert MQTT.CheckKeepAlive("PT65535.5S");
 // TEST: empty MQTT client ID
 assert MQTT.CheckClientID(Some(""));
 // ^E: MQTT client ID must not be empty
+
+// TEST: relative CSV filename
+assert CSV.CheckFilename("relative.csv");
+// ^E: CSV filename must be absolute
 
 // TEST: empty MQTT topic
 assert MQTT.CheckTopic("");

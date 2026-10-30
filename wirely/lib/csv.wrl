@@ -1,6 +1,10 @@
 namespace CSV {
   #[Internal]
   native constant function SupportsType(type: type): boolean;
+  // Filenames must be absolute; relative ones would not be relative to the
+  // source file.
+  #[Internal]
+  native constant function CheckFilename(filename: string): boolean;
 
   #[Internal]
   resource type ValueWriterState;
@@ -22,6 +26,7 @@ namespace CSV {
     parameter Filename: string;
 
     assert SupportsType(Type), "Type must support CSV conversion";
+    assert CheckFilename(Filename);
 
     binding state: fixed ValueWriterState;
     native initializer create reads Filename writes state as "state";

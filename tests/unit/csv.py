@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from wirely.generated import extension as builtin_extension
 from wirely.runtime import value_types
 import wirely
-from wirely.native.csv import MyCsvWriter, ValueWriterCreate, ValueWriterRun
+from wirely.native.csv import CsvValue, MyCsvWriter, ValueWriterCreate, ValueWriterRun
 from wirely.program.program import RunStage
 from wirely.runtime.native_api import ProcedureServices, StateServices
 
@@ -95,5 +95,31 @@ def check_repeat_recovery():
         assert not invocation.triggered
 
 
+class ShortWrites(io.BytesIO):
+    """Writes at most three bytes per call, as a raw file may on a nearly full disk."""
+
+    def write(self, data):
+        return super().write(bytes(data[:3]))
+
+
+class FailingWrites(io.BytesIO):
+    def write(self, data):
+        raise OSError(28, 'No space left on device')
+
+
+def check_short_writes():
+    stream = ShortWrites()
+    MyCsvWriter(stream).write_row([CsvValue('2026-01-01T00:00:00+00:00', False), CsvValue('', False),
+                                   CsvValue('true', False)])
+    assert stream.getvalue() == b'2026-01-01T00:00:00+00:00,,true\r\n'
+    try:
+        MyCsvWriter(FailingWrites()).write_row([CsvValue('x', False)])
+    except OSError:
+        pass
+    else:
+        raise AssertionError('Write error not raised')
+
+
 async def run_test():
     check_repeat_recovery()
+    check_short_writes()

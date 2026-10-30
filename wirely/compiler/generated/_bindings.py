@@ -6,6 +6,12 @@ from collections.abc import Callable
 from wirely.compiler.native_functions import ConstantFunctionImplementation
 
 
+def _load_csv_check_filename() -> ConstantFunctionImplementation:
+    from wirely.compiler.generated._contracts.csv import _CheckFilename
+    from wirely.compiler.function_implementations.csv import check_filename
+    return _CheckFilename.implementation(check_filename)
+
+
 def _load_csv_supports_type() -> ConstantFunctionImplementation:
     from wirely.compiler.generated._contracts.csv import _SupportsType
     from wirely.compiler.function_implementations.csv import supports_type
@@ -163,6 +169,7 @@ def _load_two_n_read_credentials() -> ConstantFunctionImplementation:
 
 
 functions: dict[str, Callable[[], ConstantFunctionImplementation]] = {
+    'CSV.CheckFilename': _load_csv_check_filename,
     'CSV.SupportsType': _load_csv_supports_type,
     'KNX.CheckConnection': _load_knx_check_connection,
     'KNX.ParseGroupAddress': _load_knx_parse_group_address,

@@ -4,7 +4,11 @@ import datetime
 import os
 
 import wirely
+from wirely.compiler import program as program_compiler
+from wirely.compiler.compilation import compile_strs
+from wirely.compiler.sources import standard_library_sources
 from wirely.program.program import RunStage
+from wirely.runtime.procedures import LoadError
 from tests.infra.support import test_engine
 
 def restart(wall_time):
@@ -22,6 +26,86 @@ def assert_content_is(fn, value):
         actual = file.read().decode('utf-8')
     if actual != value:
         raise Exception(f'Test failed: Expected content {value!r}, got {actual!r}')
+
+async def wait_until(condition):
+    async with asyncio.timeout(5):
+        while not condition():
+            await asyncio.sleep(0.01)
+
+
+class FailingStream:
+    def write(self, data):
+        raise OSError(28, 'No space left on device')
+
+
+async def check_file_errors(filename):
+    wall_time = datetime.datetime(2026, 1, 2, tzinfo=datetime.timezone.utc)
+    time = wall_time.isoformat()
+    with open(filename, 'rb') as file:
+        expected = file.read().decode('utf-8')
+
+    # A failed write closes the file. After it is open again, a row with empty values marks the time of the failure,
+    # and the current value follows as after a start.
+    restart(wall_time)
+    writer = engine.get_native_state('test_option_value_writer.create')
+    writer.reopen_delays = (0.01, 0.01)
+    source = engine.get_native_state('test_option_input.create')
+    async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
+        engine.activate(tg, async_exit_stack)
+        source.set_value(wirely.Some(True))
+        engine.step()
+        engine.step()
+        expected += f'{time},,true\r\n'
+        writer.writer.stream = FailingStream()
+        source.set_value(wirely.Some(False))
+        engine.step()
+        assert writer.file is None
+        await wait_until(lambda: writer.file is not None)
+        engine.step()
+        engine.step()
+        engine.assert_is_idle()
+        expected += f'{time},,\r\n{time},,false\r\n'
+        assert_content_is(filename, expected)
+    expected += f'{time},false,\r\n'
+    assert_content_is(filename, expected)
+
+    # A file that cannot be opened is opened again later; values are dropped until then.
+    directory = os.path.join(os.path.dirname(filename), 'later')
+    later = os.path.join(directory, 'later.csv')
+    restart(wall_time)
+    writer = engine.get_native_state('test_option_value_writer.create')
+    writer.filename = later
+    writer.reopen_delays = (0.01, 0.01)
+    source = engine.get_native_state('test_option_input.create')
+    async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
+        engine.activate(tg, async_exit_stack)
+        assert writer.file is None
+        source.set_value(wirely.Some(True))
+        engine.step()
+        engine.step()
+        engine.assert_is_idle()
+        os.mkdir(directory)
+        await wait_until(lambda: writer.file is not None)
+        engine.step()
+        engine.step()
+        assert_content_is(later, f'{time},,true\r\n')
+    assert_content_is(later, f'{time},,true\r\n{time},true,\r\n')
+
+    # Two writers of the same file are rejected when loading.
+    source_text = ''.join(f'''
+node input{index}: Std.DebugValueSource {{ Type: boolean, Initial: false }}
+node writer{index}: CSV.ValueWriter {{ Filename: "{path}", Type: boolean }}
+connect input{index} -> writer{index};
+''' for index, path in enumerate([later, os.path.join(directory, '.', 'later.csv')]))
+    graph = compile_strs([*standard_library_sources(['std', 'timer', 'csv']), ('<csv-loading>', source_text)])
+    assert graph is not None
+    try:
+        test_engine(program_compiler.compile_nocatch(graph))
+    except LoadError as exc:
+        assert f'CSV file {os.path.join(directory, ".", "later.csv")!r} is already written by writer0' in str(exc), exc
+    else:
+        raise AssertionError('Two writers of one file accepted')
+
 
 async def check_repeat_boundaries(filename, wall_time):
     with open(filename, 'rb') as file:
@@ -374,3 +458,5 @@ async def run_test():
         assert_content_is(fn2, expected)
     expected += '2026-01-01T00:00:00+00:00,true,\r\n'
     assert_content_is(fn2, expected)
+
+    await check_file_errors(fn2)
