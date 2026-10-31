@@ -27,7 +27,10 @@ Issues = "https://github.com/steffen-kiess/wirely/issues"
 [project.optional-dependencies]
 knx = ["xknx>=3.4,<4"]
 mqtt = ["aiomqtt>=2.3,<3"]
-two-n = ["aiohttp>=3.12,<4", "cryptography>=38.0.0"]
+two-n = [
+    "aiohttp>=3.12.8,<4",  # The first release with preemptive digest authentication.
+    "cryptography>=38.0.0",
+]
 gpio = ["gpiod>=2.1,<3"]
 editor = ["PySide6-Essentials>=6.8"]
 all = ["wirely[knx,mqtt,two-n,gpio]"]

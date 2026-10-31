@@ -75,7 +75,8 @@ class Server:
         # Paths whose requests get no answer until release_hanging(), as if the device stopped responding.
         self.hanging: set[str] = set()
         self.hanging_requests: list[asyncio.Future[None]] = []
-        # The number of requests by path.
+        # The number of requests by path that are not refused, so it does not depend on whether the client
+        # authenticates preemptively.
         self.requests: collections.Counter[str] = collections.Counter()
         # The timeouts of the pulls, in order.
         self.pull_timeouts: list[int] = []
@@ -183,7 +184,6 @@ class Server:
     @aiohttp.web.middleware
     async def availability_middleware(self, request: aiohttp.web.Request,
                                       handler: aiohttp.typedefs.Handler) -> aiohttp.web.StreamResponse:
-        self.requests[request.path] += 1
         if not self.available:
             return aiohttp.web.Response(status=503, text='Unavailable')
         # API requests without digest authentication get a challenge. The digest itself is not verified.
@@ -192,6 +192,7 @@ class Server:
         if self.unauthorized.get(request.path, 0) > 0:
             self.unauthorized[request.path] -= 1
             return self.unauthorized_response()
+        self.requests[request.path] += 1
         if request.path in self.hanging:
             future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
             self.hanging_requests.append(future)
