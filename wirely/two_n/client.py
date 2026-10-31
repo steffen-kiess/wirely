@@ -194,6 +194,7 @@ class Client:
     async def json_request(self, method: str, url: str, **kwargs: Any) -> Any:
         # Devices occasionally reject a request with 401 although the credentials are correct, so a request with
         # authentication is sent once more after a 401.
+        # TODO: Find out why from the WWW-Authenticate header logged for the next such 401 on the real device.
         attempts = 2 if kwargs.get('do_authentication', True) else 1
         for attempt in range(attempts):
             try:
@@ -364,6 +365,7 @@ class LogReceiver:
         if self.verbose:
             print('Subscribing...', end='', flush=True)
         # TODO: Use POST instead of GET?
+        # TODO: The number of subscriptions the device allows is not documented.
         subscription = await self.client.json_request('POST', '/api/log/subscribe', data=self.subscribe_params)
         if self.verbose:
             print(' done.', flush=True)
@@ -407,6 +409,8 @@ class LogReceiver:
                 raise TwoNError(f'Got invalid events: {response!r}') from e
             if not isinstance(events, list):
                 raise TwoNError(f'Got invalid events: {response!r}')
+            # TODO: The device queues the events of each subscription, but it is not documented how many or what
+            # happens when the queue is full; event IDs have gaps (hidden events), so they cannot detect a loss.
             for event in events:
                 self._handle_event(event, initial_handled)
             if len(events) == 0 and not initial_handled:

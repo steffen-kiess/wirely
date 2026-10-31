@@ -43,6 +43,7 @@ REREAD_INTERVAL = (60 * 60.0, 70 * 60.0)
 # write refreshes every listener, but it needs no read telegram. Shorter than REREAD_INTERVAL, so that receivers of a
 # provided address do not read.
 RESEND_INTERVAL = (45 * 60.0, 55 * 60.0)
+# TODO: Make these intervals per-node options? Then reconsider sharing reads between the receivers of an address.
 
 Payload = DPTArray | DPTBinary
 

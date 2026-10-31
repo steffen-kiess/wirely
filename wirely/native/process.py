@@ -45,6 +45,8 @@ class LaunchOnEventCreate(contracts.LaunchOnEventCreate):
                 continue
             # When torn down, this task stops waiting; asyncio kills a command that is still running when its
             # transport is closed or garbage-collected.
+            # TODO: Once teardown happens without the process exiting, that is at an unspecified time; kill the
+            # command explicitly then?
             code = await proc.wait()
             if code != 0:
                 print(f"Command {self.shell_command!r} finished with exit code {code}", flush=True)

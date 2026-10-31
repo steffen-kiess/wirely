@@ -58,6 +58,8 @@ namespace MQTT {
     optional parameter Template: string;
     parameter Retain: boolean = true;
     optional parameter LastWill: Option[Type];
+    // TODO: Request topic with a payload, for receivers of publishers that
+    // don't retain (see ValueReceiver)?
 
     assert SupportsType(Type), "Unsupported type for MQTT";
     assert CheckTopic(Topic);
@@ -174,6 +176,9 @@ namespace MQTT {
     parameter Topic: string;
     optional parameter Format: MQTT.Format;
     optional parameter Template: string;
+    // TODO: Request topic with a payload, published to get the value from
+    // publishers that don't retain (like zigbee2mqtt's /get topics)? Maybe
+    // with a timeout after which the value becomes None.
 
     assert SupportsType(Type), "Unsupported type for MQTT";
     assert CheckTopic(Topic);

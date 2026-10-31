@@ -95,6 +95,9 @@ class ConnectionCreate(contracts.ConnectionCreate):
                         self.set_disconnected()
             except REQUEST_ERRORS as e:
                 self.errors.report(str(e) or type(e).__name__)
+            # TODO: The device can block logins after repeated failures (LoginBlocked event), but it is not documented
+            # whether failed HTTP API logins count, after how many, or for how long. If they do, use a longer delay
+            # after a 401.
             if self.connection_number != number:
                 delay = RECONNECT_DELAY_MIN
             await asyncio.sleep(delay * random.uniform(0.8, 1.0))
@@ -102,6 +105,9 @@ class ConnectionCreate(contracts.ConnectionCreate):
 
     async def subscribed(self) -> None:
         """Read the current states after subscribing, then report the connection."""
+        # TODO: Disabling a switch or configuring virtual ports while the device runs might change the lists of
+        # switches and ports; such nodes keep their state until the next reconnect. If this matters, subscribe to
+        # HardwareChanged, CapabilitiesChanged, and ConfigurationChanged and reconnect on them.
         await self.read_states(reread=False)
         self.errors.end()
         print(f'Connected to TwoN device at {self.description}', flush=True)
@@ -342,6 +348,8 @@ async def _read_states(client: wirely.two_n.client.Client, url: str, list_key: s
     try:
         response = await client.json_request('GET', url)
     except TwoNAPIError as e:
+        # TODO: If the device returns transient errors here, read again while connected (without overwriting a newer
+        # event) instead of leaving the nodes None until the next reconnect.
         errors.report(str(e))
         return
     try:

@@ -12,6 +12,8 @@ from tests.infra.support import Proxy
 from wirely.knx.connection_adapter import create_xknx
 from wirely.knx.connection_config import create_connection_config
 
+# TODO: Test the ssh process handling for SSHTarget.
+
 
 async def wait_until(condition):
     async with asyncio.timeout(5):
