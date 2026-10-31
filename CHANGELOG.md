@@ -32,7 +32,7 @@ Give each `Std.DebugValueSource` an `Initial` value, as in
 
 #### Commands
 
-Replace `wirely run-service` with `wirely run -i`.
+Replace `wirely run-service` with `wirely run`.
 
 `wirely show-graph` and the `graphviz` extra are removed; use
 `wirely edit` or `wirely export-image` to view diagrams.
@@ -43,11 +43,33 @@ Replace `wirely run-service` with `wirely run -i`.
 `Option[boolean]`, which is `None` while the state is unknown. Where a
 `boolean` is needed, use `UnwrapOr(false)` or `Std.OptionUnwrapOr`.
 
+#### JSON for enums
+
+Mark enums converted to JSON, for example by MQTT nodes, with `#[JSON]`.
+
 ### Added
 
 - `wirely compile -o FILE` writes the compiled program in the binary
   program format, an unstable development format. `wirely run` runs
   such a file.
+- `load assert` checks a condition while loading; `load fail` fails
+  loading from a load procedure.
+- Structs and enums can bind `+`, `-`, and `<` to functions, as in
+  `operator + is Add;` in their companion namespace.
+- `#[JSON.Name = "..."]` overrides the JSON name of an enum member or
+  struct field.
+- `wirely run -i` and `wirely client` without a command read control
+  commands interactively. New client commands include `get`, `set`, and
+  `send` for debug sources, and `list`.
+- MQTT, KNX, and TwoN connections connect in the background, reconnect,
+  and have a `Connected` output.
+- `MQTT.ValueReceiver`, a `LastWill` for `MQTT.ValueOptionProvider`, and
+  `ClientID` and `KeepAlive` for `MQTT.Connection`.
+
+### Changed
+
+- MQTT providers retain their values; set `Retain: false` to turn this
+  off.
 
 ## 0.1.4 - 2026-10-24
 
