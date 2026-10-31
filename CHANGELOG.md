@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.5 (Unreleased)
+## 0.1.5 - 2026-10-31
 
 ### Breaking changes and migration
 
